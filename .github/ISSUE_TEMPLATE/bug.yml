@@ -1,0 +1,34 @@
+name: Ошибка
+description: Что-то работает не так
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: Что случилось
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Как воспроизвести
+      placeholder: "1. Открыть ...\n2. Нажать ...\n3. Увидеть ..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Что ожидалось
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Где
+      description: Страница, устройство, браузер, тема.
+  - type: checkboxes
+    id: money
+    attributes:
+      label: Деньги
+      options:
+        - label: Ошибка затрагивает деньги, пожертвования или книгу операций

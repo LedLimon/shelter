@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Next.js / build
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# Tests
+coverage/
+playwright-report/
+test-results/
+blob-report/
+.playwright-mcp/
+
+# Env & secrets (кроме примера)
+.env
+.env.*
+!.env.example
+
+# Local tooling
+.claude/settings.local.json
+.mise.local.toml
+mise.local.toml
+.DS_Store
+*.log
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Local data (docker volumes, uploads)
+.data/

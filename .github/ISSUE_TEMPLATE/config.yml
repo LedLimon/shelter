@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Документация проекта
+    url: https://github.com/LedLimon/shelter/tree/main/docs
+    about: Продукт, архитектура, книга операций, платежи
