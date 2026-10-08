@@ -31,13 +31,24 @@ brew install mise
 mise install
 ```
 
-Дальше — после задач FND-1 и FND-2 (каркас и dev-окружение):
+Дальше:
 
 ```bash
 pnpm install
+pnpm dev         # http://localhost:3000
+```
+
+Проверки перед PR:
+
+```bash
+pnpm typecheck && pnpm lint && pnpm test && pnpm build
+```
+
+После задач FND-2 и FND-4 (dev-окружение и БД) перед `pnpm dev` понадобится ещё:
+
+```bash
 pnpm dev:up      # Postgres, MinIO, Mailpit в Docker
 pnpm db:migrate && pnpm db:seed
-pnpm dev
 ```
 
 ## Разработка с ИИ-агентами
