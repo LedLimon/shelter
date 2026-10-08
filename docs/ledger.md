@@ -14,16 +14,16 @@
 
 ### Виды счетов (`LedgerAccount.kind`)
 
-| Kind | Смысл |
-|---|---|
-| `GENERAL_FUND` | Общий фонд приюта (один счёт) |
-| `NEED` | Счёт конкретной нужды (по одному на нужду) |
-| `DONATIONS_IN` | Источник: входящие денежные пожертвования |
-| `EXPENSES_OUT` | Сток: расходы (покупки, услуги) |
-| `REFUNDS_OUT` | Сток: возвраты донорам |
-| `FEES_OUT` | Сток: комиссии эквайринга |
-| `IN_KIND_IN` | Источник: полученные вещи (оценочная стоимость) |
-| `IN_KIND_USED` | Сток: использованные вещи |
+| Kind           | Смысл                                           |
+| -------------- | ----------------------------------------------- |
+| `GENERAL_FUND` | Общий фонд приюта (один счёт)                   |
+| `NEED`         | Счёт конкретной нужды (по одному на нужду)      |
+| `DONATIONS_IN` | Источник: входящие денежные пожертвования       |
+| `EXPENSES_OUT` | Сток: расходы (покупки, услуги)                 |
+| `REFUNDS_OUT`  | Сток: возвраты донорам                          |
+| `FEES_OUT`     | Сток: комиссии эквайринга                       |
+| `IN_KIND_IN`   | Источник: полученные вещи (оценочная стоимость) |
+| `IN_KIND_USED` | Сток: использованные вещи                       |
 
 ### Виды транзакций (`LedgerTransaction.kind`)
 
@@ -43,19 +43,19 @@
 
 Знак: «−» у источника, «+» у получателя. Сумма в каждой транзакции = 0.
 
-| Событие | Проводки |
-|---|---|
+| Событие                                                | Проводки                                                                                                                                                                                            |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Пожертвование 3000 ₽ на нужду, до цели осталось 2000 ₽ | Две транзакции: `DONATION` (DONATIONS_IN −2000; NEED +2000, ключ `donation:{id}`) и `OVERFLOW` (DONATIONS_IN −1000; GENERAL +1000, ключ `overflow:{id}`). Публично: «Переплата 1000 ₽ → общий фонд» |
-| Пожертвование в общий фонд / опека | `DONATION`: DONATIONS_IN −x; GENERAL +x (для опеки — с `dogId` у Donation) |
-| Перевод из общего фонда в нужду | `ALLOCATE_FROM_GENERAL`: GENERAL −x; NEED +x |
-| Покрытие недостачи перед расходом | `SHORTFALL_COVER`: GENERAL −x; NEED +x |
-| Расход 1800 ₽ | `EXPENSE`: NEED −1800; EXPENSES_OUT +1800 |
-| Остаток 200 ₽ при закрытии нужды | `LEFTOVER_TO_GENERAL`: NEED −200; GENERAL +200 |
-| Отмена нужды с собранными 5000 ₽ | `CANCEL_TO_GENERAL`: NEED −5000; GENERAL +5000 |
-| Возврат (нужда ещё не в закупке) | `REFUND`: NEED −x; REFUNDS_OUT +x |
-| Возврат (по нужде уже купили) | `REFUND`: GENERAL −x; REFUNDS_OUT +x |
-| Комиссия эквайринга | `FEE`: GENERAL −x; FEES_OUT +x |
-| Вещи получены на 1500 ₽ | `IN_KIND`: IN_KIND_IN −1500; NEED +1500; затем NEED −1500; IN_KIND_USED +1500 (прогресс учитывает, денежный баланс нужды не меняется) |
+| Пожертвование в общий фонд / опека                     | `DONATION`: DONATIONS_IN −x; GENERAL +x (для опеки — с `dogId` у Donation)                                                                                                                          |
+| Перевод из общего фонда в нужду                        | `ALLOCATE_FROM_GENERAL`: GENERAL −x; NEED +x                                                                                                                                                        |
+| Покрытие недостачи перед расходом                      | `SHORTFALL_COVER`: GENERAL −x; NEED +x                                                                                                                                                              |
+| Расход 1800 ₽                                          | `EXPENSE`: NEED −1800; EXPENSES_OUT +1800                                                                                                                                                           |
+| Остаток 200 ₽ при закрытии нужды                       | `LEFTOVER_TO_GENERAL`: NEED −200; GENERAL +200                                                                                                                                                      |
+| Отмена нужды с собранными 5000 ₽                       | `CANCEL_TO_GENERAL`: NEED −5000; GENERAL +5000                                                                                                                                                      |
+| Возврат (нужда ещё не в закупке)                       | `REFUND`: NEED −x; REFUNDS_OUT +x                                                                                                                                                                   |
+| Возврат (по нужде уже купили)                          | `REFUND`: GENERAL −x; REFUNDS_OUT +x                                                                                                                                                                |
+| Комиссия эквайринга                                    | `FEE`: GENERAL −x; FEES_OUT +x                                                                                                                                                                      |
+| Вещи получены на 1500 ₽                                | `IN_KIND`: IN_KIND_IN −1500; NEED +1500; затем NEED −1500; IN_KIND_USED +1500 (прогресс учитывает, денежный баланс нужды не меняется)                                                               |
 
 ## Как считается «собрано»
 
@@ -76,7 +76,8 @@ await prisma.$transaction(async (tx) => {
   // 2. Lock need.
   const [n] = await tx.$queryRaw<NeedRow[]>`
     SELECT "goalKop", "collectedKop", status FROM "Need" WHERE id = ${needId} FOR UPDATE`;
-  const remaining = n.status === 'COLLECTING' ? Math.max(0, n.goalKop - n.collectedKop) : 0;
+  const remaining =
+    n.status === "COLLECTING" ? Math.max(0, n.goalKop - n.collectedKop) : 0;
   const toNeed = Math.min(amount, remaining);
   const overflow = amount - toNeed;
   await ledger.postDonation(tx, { donationId, toNeed, overflow }); // idempotencyKey = `donation:${id}`
@@ -84,10 +85,14 @@ await prisma.$transaction(async (tx) => {
     where: { id: needId },
     data: {
       collectedKop: { increment: toNeed },
-      ...(remaining > 0 && toNeed === remaining && { status: 'COLLECTED', collectedAt: new Date() }),
+      ...(remaining > 0 &&
+        toNeed === remaining && {
+          status: "COLLECTED",
+          collectedAt: new Date(),
+        }),
     },
   });
-  await outbox.enqueue(tx, 'donation.thanks', { donationId, overflow });
+  await outbox.enqueue(tx, "donation.thanks", { donationId, overflow });
 });
 // после коммита: revalidateTag(`need:${needId}`)
 ```
