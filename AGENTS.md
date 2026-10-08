@@ -69,6 +69,8 @@ pnpm format:check     # prettier --check (для CI)
 
 - Структура: `src/app` (маршруты), `src/server/<домен>` (бизнес-логика, только сервер), `src/components/ui` (shadcn), `src/components/<домен>` (доменные компоненты), `src/lib` (общие утилиты).
 - Страницы и server actions — тонкие; логика — в `src/server/<домен>`.
+- UI-компоненты — shadcn/ui в стиле `base-nova` (Base UI, не Radix): вместо `asChild` — проп `render`. `cn()` импортируй только из `@/lib/utils`; если `shadcn add` принёс импорт из пакета `cn` — замени импорт и удали зависимость `cn` (ESLint это ловит).
+- Next.js 16: сверяйся с документацией установленной версии в `node_modules/next/dist/docs/`, а не с памятью — API между мажорными версиями меняются.
 - Валидация входа — zod-схемы рядом с action. Формы — react-hook-form + zod.
 - Публичные страницы — Server Components + ISR, инвалидация через `revalidateTag`.
 - Время хранится в UTC, показывается в часовом поясе приюта (настройка).
