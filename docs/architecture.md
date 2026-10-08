@@ -5,7 +5,7 @@
 | Слой              | Выбор                                                                                      | Примечание                                                               |
 | ----------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
 | Фреймворк         | Next.js (App Router), TypeScript strict                                                    | `output: standalone` для Docker                                          |
-| UI                | Tailwind CSS v4, shadcn/ui, lucide-react                                                   | Токены через CSS-переменные, светлая/тёмная тема                         |
+| UI                | Tailwind CSS v4, shadcn/ui (`base-nova` на Base UI), lucide-react                          | Токены через CSS-переменные, светлая/тёмная тема; Base UI, а не Radix    |
 | Формы             | react-hook-form + zod                                                                      | zod-схемы общие для клиента и server action                              |
 | Таблицы в админке | TanStack Table                                                                             |                                                                          |
 | Редактор текста   | Tiptap                                                                                     | Новости, истории, отчёты                                                 |
