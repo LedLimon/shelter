@@ -18,6 +18,24 @@ const eslintConfig = defineConfig([
       },
     },
   },
+  // clsx + tailwind-merge is our cn(); shadcn's base-nova registry imports
+  // the "cn" package instead, so components added via `shadcn add` must be fixed.
+  {
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "cn",
+              message:
+                'Import { cn } from "@/lib/utils" and remove the "cn" dependency.',
+            },
+          ],
+        },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
@@ -26,6 +44,8 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "coverage/**",
+    // Claude Code worktrees of this repo (other sessions' checkouts).
+    ".claude/worktrees/**",
   ]),
 ]);
 

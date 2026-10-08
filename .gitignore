@@ -25,6 +25,7 @@ blob-report/
 
 # Local tooling
 .claude/settings.local.json
+.claude/worktrees/
 .mise.local.toml
 mise.local.toml
 .DS_Store
