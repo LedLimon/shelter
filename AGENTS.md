@@ -35,20 +35,22 @@ Next.js (App Router) · TypeScript strict · Tailwind CSS v4 · shadcn/ui · Pri
 
 ## Команды
 
-> Появятся после задачи FND-1 (инициализация Next.js) и FND-2 (dev-окружение). Если команды ещё нет в `package.json` — значит, её создаёт твоя задача или задача-зависимость.
+> Ещё появятся: `dev:up` (FND-2), `db:*` (FND-4), `worker` (FND-5), `e2e` (FND-3). Если команды ещё нет в `package.json` — значит, её создаёт твоя задача или задача-зависимость.
 
 ```bash
 pnpm install          # зависимости
 pnpm dev:up           # docker compose: Postgres, MinIO, Mailpit
 pnpm dev              # Next.js dev server
+pnpm build            # production-сборка (output: standalone)
 pnpm worker           # фоновый воркер (pg-boss)
 pnpm db:migrate       # prisma migrate dev
 pnpm db:seed          # демо-данные
-pnpm typecheck        # tsc --noEmit
+pnpm typecheck        # next typegen && tsc --noEmit
 pnpm lint             # eslint
 pnpm test             # vitest (unit + integration)
 pnpm e2e              # playwright
 pnpm format           # prettier --write
+pnpm format:check     # prettier --check (для CI)
 ```
 
 ## Инварианты — нарушать нельзя
