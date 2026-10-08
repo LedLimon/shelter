@@ -21,6 +21,7 @@ blob-report/
 .env
 .env.*
 !.env.example
+*.pem
 
 # Local tooling
 .claude/settings.local.json
