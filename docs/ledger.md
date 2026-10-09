@@ -6,11 +6,16 @@
 
 ## Модель
 
-- `LedgerAccount`: code (unique), kind, needId? (unique).
-- `LedgerTransaction`: kind, idempotencyKey (unique), occurredAt, postedAt, publicMemo, donationId?, expenseId?, inKindId?, reversesId? (unique), actorId?.
-- `LedgerEntry`: transactionId, accountId, amountKop (**со знаком**). Индекс (accountId, postedAt).
+- `LedgerAccount`: code (unique), kind, needId? (unique). Системные счета (по одному на каждый вид, кроме `NEED`) создаёт миграция `ledger`; у них `id = code = kind`, поэтому в коде на них ссылаются константой `SYSTEM_ACCOUNT.GENERAL_FUND`. Счёт нужды: `code = need:{needId}`, создаётся `createNeedAccount`. Связь `needId → Need` (внешний ключ) появится вместе с моделью `Need` (NEED-1).
+- `LedgerTransaction`: kind, idempotencyKey (unique), occurredAt, postedAt, publicMemo, donationId?, expenseId?, inKindId?, reversesId? (unique), actorId?, seq.
+  - `occurredAt` — когда событие произошло (оплата у провайдера). Может попадать в закрытый месяц: так проводится поздний вебхук.
+  - `postedAt` — когда запись попала в книгу: время начала транзакции БД (`transaction_timestamp()`, оно же `now()`). Ставит только БД, явное значение триггер отклоняет — задним числом провести нельзя.
+  - `seq` — порядок вставки: у пожертвования и переплаты, проведённых в одной транзакции БД, `postedAt` одинаковый.
+  - `donationId`, `expenseId`, `inKindId` появятся вместе со своими моделями, каждая с внешним ключом `onDelete: Restrict`.
+- `LedgerEntry`: transactionId, accountId, amountKop (**со знаком**, не 0), postedAt (копия `postedAt` транзакции — для баланса на момент без join). Индекс (accountId, postedAt).
 - `Expense`: needId?, title, vendor, amountKop, paidAt, status (`DRAFT | POSTED | VOIDED`), ledgerTxId?.
-- `MonthlyReport`: period (`YYYY-MM`, unique), status, snapshot (JSON), snapshotSha256, commentary, publishedAt.
+- `MonthlyReport`: period (`YYYY-MM`, unique), periodStart, periodEnd, status (`DRAFT | PUBLISHED`), snapshot (JSON), snapshotSha256, commentary, publishedAt. Пока есть только period, границы и status; остальное — REP-1.
+  - `periodStart`/`periodEnd` — границы месяца в часовом поясе приюта, переведённые в UTC при создании отчёта: `periodStart <= t < periodEnd`. Закрытый месяц проверяется по ним, а не по настройке `shelter.timezone`, поэтому смена пояса не сдвигает закрытые месяцы. Периоды не пересекаются (exclusion constraint).
 
 ### Виды счетов (`LedgerAccount.kind`)
 
@@ -31,13 +36,34 @@
 
 ## Инварианты
 
-Обеспечиваются **триггерами в raw SQL миграции** и тестами:
+Обеспечиваются **триггерами и CHECK в raw SQL миграции** `prisma/migrations/*_ledger` и интеграционными тестами `tests/integration/ledger/`. Сообщения триггеров начинаются с `ledger:`.
 
-1. **Append-only:** `UPDATE` и `DELETE` на `LedgerTransaction` и `LedgerEntry` запрещены. Ошибка исправляется транзакцией `REVERSAL` (зеркальные проводки, `reversesId` уникален — сторнировать дважды нельзя).
-2. **Баланс:** сумма `amountKop` по всем проводкам одной транзакции = 0 (отложенный constraint trigger).
-3. **Закрытый месяц:** `postedAt` не может попадать в месяц с опубликованным `MonthlyReport`.
-4. **Идемпотентность:** `idempotencyKey` уникален (`donation:{id}`, `overflow:{donationId}`, `expense:{id}`, `refund:{donationId}:{n}` …). Повторная проводка с тем же ключом — no-op.
-5. **Единственный писатель:** в таблицы `Ledger*` пишет только `src/server/ledger`. Остальной код вызывает его функции (`postDonation`, `postExpense`, `settleNeed`, …) внутри своей транзакции.
+1. **Append-only:** `UPDATE`, `DELETE` и `TRUNCATE` на `LedgerAccount`, `LedgerTransaction` и `LedgerEntry` запрещены (триггер на уровне оператора: падает даже `UPDATE`, не задевший ни одной строки, и upsert). Ошибка исправляется транзакцией `REVERSAL`:
+   - её проводки — **точное зеркало** проводок исходной транзакции (те же счета, противоположные знаки; проверяется при коммите);
+   - `reversesId` уникален — сторнировать дважды нельзя; сторно сторно запрещено;
+   - `reversesId` есть ровно у `REVERSAL`.
+2. **Баланс:** у каждой транзакции не меньше двух проводок, их сумма = 0, ни одна не равна 0. Проверяет отложенный constraint trigger при коммите, поэтому проводки можно вставлять несколькими операторами.
+   - **Закрытая транзакция:** проводку можно добавить только в той транзакции БД (с её savepoint-ами), где создана сама транзакция книги. К закоммиченной транзакции ничего не добавить, даже сбалансированную пару.
+3. **Закрытый месяц:** `postedAt` не может попадать в период опубликованного `MonthlyReport`.
+   - Опубликованный отчёт нельзя вернуть в черновик, удалить или сдвинуть его границы.
+   - Проводка блокирует строку отчёта своего месяца (`FOR SHARE`): публикация, начатая во время проводки, ждёт её коммита. REP-1 при публикации должен сначала взять `FOR UPDATE` на отчёт и только потом считать снимок.
+4. **Идемпотентность:** `idempotencyKey` уникален (`donation:{id}`, `overflow:{donationId}`, `expense:{id}`, `refund:{donationId}:{n}`, `reversal:{transactionId}` …). Повторная проводка с тем же ключом и теми же проводками — no-op; с другими — ошибка `IDEMPOTENCY_CONFLICT`.
+5. **Единственный писатель:** в таблицы `Ledger*` пишет и читает их только `src/server/ledger` — это проверяет ESLint-правило `shelter/ledger-boundary` (Prisma-делегаты `ledger*`, таблицы `"Ledger…"` в SQL, импорт внутренних файлов модуля). Остальной код вызывает его функции (`postDonation`, `postExpense`, `settleNeed`, …) внутри своей транзакции.
+
+Триггеры обходит только владелец таблиц (`ALTER TABLE … DISABLE TRIGGER`). Пока приложение подключается к БД владельцем; отдельная роль приложения без этих прав — [LED-7, #110](https://github.com/LedLimon/shelter/issues/110).
+
+## API модуля `@/server/ledger`
+
+Функции записи принимают `tx` из `db.$transaction(async (tx) => …)` — ту же транзакцию, что и бизнес-изменение, — и проверяют это в рантайме (`NOT_IN_TRANSACTION`): вне транзакции транзакция книги закоммитилась бы без проводок. Строки (`Donation → Need → Subscription`) вызывающий блокирует до вызова. Ошибки неправильного использования — `LedgerError` с полем `code`.
+
+| Функция                                                                         | Что делает                                                                                                                                                                                                                                                                                                              |
+| ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `post(tx, { kind, idempotencyKey, entries, publicMemo?, occurredAt?, links? })` | Проводит сбалансированную транзакцию (`REVERSAL` — только через `reverse`). Суммы — целые копейки (`Number.isSafeInteger`, в пределах `Int`), не 0. Возвращает `{ transactionId, postedAt, created }`: `created: false` — ключ уже проведён (повтор, в том числе параллельный), повторно побочные эффекты не применять. |
+| `reverse(tx, transactionId, reason, { actorId? })`                              | Проводит `REVERSAL` с ключом `reversal:{transactionId}` и `publicMemo = reason`. Повторный вызов возвращает существующее сторно с `created: false`.                                                                                                                                                                     |
+| `balance(db, accountId, at?)`                                                   | Сумма проводок счёта в копейках (`number`, итог может превышать `Int`). С `at` — только проводки с `postedAt < at`: `balance(id, periodEnd)` — остаток на конец периода. Внутри `tx` видит незакоммиченные проводки этой транзакции.                                                                                    |
+| `createNeedAccount(tx, needId)`                                                 | Создаёт счёт нужды (повторный и параллельный вызов вернёт тот же счёт), возвращает его id.                                                                                                                                                                                                                              |
+
+Повтор с тем же ключом не ломает транзакцию вызывающего: вставка идёт через `INSERT … ON CONFLICT DO NOTHING`, параллельный вызов ждёт на уникальном индексе, пока первая транзакция не закончится. Если первая откатилась, проводит вторая.
 
 ## Таблица проводок
 
@@ -109,7 +135,7 @@ await prisma.$transaction(async (tx) => {
 ## Месячные отчёты
 
 - Снимок цифр месяца (поступления по типам, расходы по категориям, остаток фонда) + комментарий админа + SHA-256 снимка.
-- Публикует только `OWNER`. После публикации месяц закрыт: триггер запрещает проводки с `postedAt` в этом месяце.
+- Публикует только `OWNER`. После публикации месяц закрыт: триггер запрещает проводки с `postedAt` в этом месяце, а опубликованный отчёт нельзя вернуть в черновик.
 - Поздний вебхук за закрытый месяц проводится в текущем месяце с пометкой «относится к периоду …».
 
 ## Публичное отображение
