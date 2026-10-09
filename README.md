@@ -6,17 +6,18 @@
 
 ## Документация
 
-|                                     |                                            |
-| ----------------------------------- | ------------------------------------------ |
-| [Продукт](docs/product.md)          | Фичи, сценарии, роли                       |
-| [Дизайн](docs/design.md)            | UX-принципы, стиль, компоненты, тон        |
-| [Архитектура](docs/architecture.md) | Стек, структура, модель данных, маршруты   |
-| [Книга операций](docs/ledger.md)    | Учёт денег по двойной записи               |
-| [Платежи](docs/payments.md)         | CloudPayments, вебхуки, подписки, возвраты |
-| [Юридическое](docs/legal.md)        | 152-ФЗ, 54-ФЗ, оферта, согласия            |
-| [Тестирование](docs/testing.md)     | Что и как тестируем                        |
-| [Роадмап](docs/roadmap.md)          | Фазы, вехи, эпики                          |
-| [ADR](docs/adr/)                    | Архитектурные решения                      |
+|                                           |                                            |
+| ----------------------------------------- | ------------------------------------------ |
+| [Продукт](docs/product.md)                | Фичи, сценарии, роли                       |
+| [Дизайн](docs/design.md)                  | UX-принципы, стиль, компоненты, тон        |
+| [Архитектура](docs/architecture.md)       | Стек, структура, модель данных, маршруты   |
+| [Книга операций](docs/ledger.md)          | Учёт денег по двойной записи               |
+| [Платежи](docs/payments.md)               | CloudPayments, вебхуки, подписки, возвраты |
+| [Юридическое](docs/legal.md)              | 152-ФЗ, 54-ФЗ, оферта, согласия            |
+| [Тестирование](docs/testing.md)           | Что и как тестируем                        |
+| [Инструменты агентов](docs/ai-tooling.md) | Скиллы и MCP для дизайна и UX              |
+| [Роадмап](docs/roadmap.md)                | Фазы, вехи, эпики                          |
+| [ADR](docs/adr/)                          | Архитектурные решения                      |
 
 ## Стек
 
@@ -64,6 +65,13 @@ pnpm db:migrate && pnpm db:seed
   - `/work-on-issue 12` или `/work-on-issue next` — взять задачу и довести до PR;
   - `/new-issue …` — завести задачу по шаблону проекта;
   - субагенты `code-reviewer`, `ledger-auditor`, `ui-reviewer` — ревью перед PR.
+- **Дизайн и UX:** требование — современный дизайн, отличимый от шаблонных ИИ-сайтов ([критерии](docs/design.md#отличие-от-шаблонных-ии-сайтов)). Для этого у агентов одинаковый набор инструментов, подключённый на уровне проекта:
+  - скилл [Impeccable](https://github.com/pbakaus/impeccable) (`/impeccable critique | audit | polish | harden | shape`) и плагин context7 — в [`.claude/settings.json`](.claude/settings.json);
+  - скиллы Vercel `web-design-guidelines` и `vercel-react-best-practices` — в [`.claude/skills/`](.claude/skills/);
+  - MCP-серверы shadcn, next-devtools, chrome-devtools и playwright — в [`.mcp.json`](.mcp.json).
+
+  При первом запуске Claude Code в папке проекта подтвердите доверие к папке и MCP-серверы из `.mcp.json`. Что откуда, лицензии и приватность — [docs/ai-tooling.md](docs/ai-tooling.md).
+
 - **Процесс:** задача → ветка `feat/<номер>-<slug>` → PR с `Closes #N` → ревью → merge в `main`.
 
 ## Лицензия
