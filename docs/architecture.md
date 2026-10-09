@@ -32,7 +32,7 @@ src/
   server/                 # бизнес-логика, только сервер ("server-only")
     db/                   # prisma client, транзакции
     auth/                 # better auth, permissions.ts (can())
-    ledger/               # ЕДИНСТВЕННЫЙ модуль, пишущий в Ledger*
+    ledger/               # ЕДИНСТВЕННЫЙ модуль, который пишет в Ledger* и читает их
     payments/             # PaymentProvider, cloudpayments, fake
     needs/ dogs/ donations/ subscriptions/ inkind/ volunteer/ content/ legal/
     jobs/                 # pg-boss: регистрация задач, outbox
@@ -44,6 +44,7 @@ src/
   lib/                    # общие утилиты: money.ts, plural.ts, dates.ts
 worker/                   # точка входа фонового процесса
 prisma/                   # schema.prisma, migrations/, seed.ts
+eslint/                   # свои правила ESLint (shelter/ledger-boundary)
 e2e/                      # Playwright
 ```
 
@@ -67,6 +68,7 @@ e2e/                      # Playwright
   - `SUM()` в raw SQL возвращает `bigint` (в TS — `bigint`, в `number` переводите явно) и `NULL` на пустом наборе — нужен `COALESCE`. `SUM(x::bigint)` и `AVG()` возвращают `Prisma.Decimal` — для денег не используем. `aggregate({ _sum })` возвращает `number`.
 - **Удаление.** Сущности с историей (пользователи, пожертвования) не удаляются — `deletedAt` или статус. Внешние ключи — `onDelete: Restrict`. Prisma ставит его по умолчанию **только у обязательных** связей, у необязательных (`needId String?`) — `SetNull`, и удаление нужды молча отвязало бы от неё пожертвования. Поэтому у необязательных связей `onDelete` пишем всегда: `Restrict` — для денег и всего, у чего есть история; `SetNull` — только для ссылок вроде «кто загрузил».
 - **Индексы.** Postgres не индексирует внешние ключи сам — у каждого FK-поля `@@index`.
+- **Связи с книгой.** Поле связи с моделью `Ledger*` называется по ней: `ledgerAccount`, `ledgerTransactions`. Правило `shelter/ledger-boundary` не пускает такие поля за пределы `src/server/ledger` (в том числе в `include` и вложенные записи); колонка внешнего ключа (`ledgerAccountId`) — обычное поле.
 - **JSON** (`Json` → `jsonb`) — только для данных, по которым не фильтруют: настройки, payload событий, тексты Tiptap. Форма значения — zod-схема в коде, как в [`src/server/settings/schema.ts`](../src/server/settings/schema.ts). Сохранённые значения проверяются при чтении, поэтому новое поле в схеме — с `.optional()` / `.default()` или вместе с миграцией данных.
 - **Email** хранится в нижнем регистре (CHECK в БД) — так уникальность не зависит от регистра.
 - **Чего нет в Prisma** (CHECK, триггеры, частичные индексы) — raw SQL в той же миграции: `pnpm db:migrate --create-only --name <имя>`, дописать SQL в `migration.sql`, затем `pnpm db:migrate`. Миграцию, попавшую в `main`, не редактируем — только новая миграция. Если `schema.prisma` поменяли без миграции, интеграционные тесты падают.
