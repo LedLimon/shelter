@@ -56,7 +56,7 @@ git switch -c <type>/<N>-<short-slug>    # feat/42-need-status-machine
 Запусти всё, что уже есть в `package.json`:
 
 ```bash
-pnpm typecheck && pnpm lint && pnpm test
+pnpm format:check && pnpm typecheck && pnpm lint && pnpm test
 pnpm e2e        # если задача затрагивает пользовательский сценарий
 ```
 
@@ -65,7 +65,7 @@ pnpm e2e        # если задача затрагивает пользова�
 1. Открой страницу в браузере (встроенный браузер, Playwright MCP или chrome-devtools MCP) и проверь mobile 375 px и desktop, светлую и тёмную тему.
 2. `/impeccable polish <экран>` — финальный проход: выравнивание по дизайн-системе, отступы, состояния, детали браузера.
 3. `/impeccable harden <экран>` — ошибки, пустые и загрузочные состояния, длинные русские тексты, переполнение.
-4. Снова `pnpm typecheck && pnpm lint && pnpm test`, если polish/harden меняли код.
+4. Снова `pnpm format:check && pnpm typecheck && pnpm lint && pnpm test`, если polish/harden меняли код.
 
 `/impeccable init` и выбор визуального направления не запускай — они прошли в DS-0. `document` — только после DS-1 и по задаче, которая это предусматривает. `npx impeccable install`/`update` не запускай: версия закреплена в `.claude/settings.json`.
 
