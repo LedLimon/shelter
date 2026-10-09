@@ -92,7 +92,7 @@ function DropdownMenuItem({
       data-inset={inset}
       data-variant={variant}
       className={cn(
-        "group/dropdown-menu-item relative flex min-h-11 cursor-default items-center gap-2.5 px-3 py-2 font-body text-body outline-hidden select-none data-inset:pl-9",
+        "group/dropdown-menu-item relative flex min-h-11 cursor-default items-center gap-2.5 px-3 py-2 font-body text-body outline-none select-none data-inset:pl-9",
         // Highlight is the focus mark inside the menu: toner, like a checked option.
         "data-highlighted:bg-foreground data-highlighted:text-background forced-colors:data-highlighted:bg-[Highlight] forced-colors:data-highlighted:text-[HighlightText] forced-colors:data-highlighted:forced-color-adjust-none",
         "data-[variant=destructive]:text-destructive data-[variant=destructive]:data-highlighted:bg-destructive data-[variant=destructive]:data-highlighted:text-background",
@@ -121,7 +121,7 @@ function DropdownMenuSubTrigger({
       data-slot="dropdown-menu-sub-trigger"
       data-inset={inset}
       className={cn(
-        "relative flex min-h-11 cursor-default items-center gap-2.5 px-3 py-2 font-body text-body outline-hidden select-none data-inset:pl-9 data-popup-open:bg-accent",
+        "relative flex min-h-11 cursor-default items-center gap-2.5 px-3 py-2 font-body text-body outline-none select-none data-inset:pl-9 data-popup-open:bg-accent",
         "data-highlighted:bg-foreground data-highlighted:text-background forced-colors:data-highlighted:bg-[Highlight] forced-colors:data-highlighted:text-[HighlightText] forced-colors:data-highlighted:forced-color-adjust-none",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className,
@@ -169,7 +169,7 @@ function DropdownMenuCheckboxItem({
       data-slot="dropdown-menu-checkbox-item"
       data-inset={inset}
       className={cn(
-        "relative flex min-h-11 cursor-default items-center gap-2.5 px-3 py-2 pr-9 font-body text-body outline-hidden select-none data-inset:pl-9",
+        "relative flex min-h-11 cursor-default items-center gap-2.5 px-3 py-2 pr-9 font-body text-body outline-none select-none data-inset:pl-9",
         "data-highlighted:bg-foreground data-highlighted:text-background forced-colors:data-highlighted:bg-[Highlight] forced-colors:data-highlighted:text-[HighlightText] forced-colors:data-highlighted:forced-color-adjust-none",
         "data-disabled:pointer-events-none data-disabled:text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className,
@@ -212,7 +212,7 @@ function DropdownMenuRadioItem({
       data-slot="dropdown-menu-radio-item"
       data-inset={inset}
       className={cn(
-        "relative flex min-h-11 cursor-default items-center gap-2.5 px-3 py-2 pr-9 font-body text-body outline-hidden select-none data-inset:pl-9",
+        "relative flex min-h-11 cursor-default items-center gap-2.5 px-3 py-2 pr-9 font-body text-body outline-none select-none data-inset:pl-9",
         "data-highlighted:bg-foreground data-highlighted:text-background forced-colors:data-highlighted:bg-[Highlight] forced-colors:data-highlighted:text-[HighlightText] forced-colors:data-highlighted:forced-color-adjust-none",
         "data-disabled:pointer-events-none data-disabled:text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className,

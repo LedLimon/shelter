@@ -56,7 +56,7 @@ const CATEGORIES = [
   { value: "food", label: "Корм" },
   { value: "vet", label: "Лекарства и ветеринария" },
   { value: "repair", label: "Ремонт и стройка" },
-  { value: "work", label: "Работа мастеров" },
+  { value: "work", label: "Работа мастеров: плотник, сварщик, электрик" },
 ];
 
 function CategorySelect({

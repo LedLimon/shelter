@@ -130,7 +130,7 @@ function SelectItem({
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        "relative flex min-h-11 w-full cursor-default items-center gap-2 py-2 pr-9 pl-3 font-body text-body outline-hidden select-none",
+        "relative flex min-h-11 w-full cursor-default items-center gap-2 py-2 pr-9 pl-3 font-body text-body outline-none select-none",
         // Highlight is the focus mark inside the list: toner, like a checked option.
         "data-highlighted:bg-foreground data-highlighted:text-background forced-colors:data-highlighted:bg-[Highlight] forced-colors:data-highlighted:text-[HighlightText] forced-colors:data-highlighted:forced-color-adjust-none",
         "data-disabled:pointer-events-none data-disabled:text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
