@@ -37,4 +37,4 @@
 - Тесты лежат рядом с кодом (`*.test.ts`) для unit; `tests/integration/` — для интеграционных; `e2e/` — Playwright.
 - Тестовые данные — фабрики, а не копипаста; seed для dev — отдельно (`prisma/seed.ts`).
 - Ни один тест не ходит в реальные внешние сервисы.
-- CI (задача FND-3): typecheck → lint → unit/integration → build → Playwright smoke.
+- CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)): job `Checks` — format → typecheck → lint → unit/integration (рядом Postgres 16) → build; параллельно job `E2E smoke` — Playwright по production-сборке (`node .next/standalone/server.js`), desktop и mobile. Локально `pnpm e2e` поднимает `next dev` на порту 3100.
