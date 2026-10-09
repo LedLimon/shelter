@@ -38,6 +38,11 @@ const eslintConfig = defineConfig([
               message:
                 'Import { cn } from "@/lib/utils" and remove the "cn" dependency.',
             },
+            {
+              name: "@prisma/adapter-pg",
+              message:
+                "Make Prisma clients with createPrismaClient() from @/server/db/client: it pins sessions to UTC.",
+            },
           ],
         },
       ],

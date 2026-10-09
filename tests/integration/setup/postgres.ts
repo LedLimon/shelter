@@ -36,6 +36,9 @@ export default async function setup(project: TestProject) {
       ...["-c", "full_page_writes=off"],
       // Test files run in parallel, and concurrency tests open whole pools.
       ...["-c", "max_connections=300"],
+      // Not UTC, like a server whose initdb took the system zone: a client
+      // that doesn't pin its sessions to UTC shifts times (timezone.test.ts).
+      ...["-c", "timezone=Europe/Moscow"],
     ])
     .start()
     .catch((error: unknown) => {
