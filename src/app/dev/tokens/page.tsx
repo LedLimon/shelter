@@ -15,12 +15,15 @@ import { ThemeSwitcher } from "@/components/theme/theme-switcher";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+import { assertDevelopment } from "../dev-only";
 import { ContrastTable } from "./contrast-table";
 import { PaletteSpecimen } from "./palette-specimen";
 
-export const metadata: Metadata = {
-  title: "Токены «Объявление»",
-};
+// Metadata is resolved alongside the page, so it needs the same guard.
+export function generateMetadata(): Metadata {
+  assertDevelopment();
+  return { title: "Токены «Объявление»" };
+}
 
 // Temporary DS-1 showcase; DS-2 moves it into /dev/ui.
 
@@ -271,6 +274,7 @@ function SpecLabel({ children }: { children: ReactNode }) {
 }
 
 export default function TokensPage() {
+  assertDevelopment();
   return (
     <main className="mx-auto grid max-w-[80rem] grid-cols-[minmax(0,1fr)] gap-section px-gutter py-section">
       <header className="grid gap-sheet rounded-sheet bg-paper p-sheet shadow-sheet md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
