@@ -3,19 +3,23 @@
 // functions exported by "@/server/ledger".
 //
 // Reports, outside the files the config exempts:
-// - Prisma delegates and relations: db.ledgerEntry…, tx["ledgerTransaction"],
-//   const { ledgerAccount } = db, include: { ledgerTransactions: true },
-//   data: { ledgerTransactions: { create: … } } — a nested write through a
-//   relation would skip the module's checks. Relations to Ledger* models are
-//   named after them (ledgerAccount, ledgerTransactions…), see
-//   docs/architecture.md#соглашения-схемы;
+// - Prisma delegates: db.ledgerEntry…, tx["ledgerTransaction"];
+// - relations to Ledger* models, which are named after them (ledgerAccount,
+//   ledgerTransactions…, docs/architecture.md#соглашения-схемы), as object
+//   keys: include: { ledgerTransactions: true }, data: { ledgerTransactions:
+//   { create: … } } — a nested write through a relation would skip the
+//   module's checks — and in destructuring. The names are reserved: other
+//   code names its own fields differently (entries, rows…);
 // - the tables in SQL strings and $queryRaw templates: "LedgerEntry"…;
 // - imports of the module's internals: "@/server/ledger/post", "../ledger/post".
 import path from "node:path";
 
-const MODEL_FIELD = /^ledger(?:Accounts?|Transactions?|Entry|Entries)$/;
+const DELEGATE = /^ledger(?:Account|Transaction|Entry)$/;
+const RELATION = /^ledger(?:Accounts?|Transactions?|Entry|Entries)$/;
 const TABLE = /"Ledger(?:Account|Transaction|Entry)"/;
-const MODULE_DIR = "src/server/ledger";
+// From this file, not from ESLint's cwd: an editor may run it from src/.
+const ROOT = path.resolve(import.meta.dirname, "..");
+const MODULE_DIR = path.join(ROOT, "src/server/ledger");
 
 /** @param {import("estree").Node | null | undefined} node */
 function staticName(node) {
@@ -33,18 +37,18 @@ function staticName(node) {
 /**
  * "@/server/ledger/post" or a relative path into src/server/ledger, other
  * than the module itself ("@/server/ledger", "../ledger", "../ledger/index").
- * @param {string} source @param {string} filename @param {string} cwd
+ * @param {string} source @param {string} filename
  */
-function isInternalImport(source, filename, cwd) {
+function isInternalImport(source, filename) {
   let target;
   if (source.startsWith("@/")) {
-    target = path.join(cwd, "src", source.slice(2));
+    target = path.join(ROOT, "src", source.slice(2));
   } else if (source.startsWith(".")) {
     target = path.resolve(path.dirname(filename), source);
   } else {
     return false;
   }
-  const inside = path.relative(path.join(cwd, MODULE_DIR), target);
+  const inside = path.relative(MODULE_DIR, target);
   return (
     inside !== "" &&
     !inside.startsWith("..") &&
@@ -63,18 +67,23 @@ const ledgerBoundary = {
     },
     schema: [],
     messages: {
-      model:
-        "Only src/server/ledger uses {{name}}: call a function from @/server/ledger.",
+      delegate:
+        "Only src/server/ledger uses prisma.{{name}}: call a function from @/server/ledger.",
+      relation:
+        "{{name}} is reserved for the Prisma relation to the ledger: only src/server/ledger includes or writes it (call @/server/ledger); name your own fields differently (entries, rows…).",
       sql: "Only src/server/ledger queries the Ledger* tables: call a function from @/server/ledger.",
       internal:
         'Import the ledger from "@/server/ledger", not from its internals.',
     },
   },
   create(context) {
-    /** @param {import("estree").Node} node @param {string | undefined} name */
-    const checkName = (node, name) => {
-      if (name && MODEL_FIELD.test(name)) {
-        context.report({ node, messageId: "model", data: { name } });
+    /**
+     * @param {import("estree").Node} node @param {string | undefined} name
+     * @param {RegExp} pattern @param {"delegate" | "relation"} messageId
+     */
+    const checkName = (node, name, pattern, messageId) => {
+      if (name && pattern.test(name)) {
+        context.report({ node, messageId, data: { name } });
       }
     };
     /** @param {import("estree").Node | null | undefined} source */
@@ -83,23 +92,29 @@ const ledgerBoundary = {
       if (
         source &&
         value !== undefined &&
-        isInternalImport(value, context.filename, context.cwd)
+        isInternalImport(value, context.filename)
       ) {
         context.report({ node: source, messageId: "internal" });
       }
     };
 
     return {
-      // db.ledgerEntry, db["ledgerEntry"], not db[variable].
+      // db.ledgerEntry, db["ledgerEntry"], not db[variable]. Reading a
+      // relation off a result needs an include, which Property catches.
       MemberExpression(node) {
         if (!node.computed || node.property.type !== "Identifier") {
-          checkName(node.property, staticName(node.property));
+          checkName(
+            node.property,
+            staticName(node.property),
+            DELEGATE,
+            "delegate",
+          );
         }
       },
       // Object literals (include, select, data) and destructuring alike.
       Property(node) {
         if (!node.computed || node.key.type !== "Identifier") {
-          checkName(node.key, staticName(node.key));
+          checkName(node.key, staticName(node.key), RELATION, "relation");
         }
       },
       Literal(node) {
