@@ -10,6 +10,9 @@ RuleTester.itOnly = it.only;
 const rule = plugin.rules?.["ledger-boundary"];
 if (!rule || typeof rule === "function") throw new Error("rule not found");
 
+const root = fileURLToPath(new URL("..", import.meta.url));
+const outside = `${root}/src/server/needs/index.ts`;
+
 new RuleTester({
   languageOptions: { ecmaVersion: "latest", sourceType: "module" },
 }).run("shelter/ledger-boundary", rule, {
@@ -18,26 +21,48 @@ new RuleTester({
     'const ledger = await import("@/server/ledger");',
     "db.need.findMany();",
     "db.ledger.find();",
-    "const ledgerEntries = rows.ledgerEntries;",
+    "const key = db[ledgerEntry];",
+    // A foreign key column, not the relation (Need.ledgerAccountId).
+    "db.need.create({ data: { ledgerAccountId: id } });",
     'db.$queryRaw`SELECT * FROM "Need"`;',
     'const label = "LedgerEntry";',
+    { code: 'import { post } from "../ledger";', filename: outside },
+    { code: 'import { post } from "../ledger/index";', filename: outside },
+    { code: 'import { x } from "./ledgerish";', filename: outside },
   ],
   invalid: [
     {
       code: "await tx.ledgerEntry.create({ data });",
-      errors: [{ messageId: "delegate", data: { name: "ledgerEntry" } }],
+      errors: [{ messageId: "model", data: { name: "ledgerEntry" } }],
     },
     {
       code: "await getDb().ledgerTransaction.findMany();",
-      errors: [{ messageId: "delegate" }],
+      errors: [{ messageId: "model" }],
     },
     {
       code: 'db["ledgerAccount"].count();',
-      errors: [{ messageId: "delegate" }],
+      errors: [{ messageId: "model" }],
+    },
+    {
+      code: "db[`ledgerEntry`].count();",
+      errors: [{ messageId: "model" }],
     },
     {
       code: "const { ledgerEntry } = db;",
-      errors: [{ messageId: "delegate" }],
+      errors: [{ messageId: "model" }],
+    },
+    {
+      // A nested write through a relation skips the module's checks.
+      code: "db.user.update({ where, data: { ledgerTransactions: { create: tx } } });",
+      errors: [{ messageId: "model", data: { name: "ledgerTransactions" } }],
+    },
+    {
+      code: "db.need.findMany({ include: { ledgerAccount: { include: { entries: true } } } });",
+      errors: [{ messageId: "model", data: { name: "ledgerAccount" } }],
+    },
+    {
+      code: "const total = user.ledgerTransactions.length;",
+      errors: [{ messageId: "model" }],
     },
     {
       code: 'await db.$executeRaw`DELETE FROM "LedgerEntry" WHERE id = ${id}`;',
@@ -52,6 +77,11 @@ new RuleTester({
       errors: [{ messageId: "internal" }],
     },
     {
+      code: 'import { assertTransaction } from "../ledger/transaction";',
+      filename: outside,
+      errors: [{ messageId: "internal" }],
+    },
+    {
       code: 'export { post } from "@/server/ledger/post";',
       errors: [{ messageId: "internal" }],
     },
@@ -62,10 +92,9 @@ new RuleTester({
   ],
 });
 
-describe("eslint.config.mjs", () => {
-  const eslint = new ESLint({
-    cwd: fileURLToPath(new URL("..", import.meta.url)),
-  });
+// Loading the whole config takes a second or two on a slow runner.
+describe("eslint.config.mjs", { timeout: 30_000 }, () => {
+  const eslint = new ESLint({ cwd: root });
   const severity = async (file: string): Promise<unknown> => {
     const config = (await eslint.calculateConfigForFile(file)) as
       { rules?: Record<string, unknown> } | undefined;
