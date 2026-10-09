@@ -35,7 +35,8 @@ export const THEME_SCRIPT = `(function () {
   media.addEventListener("change", switchTheme);
   window.addEventListener(${JSON.stringify(THEME_CHANGE_EVENT)}, switchTheme);
   window.addEventListener("storage", function (event) {
-    if (event.key === ${JSON.stringify(THEME_STORAGE_KEY)}) switchTheme();
+    // key is null when another tab cleared the whole storage.
+    if (event.key === null || event.key === ${JSON.stringify(THEME_STORAGE_KEY)}) switchTheme();
   });
 })();`;
 

@@ -40,6 +40,8 @@ export function ThemeSwitcher({ className }: { className?: string }) {
               "relative flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-1.5 px-2 font-display text-label text-toner uppercase select-none",
               "not-first:border-l-line not-first:border-toner",
               "hover:bg-board has-checked:bg-toner has-checked:text-paper",
+              // Windows contrast themes drop backgrounds: mark the choice with system colours.
+              "forced-colors:has-checked:bg-[color:Highlight] forced-colors:has-checked:text-[color:HighlightText] forced-colors:has-checked:forced-color-adjust-none",
               "has-focus-visible:z-10 has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-ring",
             )}
           >
