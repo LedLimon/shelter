@@ -6,7 +6,7 @@ import {
   THEME_STORAGE_KEY,
 } from "@/lib/theme";
 
-type Listener = (event: { key?: string }) => void;
+type Listener = (event: { key?: string | null }) => void;
 
 /** Runs THEME_SCRIPT against a minimal fake of the browser globals it uses. */
 function runThemeScript({
@@ -87,7 +87,7 @@ function runThemeScript({
       state.systemDark = value;
       mediaListeners.forEach((listener) => listener({}));
     },
-    dispatch: (type: string, event: { key?: string } = {}) =>
+    dispatch: (type: string, event: { key?: string | null } = {}) =>
       windowListeners.get(type)?.forEach((listener) => listener(event)),
   };
 }
@@ -135,6 +135,14 @@ describe("THEME_SCRIPT", () => {
     expect(page.isDark()).toBe(true);
     page.dispatch("storage", { key: THEME_STORAGE_KEY });
     expect(page.isDark()).toBe(false);
+  });
+
+  it("re-applies when another tab clears the whole storage", () => {
+    const page = runThemeScript({ stored: "light", systemDark: true });
+    expect(page.isDark()).toBe(false);
+    page.setStored(null);
+    page.dispatch("storage", { key: null });
+    expect(page.isDark()).toBe(true);
   });
 
   it("switches without CSS transitions and cleans up after itself", () => {
