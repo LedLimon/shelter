@@ -239,6 +239,9 @@ describe("sessions that skipped the second factor", () => {
       ],
       ["/revoke-other-sessions", {}],
       ["/two-factor/enable", { password: PASSWORD }],
+      // Without the sign-in attempt limit and lock: no guessing codes here.
+      ["/two-factor/verify-totp", { code: wrongTotp(TOTP_SECRET) }],
+      ["/two-factor/verify-backup-code", { code: "aaaaa-aaaaa" }],
     ] as const) {
       const response = await browser.post(path, body);
       expect(response.status, path).toBe(403);

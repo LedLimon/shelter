@@ -46,7 +46,10 @@ const DISABLED_PATHS = [
 
 /**
  * What a session that hasn't passed the second factor may still do for a
- * user who has TOTP: sign in properly, finish the code step, sign out.
+ * user who has TOTP: sign in properly or sign out. Not even the code check:
+ * with a session Better Auth runs it without the per-sign-in attempt limit
+ * and the account lock, so it would be an oracle for guessing codes. The
+ * real code step has no session yet, only the two-factor cookie.
  */
 const OPEN_WITHOUT_SECOND_FACTOR: ReadonlySet<string> = new Set([
   "/sign-in/email",
@@ -54,7 +57,6 @@ const OPEN_WITHOUT_SECOND_FACTOR: ReadonlySet<string> = new Set([
   "/get-session",
   "/ok",
   "/error",
-  ...TWO_FACTOR_PATHS,
 ]);
 
 export function createAuth(db: PrismaClient, { secret, baseURL }: AuthConfig) {

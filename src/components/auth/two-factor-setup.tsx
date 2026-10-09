@@ -44,7 +44,7 @@ export function TwoFactorSetup({ email }: { email: string }) {
       <PasswordStep
         email={email}
         onEnrolled={setEnrollment}
-        onAlreadyEnabled={() => router.refresh()}
+        onStale={() => router.refresh()}
       />
     );
   } else if (!verified) {
@@ -110,11 +110,12 @@ function StepHeader({
 function PasswordStep({
   email,
   onEnrolled,
-  onAlreadyEnabled,
+  onStale,
 }: {
   email: string;
   onEnrolled: (enrollment: Enrollment) => void;
-  onAlreadyEnabled: () => void;
+  /** The page no longer fits the session: let the server send us on. */
+  onStale: () => void;
 }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
@@ -148,7 +149,15 @@ function PasswordStep({
       return result;
     });
 
-    if (failure?.code === "TOTP_ALREADY_ENABLED") return onAlreadyEnabled();
+    // Set up meanwhile on another device (which ended this session), or the
+    // session expired: the page itself redirects to sign-in or the admin.
+    if (
+      failure?.code === "TOTP_ALREADY_ENABLED" ||
+      failure?.code === "TWO_FACTOR_REQUIRED" ||
+      failure?.status === 401
+    ) {
+      return onStale();
+    }
     if (!failure && enrollment) return onEnrolled(enrollment);
     setPending(false);
     setError(authErrorMessage(failure ?? { status: 500 }));
