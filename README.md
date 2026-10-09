@@ -74,6 +74,27 @@ pnpm db:migrate && pnpm db:seed
 
 - **Процесс:** задача → ветка `feat/<номер>-<slug>` → PR с `Closes #N` → ревью → merge в `main`.
 
+## CI
+
+Каждый PR и каждый пуш в `main` проверяет [GitHub Actions](.github/workflows/ci.yml) — два параллельных job:
+
+- **Checks** — `format:check` → `typecheck` → `lint` → `test` → `build`; рядом поднят Postgres 16 для интеграционных тестов;
+- **E2E smoke** — production-сборка и Playwright: главная открывается на desktop и mobile без ошибок в консоли.
+
+Локально e2e: один раз `pnpm exec playwright install --only-shell chromium`, дальше `pnpm e2e` — тесты сами поднимут `next dev` на порту 3100 (другой порт — `E2E_PORT=3200 pnpm e2e`).
+
+### Защита ветки `main`
+
+Включает владелец репозитория один раз, после первого прогона CI — чтобы проверки появились в списке:
+
+1. **Settings → Rules → Rulesets → New ruleset → New branch ruleset.**
+2. **Ruleset name** — `main`, **Enforcement status** — Active, **Target branches** → Add target → Include default branch. **Bypass list** оставить пустым: агенты работают с правами владельца, и обход сработал бы и для них.
+3. Включить правила:
+   - **Restrict deletions** и **Block force pushes**;
+   - **Require a pull request before merging**;
+   - **Require status checks to pass** → Add checks → `Checks` и `E2E smoke`. Флажок **Require branches to be up to date before merging** надёжнее (PR проверяется поверх свежего `main`), но после каждого merge остальные PR придётся обновлять.
+4. **Create.**
+
 ## Лицензия
 
 [Apache-2.0](LICENSE)

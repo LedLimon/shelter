@@ -36,7 +36,7 @@ Next.js (App Router) · TypeScript strict · Tailwind CSS v4 · shadcn/ui · Pri
 
 ## Команды
 
-> Ещё появятся: `dev:up` (FND-2), `db:*` (FND-4), `worker` (FND-5), `e2e` (FND-3). Если команды ещё нет в `package.json` — значит, её создаёт твоя задача или задача-зависимость.
+> Ещё появятся: `dev:up` (FND-2), `db:*` (FND-4), `worker` (FND-5). Если команды ещё нет в `package.json` — значит, её создаёт твоя задача или задача-зависимость.
 
 ```bash
 pnpm install          # зависимости
@@ -49,7 +49,7 @@ pnpm db:seed          # демо-данные
 pnpm typecheck        # next typegen && tsc --noEmit
 pnpm lint             # eslint
 pnpm test             # vitest (unit + integration)
-pnpm e2e              # playwright
+pnpm e2e              # playwright; браузер один раз: pnpm exec playwright install --only-shell chromium
 pnpm format           # prettier --write
 pnpm format:check     # prettier --check (для CI)
 ```
