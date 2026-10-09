@@ -19,7 +19,7 @@ const badgeVariants = cva(
         outline: "border-foreground text-foreground [a]:hover:bg-accent",
         secondary: "border-input text-muted-foreground [a]:hover:bg-accent",
         destructive: "border-destructive text-destructive [a]:hover:bg-accent",
-        ghost: "text-muted-foreground hover:bg-accent",
+        ghost: "text-muted-foreground [a]:hover:bg-accent",
         link: "px-0 font-body text-caption text-pen normal-case underline decoration-[1.5px] underline-offset-[3px] hover:decoration-[3px]",
       },
     },

@@ -29,7 +29,7 @@ const buttonVariants = cva(
         outline:
           "border-foreground bg-background text-foreground hover:bg-accent aria-expanded:bg-accent",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklab,var(--secondary),var(--foreground)_10%)] aria-expanded:bg-[color-mix(in_oklab,var(--secondary),var(--foreground)_10%)]",
+          "bg-secondary text-secondary-foreground hover:border-foreground hover:bg-[color-mix(in_oklab,var(--secondary),var(--foreground)_10%)] aria-expanded:bg-[color-mix(in_oklab,var(--secondary),var(--foreground)_10%)]",
         ghost: "text-foreground hover:bg-accent aria-expanded:bg-accent",
         destructive:
           "border-destructive bg-background text-destructive hover:bg-[color-mix(in_oklab,var(--destructive),var(--background)_88%)]",
@@ -44,7 +44,15 @@ const buttonVariants = cva(
         "icon-sm": "size-9",
       },
     },
-    compoundVariants: [{ variant: "link", class: "min-h-0 px-0 py-0" }],
+    compoundVariants: [
+      { variant: "link", class: "min-h-0 px-0 py-0" },
+      // «Помочь» is always the 52 px button, whatever size is passed.
+      {
+        variant: "help",
+        class:
+          "min-h-cta px-6 py-2.5 text-button [&_svg:not([class*='size-'])]:size-5",
+      },
+    ],
     defaultVariants: {
       variant: "default",
       size: "default",

@@ -41,6 +41,8 @@ function TooltipContent({
   return (
     <TooltipPrimitive.Portal>
       <TooltipPrimitive.Positioner
+        // Keep popups off the screen edge, like the page gutter.
+        collisionPadding={16}
         align={align}
         alignOffset={alignOffset}
         side={side}

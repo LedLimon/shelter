@@ -27,6 +27,8 @@ function PopoverContent({
   return (
     <PopoverPrimitive.Portal>
       <PopoverPrimitive.Positioner
+        // Keep popups off the screen edge, like the page gutter.
+        collisionPadding={16}
         align={align}
         alignOffset={alignOffset}
         side={side}

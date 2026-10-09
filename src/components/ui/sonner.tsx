@@ -22,7 +22,10 @@ import { cn } from "@/lib/utils";
 const Toaster = ({ toastOptions, ...props }: ToasterProps) => {
   return (
     <Sonner
-      className="toaster group"
+      // Below dialogs and sheets (z-50): a toast must never cover a layer's
+      // actions. Errors inside a layer are shown in the layer itself.
+      className="toaster group z-40!"
+      mobileOffset={{ bottom: "calc(16px + env(safe-area-inset-bottom))" }}
       containerAriaLabel="Уведомления"
       icons={{
         success: (
@@ -46,7 +49,8 @@ const Toaster = ({ toastOptions, ...props }: ToasterProps) => {
             // toast's content, the ones behind are bare sheets.
             "[&>*]:transition-opacity [&[data-expanded=false][data-front=false]>*]:opacity-0",
           ),
-          icon: "mt-0.5 flex shrink-0",
+          // Sized and relative: sonner centres its absolute loader in this box.
+          icon: "relative mt-0.5 flex size-5 shrink-0",
           content: "flex min-w-0 flex-1 flex-col gap-1",
           title: "text-body font-bold",
           description: "text-caption text-muted-foreground",

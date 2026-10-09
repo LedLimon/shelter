@@ -1,4 +1,10 @@
-import { CircleXIcon, ClockIcon, HouseIcon, PawPrintIcon } from "lucide-react";
+import {
+  CircleXIcon,
+  ClockIcon,
+  HouseIcon,
+  PawPrintIcon,
+  ReceiptTextIcon,
+} from "lucide-react";
 
 import {
   Avatar,
@@ -51,12 +57,15 @@ export function CardsSection() {
             <CardTitle>Отчёт за&nbsp;сентябрь</CardTitle>
             <CardDescription>Опубликован 3&nbsp;октября</CardDescription>
             <CardAction>
-              <Badge variant="outline">Новый</Badge>
+              <Badge variant="outline">
+                <ReceiptTextIcon aria-hidden data-icon="inline-start" />
+                С&nbsp;чеками
+              </Badge>
             </CardAction>
           </CardHeader>
           <CardContent>
             <p>
-              Собрали {formatRub(182_400_00)}, потратили {formatRub(167_950_00)}
+              Собрали {formatRub(182_400_00)}, потратили {formatRub(167_950_00)}{" "}
               на&nbsp;корм, прививки и&nbsp;ремонт вольеров. Все чеки
               в&nbsp;отчёте.
             </p>
@@ -73,8 +82,10 @@ export function CardsSection() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="font-display text-sum-lg tabular-nums">
-              {formatRub(48_210_00)}
+            <p className="text-caption">
+              <b className="tabular-nums">{formatRub(48_210_00)}</b>{" "}
+              на&nbsp;нужды, которые не&nbsp;успевают собрать сами. Последнее
+              поступление&nbsp;— сегодня в&nbsp;14:20.
             </p>
           </CardContent>
         </Card>

@@ -54,9 +54,15 @@ const schema = z
         });
       }
     }),
-    email: z.email(
-      "Проверьте адрес: нужны «@» и домен, например name@example.ru.",
-    ),
+    email: z
+      .string()
+      .trim()
+      .min(1, "Укажите почту — на неё придёт подтверждение.")
+      .pipe(
+        z.email(
+          "Проверьте адрес: нужны «@» и домен, например name@example.ru.",
+        ),
+      ),
     frequency: z.enum(["once", "monthly"], {
       error: "Выберите, как часто помогать.",
     }),
@@ -144,26 +150,23 @@ export function FormDemo() {
                 id="donate-amount"
                 inputMode="decimal"
                 autoComplete="off"
-                placeholder="500"
                 aria-invalid={fieldState.invalid || undefined}
                 aria-describedby={
                   fieldState.invalid
-                    ? "donate-amount-error"
+                    ? "donate-amount-hint donate-amount-error"
                     : "donate-amount-hint"
                 }
                 className="tabular-nums"
               />
-              {fieldState.invalid ? (
-                <FieldError
-                  id="donate-amount-error"
-                  errors={[fieldState.error]}
-                />
-              ) : (
-                <FieldDescription id="donate-amount-hint">
-                  От&nbsp;{formatRub(MIN_AMOUNT_KOP)}. Можно с&nbsp;копейками:
-                  1&nbsp;500,50.
-                </FieldDescription>
-              )}
+              {/* The rule stays visible next to the error. */}
+              <FieldDescription id="donate-amount-hint">
+                От&nbsp;{formatRub(MIN_AMOUNT_KOP)}. Можно с&nbsp;копейками:
+                1&nbsp;500,50.
+              </FieldDescription>
+              <FieldError
+                id="donate-amount-error"
+                errors={[fieldState.error]}
+              />
             </Field>
           )}
         />
@@ -179,6 +182,7 @@ export function FormDemo() {
                 id="donate-email"
                 type="email"
                 autoComplete="email"
+                spellCheck={false}
                 placeholder="name@example.ru"
                 aria-invalid={fieldState.invalid || undefined}
                 aria-describedby={
