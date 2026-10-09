@@ -55,7 +55,27 @@ e2e/                      # Playwright
 
 ## Модель данных
 
-Деньги — **копейки, `Int`** (суммы в SQL — `bigint`). Время — UTC.
+Схема — [`prisma/schema.prisma`](../prisma/schema.prisma), миграции — `prisma/migrations/`. Ниже — целевая модель: в схеме пока только то, что уже сделано задачами.
+
+### Соглашения схемы
+
+- **Имена.** Модель — PascalCase в единственном числе (`Need`, `LedgerEntry`), поле — camelCase, enum — PascalCase, значения enum — `UPPER_SNAKE`. В БД имена те же, без `@map` / `@@map`: таблица `"Need"`, колонка `"goalKop"`. В raw SQL (триггеры, `$queryRaw`) — в двойных кавычках.
+- **`id`** — `String @id @default(cuid(2))`: 24 символа, не угадывается и не выдаёт порядок записей, поэтому годится для публичных URL (`/donate/status/[id]`). Строка, а не `uuid`, — в raw SQL не нужно приведение `::uuid`. Естественный ключ вместо `id` — только у справочников (`Setting.key`).
+- **Время** — `DateTime @db.Timestamptz(3)`, хранится в UTC, в часовой пояс приюта переводится только при показе. `createdAt @default(now())` и `updatedAt @updatedAt` — у всех изменяемых моделей; у append-only (`Ledger*`) — только время создания или проводки.
+- **Деньги** — `Int` в копейках, поле с суффиксом `Kop` (`goalKop`, `amountKop`). В Postgres это `integer`: до 21 474 836,47 ₽ в одном значении. Суммы положительные, кроме `LedgerEntry.amountKop` (со знаком). `SUM()` в raw SQL Postgres возвращает `bigint` — в TS это `bigint`, в `number` переводите явно. Суммы внутри JSON (например, в `Setting`) — тоже целые копейки с суффиксом `Kop`.
+- **Удаление.** Сущности с историей (пользователи, пожертвования) не удаляются — `deletedAt` или статус. Внешние ключи — `onDelete: Restrict` (по умолчанию в Prisma); `SetNull` — только для необязательных ссылок вроде «кто загрузил».
+- **Индексы.** Postgres не индексирует внешние ключи сам — у каждого FK-поля `@@index`.
+- **JSON** (`Json` → `jsonb`) — только для данных, по которым не фильтруют: настройки, payload событий, тексты Tiptap. Форма значения — zod-схема в коде, как в [`src/server/settings/schema.ts`](../src/server/settings/schema.ts).
+- **Email** хранится в нижнем регистре (CHECK в БД) — так уникальность не зависит от регистра.
+- **Чего нет в Prisma** (CHECK, триггеры, частичные индексы) — raw SQL в той же миграции: `pnpm db:migrate --create-only --name <имя>`, дописать SQL в `migration.sql`, затем `pnpm db:migrate`. Миграцию, попавшую в `main`, не редактируем — только новая миграция.
+
+### Доступ к БД
+
+- `getDb()` из `@/server/db` — общий клиент процесса (`server-only`). Создаётся при первом вызове, а не при импорте: `next build` идёт без `DATABASE_URL`.
+- Функции доменов принимают `db: Db` — клиент или `tx` из `db.$transaction(async (tx) => …)`, чтобы вызывающий мог объединить несколько вызовов в одну транзакцию.
+- Prisma Client генерируется в `src/generated/prisma` (не в git): `prisma generate` запускают `pnpm install` и `pnpm db:migrate`. Модели, типы и enum на сервере импортируем из `@/generated/prisma/client`, в клиентских компонентах — из `@/generated/prisma/browser`.
+- Вне Next.js (seed, интеграционные тесты, воркер) клиент создаёт `createPrismaClient(url)` из `@/server/db/client`.
+- `pnpm db:seed` ([`prisma/seed.ts`](../prisma/seed.ts)) создаёт владельца (`SEED_OWNER_EMAIL`, роль `OWNER`) и настройки по умолчанию. Повторный запуск добавляет только недостающее и не трогает настройки, которые уже правили.
 
 ### Идентичность
 
@@ -71,7 +91,7 @@ e2e/                      # Playwright
 
 ### Медиа
 
-- `Media`: storageKey, mime, w, h, blur, kind (`PHOTO | RECEIPT | INVOICE | DOCUMENT`), redacted, uploadedById.
+- `Media`: storageKey, mime, width, height, blur, kind (`PHOTO | RECEIPT | INVOICE | DOCUMENT`), redacted, uploadedById.
 - Join-таблицы с `position`: `DogMedia` (isCover), `NeedMedia`, `ExpenseMedia` (role `RECEIPT | INVOICE | RESULT`), `DogUpdateMedia`.
 
 ### Нужды
@@ -98,7 +118,12 @@ e2e/                      # Playwright
 - `LegalDocument`: type (`OFFER | PRIVACY | PD_CONSENT | RECURRING | MARKETING`), version, body, sha256, effectiveAt.
 - `ConsentRecord`: email | userId, documentId, context, ip, ua, givenAt, withdrawnAt.
 - `AuditLog`: actorId, action, entity, entityId, diff, ip, at.
-- `Post` (новости, истории «Они дома»), `Page`, `Setting` (реквизиты, каналы, часовой пояс), `Outbox`.
+- `Post` (новости, истории «Они дома»), `Page`.
+
+### Служебные
+
+- `Setting`: key, value (JSON) — часовой пояс, реквизиты, контакты, готовые суммы доната. Ключи и формы значений — `src/server/settings/schema.ts`, чтение и запись — `getSetting()` / `setSetting()` из `@/server/settings`.
+- `Outbox`: type, payload, status (`PENDING | PROCESSED | FAILED`), attempts, availableAt, lastError, processedAt — побочные эффекты после коммита (правило в [«Структуре кода»](#структура-кода)), выполняет [воркер](#фоновые-задачи-worker).
 
 ## Маршруты
 

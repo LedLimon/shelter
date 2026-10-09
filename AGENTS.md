@@ -36,7 +36,7 @@ Next.js (App Router) · TypeScript strict · Tailwind CSS v4 · shadcn/ui · Pri
 
 ## Команды
 
-> Ещё появятся: `db:*` (FND-4), `worker` (FND-5). Если команды ещё нет в `package.json` — значит, её создаёт твоя задача или задача-зависимость.
+> Ещё появится: `worker` (FND-5). Если команды ещё нет в `package.json` — значит, её создаёт твоя задача или задача-зависимость.
 
 ```bash
 pnpm install          # зависимости
@@ -47,11 +47,15 @@ pnpm dev:reset        # стереть .data/ и поднять заново
 pnpm dev              # Next.js dev server
 pnpm build            # production-сборка (output: standalone)
 pnpm worker           # фоновый воркер (pg-boss)
-pnpm db:migrate       # prisma migrate dev
-pnpm db:seed          # демо-данные
+pnpm db:migrate       # prisma generate + migrate dev (новая миграция: --name <имя>)
+pnpm db:seed          # владелец и настройки по умолчанию; можно запускать повторно
+pnpm db:reset         # стереть БД, миграции и seed заново — только с согласия человека
+pnpm db:studio        # Prisma Studio
 pnpm typecheck        # next typegen && tsc --noEmit
 pnpm lint             # eslint
-pnpm test             # vitest (unit + integration)
+pnpm test             # vitest: unit + integration (Postgres в Docker через Testcontainers)
+pnpm test:unit        # только unit, без Docker
+pnpm test:integration # только tests/integration/
 pnpm e2e              # playwright; браузер один раз: pnpm exec playwright install --only-shell chromium
 pnpm format           # prettier --write
 pnpm format:check     # prettier --check (для CI)

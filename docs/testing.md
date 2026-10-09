@@ -9,6 +9,15 @@
 | E2E                | Playwright (desktop + mobile)                | Пользовательские сценарии донора, админа, прав                                                             |
 | Ручная проверка UI | Браузер (встроенный / Playwright MCP)        | Mobile 375 px и desktop, светлая и тёмная тема, клавиатура, состояния                                      |
 
+## Интеграционные тесты
+
+- Лежат в `tests/integration/**/*.test.ts` (проект Vitest `integration`). Нужен запущенный Docker — тот же, что для `pnpm dev:up`.
+- На прогон [Testcontainers](https://node.testcontainers.org/) поднимает один контейнер `postgres:16.15-alpine` (образ как в `docker-compose.yml`, данные в памяти) и применяет миграции `prisma migrate deploy` к шаблонной базе. Так каждый прогон заодно проверяет, что миграции встают на чистую БД.
+- **Каждый тест-файл получает свою чистую базу** — копию шаблона (`CREATE DATABASE … TEMPLATE`, десятки миллисекунд); после файла она удаляется. Файлы идут параллельно и друг другу не мешают. Тесты внутри файла делят одну базу: берите разные ключи и email или учитывайте данные предыдущих тестов.
+- БД в тестах — как в приложении: `getDb()` из `@/server/db`. Setup ([`tests/integration/setup/`](../tests/integration/setup/)) направляет `DATABASE_URL` на базу файла, остальные переменные берёт из `.env.example`; локальный `.env` тесты не читают.
+- Команды: `pnpm test` — unit и интеграционные; `pnpm test:unit` — без Docker; `pnpm test:integration` — только интеграционные.
+- Пример — [`tests/integration/settings.test.ts`](../tests/integration/settings.test.ts) (запись и чтение `Setting`, откат транзакции).
+
 ## Обязательные тесты для денег
 
 Любая задача с меткой `money-critical` должна включать:
@@ -37,4 +46,4 @@
 - Тесты лежат рядом с кодом (`*.test.ts`) для unit; `tests/integration/` — для интеграционных; `e2e/` — Playwright.
 - Тестовые данные — фабрики, а не копипаста; seed для dev — отдельно (`prisma/seed.ts`).
 - Ни один тест не ходит в реальные внешние сервисы.
-- CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)): job `Checks` — format → typecheck → lint → unit/integration → build; в нём заготовлен service-контейнер Postgres 16 и `DATABASE_URL` (использовать его или Testcontainers в CI — решается в FND-4); параллельно job `E2E smoke` — Playwright по production-сборке (`node .next/standalone/server.js`), desktop и mobile. Локально `pnpm e2e` поднимает `next dev` на порту 3100.
+- CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)): job `Checks` — format → typecheck → lint → unit и integration → build; интеграционные тесты и в CI поднимают Postgres через Testcontainers (Docker есть на раннере), как локально. Параллельно job `E2E smoke` — Playwright по production-сборке (`node .next/standalone/server.js`), desktop и mobile. Локально `pnpm e2e` поднимает `next dev` на порту 3100.
