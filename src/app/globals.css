@@ -4,8 +4,128 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Design tokens of the «Объявление» direction: docs/design.md#визуальный-стиль
+ * and docs/adr/0006-visual-direction.md. src/app/design-tokens.test.ts checks
+ * that the palette matches docs/design.md and that every text/background pair
+ * passes WCAG AA in both themes.
+ *
+ * Colours, shadows, radii and fonts come only from these tokens: Tailwind's
+ * default palette and scales are switched off, so `bg-white`, `shadow-md` or
+ * `rounded-xl` generate nothing.
+ */
+
+/* Palette, light theme. Dark values are in `.dark` below. */
+@theme static {
+  --color-*: initial;
+
+  --color-board: #d1d5d6;
+  --color-paper: #fbfbf7;
+  --color-toner: #161617;
+  --color-toner-muted: #55575b;
+  --color-pen: #2244b0;
+  --color-notice: #ffe04a;
+  --color-notice-foreground: #161617;
+  --color-notice-muted: #504824;
+  --color-perforation: #8a8d90;
+  --color-footer: #161617;
+  --color-footer-foreground: #fbfbf7;
+  --color-footer-muted: #bbbbb8;
+
+  /* Form states: ballpoint inks at the pen's lightness. Always with an icon and a word. */
+  --color-success: #205e2e;
+  --color-danger: #9a2925;
+  --color-warning: #7b4606;
+  --color-info: var(--color-pen);
+
+  /* Dimming behind dialogs and sheets, used with opacity: `bg-scrim/40`. */
+  --color-scrim: var(--color-toner);
+}
+
+@theme {
+  --font-*: initial;
+  --radius-*: initial;
+  --shadow-*: initial;
+  --inset-shadow-*: initial;
+  --drop-shadow-*: initial;
+  --text-shadow-*: initial;
+
+  /* Paper is not rounded; only the «Собрано» and «Дома» stamps are. */
+  --radius-sheet: 1px;
+  --radius-stamp: 4px;
+
+  /* The only shadow: a sheet on the board. Same in the dark theme. */
+  --shadow-sheet:
+    0 1px 1px rgb(15 16 20 / 0.1), 0 14px 24px -16px rgb(15 16 20 / 0.55);
+
+  /*
+   * Lines: printed photo frame `border` (1 px), progress box and perforation
+   * `border-line` (1.5 px, perforation also `border-dashed`), «Помочь» `border-2`.
+   */
+  --border-width-line: 1.5px;
+
+  --font-weight-ultra: 1000;
+
+  /*
+   * Type scale (docs/design.md#шрифты). Two-value sizes grow fluidly
+   * from 375 to 1280 px viewport: hero 46 → 84 px, section 30 → 44 px.
+   */
+  --text-hero: clamp(2.875rem, 1.891rem + 4.199vw, 5.25rem);
+  --text-hero--line-height: 0.92;
+  --text-hero--font-weight: 900;
+  --text-section: clamp(1.875rem, 1.512rem + 1.547vw, 2.75rem);
+  --text-section--line-height: 0.92;
+  --text-section--font-weight: 900;
+  --text-title: 1.875rem;
+  --text-title--line-height: 0.95;
+  --text-title--font-weight: 900;
+  --text-name: 2.5rem;
+  --text-name--line-height: 0.85;
+  --text-name--font-weight: 1000;
+  --text-sum: 1.75rem;
+  --text-sum--line-height: 1;
+  --text-sum--font-weight: 900;
+  --text-sum-lg: 2.25rem;
+  --text-sum-lg--line-height: 1;
+  --text-sum-lg--font-weight: 900;
+  --text-button: 1.375rem;
+  --text-button--line-height: 1;
+  --text-button--letter-spacing: 0.03em;
+  --text-button--font-weight: 900;
+  --text-label: 0.875rem;
+  --text-label--line-height: 1.25;
+  --text-label--letter-spacing: 0.06em;
+  --text-label--font-weight: 800;
+  --text-body: 1rem;
+  --text-body--line-height: 1.55;
+  --text-caption: 0.875rem;
+  --text-caption--line-height: 1.45;
+  --text-mono: 0.78125rem;
+  --text-mono--line-height: 1.3;
+  --text-mono-sm: 0.6875rem;
+  --text-mono-sm--line-height: 1.3;
+
+  /* Layout rhythm, mobile values; desktop values are in the media query below. */
+  --spacing-gutter: 1rem;
+  --spacing-grid: 1.125rem;
+  --spacing-sheet: 1rem;
+  --spacing-card: 0.75rem;
+  --spacing-section: 2.25rem;
+  /* Tear-off tab: at least 56 px high. «Помочь» button: 52 px. */
+  --spacing-tab: 3.5rem;
+  --spacing-cta: 3.25rem;
+}
+
+/* Fonts come from next/font (src/app/fonts.ts) as CSS variables on <html>. */
 @theme inline {
-  --font-heading: var(--font-sans);
+  --font-display: var(--font-face-display), "Arial Narrow", sans-serif;
+  --font-body: var(--font-face-body), Georgia, "Times New Roman", serif;
+  --font-mono: var(--font-face-mono), ui-monospace, Menlo, monospace;
+  --font-heading: var(--font-display);
+  --default-font-family: var(--font-body);
+  --default-mono-font-family: var(--font-mono);
+
+  /* shadcn/ui semantic colours; the values are mapped to the palette in :root. */
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -46,83 +166,180 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+@media (width >= 48rem) {
+  :root {
+    --spacing-gutter: 3rem;
+    --spacing-grid: 1.75rem;
+    --spacing-sheet: 1.5rem;
+    --spacing-section: 3.5rem;
+  }
 }
 
+/*
+ * shadcn/ui variables point to the palette, so both themes switch with it.
+ * Square corners everywhere: the radius scale above is derived from --radius.
+ */
+:root {
+  color-scheme: light;
+
+  --radius: 0rem;
+  --background: var(--color-board);
+  --foreground: var(--color-toner);
+  --card: var(--color-paper);
+  --card-foreground: var(--color-toner);
+  --popover: var(--color-paper);
+  --popover-foreground: var(--color-toner);
+  --primary: var(--color-toner);
+  --primary-foreground: var(--color-paper);
+  --secondary: var(--color-board);
+  --secondary-foreground: var(--color-toner);
+  --muted: var(--color-board);
+  --muted-foreground: var(--color-toner-muted);
+  --accent: var(--color-board);
+  --accent-foreground: var(--color-toner);
+  --destructive: var(--color-danger);
+  --border: var(--color-perforation);
+  --input: var(--color-perforation);
+  --ring: var(--color-pen);
+  /* Admin charts; series also differ by label and pattern, not only by colour. */
+  --chart-1: var(--color-pen);
+  --chart-2: var(--color-toner);
+  --chart-3: var(--color-toner-muted);
+  --chart-4: var(--color-perforation);
+  --chart-5: var(--color-warning);
+  --sidebar: var(--color-paper);
+  --sidebar-foreground: var(--color-toner);
+  --sidebar-primary: var(--color-toner);
+  --sidebar-primary-foreground: var(--color-paper);
+  --sidebar-accent: var(--color-board);
+  --sidebar-accent-foreground: var(--color-toner);
+  --sidebar-border: var(--color-perforation);
+  --sidebar-ring: var(--color-pen);
+}
+
+/* «Доска ночью»: separately picked values, not an inversion. */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  color-scheme: dark;
+
+  --color-board: #121315;
+  --color-paper: #212224;
+  --color-toner: #ecebe6;
+  --color-toner-muted: #a7a7a1;
+  --color-pen: #9db2ff;
+  --color-notice: #f3d23c;
+  --color-notice-foreground: #161617;
+  --color-notice-muted: #4d4520;
+  --color-perforation: #6b6d70;
+  --color-footer: #2b2c2e;
+  --color-footer-foreground: #ecebe6;
+  --color-footer-muted: #b6b5b2;
+
+  --color-success: #95c69b;
+  --color-danger: #fb988d;
+  --color-warning: #ddac82;
+
+  --color-scrim: var(--color-board);
+}
+
+/*
+ * The yellow sheet and the footer re-map the roles inside them: pen and pale
+ * toner fail AA there, so links, marks and the focus ring take the surface's
+ * text colour and secondary text takes the surface's muted token.
+ */
+@utility surface-notice {
+  background-color: var(--color-notice);
+  color: var(--color-notice-foreground);
+  --color-paper: var(--color-notice);
+  --color-toner: var(--color-notice-foreground);
+  --color-toner-muted: var(--color-notice-muted);
+  --color-pen: var(--color-notice-foreground);
+  --color-perforation: var(--color-notice-muted);
+  --foreground: var(--color-notice-foreground);
+  --muted-foreground: var(--color-notice-muted);
+  --border: var(--color-notice-muted);
+  --ring: var(--color-notice-foreground);
+}
+
+@utility surface-footer {
+  background-color: var(--color-footer);
+  color: var(--color-footer-foreground);
+  --color-paper: var(--color-footer);
+  --color-toner: var(--color-footer-foreground);
+  --color-toner-muted: var(--color-footer-muted);
+  --color-pen: var(--color-footer-foreground);
+  --color-perforation: var(--color-footer-muted);
+  --foreground: var(--color-footer-foreground);
+  --muted-foreground: var(--color-footer-muted);
+  --border: var(--color-footer-muted);
+  --ring: var(--color-footer-foreground);
+}
+
+/*
+ * Urgency is never carried by colour: filled toner plate / 2 px frame /
+ * 1 px frame / dashed frame, always with an icon and a word (UrgencyBadge).
+ * Inset frames keep all four badges the same size.
+ */
+@utility urgency-critical {
+  background-color: var(--color-toner);
+  color: var(--color-paper);
+}
+
+@utility urgency-high {
+  box-shadow: inset 0 0 0 2px var(--color-toner);
+  color: var(--color-toner);
+}
+
+@utility urgency-normal {
+  box-shadow: inset 0 0 0 1px var(--color-perforation);
+  color: var(--color-toner-muted);
+}
+
+@utility urgency-low {
+  outline: 1px dashed var(--color-perforation);
+  outline-offset: -1px;
+  color: var(--color-toner-muted);
 }
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-ring;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-body text-foreground;
+    caret-color: var(--color-pen);
   }
-  html {
-    @apply font-sans;
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-display);
+    font-weight: 900;
+    line-height: 0.95;
+    text-wrap: balance;
+  }
+  a {
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 3px;
+  }
+  :focus-visible {
+    outline: 3px solid var(--ring);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background-color: var(--color-pen);
+    color: var(--color-paper);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
