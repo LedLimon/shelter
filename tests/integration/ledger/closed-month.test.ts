@@ -2,6 +2,7 @@
 // run in order. Periods are set around the database's clock, so the calendar
 // date doesn't matter; a month can be published only once its end has passed.
 import { beforeAll, describe, expect, it } from "vitest";
+import type { Prisma } from "@/generated/prisma/client";
 import { getDb } from "@/server/db";
 import { post, reverse } from "@/server/ledger";
 import {
@@ -17,6 +18,7 @@ const HOUR = 3_600_000;
 const CLOSED = /ledger: the report for \S+ is published, nothing can be posted/;
 const FINAL = /ledger: the report for \S+ is published, its month stays closed/;
 const NOT_OVER = /ledger: \S+ lasts until .+, it can't be published before/;
+const NO_LOCK = /ledger: take the period lock first/;
 
 let need: string;
 let now: Date;
@@ -54,6 +56,22 @@ async function waitForLockWaiter(
   }
 }
 
+/**
+ * Publishes the way REP-1 must (docs/ledger.md): the period lock first, then
+ * the figures, then the status — in one READ COMMITTED transaction.
+ */
+function publish(
+  write: (tx: Prisma.TransactionClient) => Promise<unknown>,
+): Promise<unknown> {
+  return getDb().$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(ledger_period_lock_key())`;
+      return write(tx);
+    },
+    { timeout: 20_000 },
+  );
+}
+
 /** A promise and the function that resolves it. */
 function signal<T = void>() {
   let resolve!: (value: T) => void;
@@ -89,15 +107,46 @@ describe("closed months", () => {
     ).rejects.toThrow(NOT_OVER);
   });
 
-  it("posts a late event of a closed month into the current one", async () => {
+  it("publishes only under the period lock, in READ COMMITTED", async () => {
     await getDb().monthlyReport.create({
-      data: {
-        period: "2026-09",
-        periodStart: at(-48),
-        periodEnd: at(-24),
-        status: "PUBLISHED",
-      },
+      data: { period: "2026-08", periodStart: at(-72), periodEnd: at(-48) },
     });
+    const toPublished = (tx: Prisma.TransactionClient) =>
+      tx.monthlyReport.update({
+        where: { period: "2026-08" },
+        data: { status: "PUBLISHED" },
+      });
+
+    await expect(toPublished(getDb())).rejects.toThrow(NO_LOCK);
+    await expect(
+      getDb().$transaction(
+        async (tx) => {
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(ledger_period_lock_key())`;
+          await toPublished(tx);
+        },
+        { isolationLevel: "RepeatableRead" },
+      ),
+    ).rejects.toThrow(/ledger: publish in a READ COMMITTED transaction/);
+
+    await publish(toPublished);
+    expect(
+      await getDb().monthlyReport.findUniqueOrThrow({
+        where: { period: "2026-08" },
+      }),
+    ).toMatchObject({ status: "PUBLISHED" });
+  });
+
+  it("posts a late event of a closed month into the current one", async () => {
+    await publish((tx) =>
+      tx.monthlyReport.create({
+        data: {
+          period: "2026-09",
+          periodStart: at(-48),
+          periodEnd: at(-24),
+          status: "PUBLISHED",
+        },
+      }),
+    );
     const paidInClosedMonth = at(-36);
 
     const result = await donate(need, 20_000, {
@@ -163,12 +212,12 @@ describe("closed months", () => {
 
     await waitUntilPast(periodEnd);
     let published = false;
-    const publication = getDb()
-      .monthlyReport.update({
+    const publication = publish((tx) =>
+      tx.monthlyReport.update({
         where: { period: "2026-10" },
         data: { status: "PUBLISHED" },
-      })
-      .then(() => (published = true));
+      }),
+    ).then(() => (published = true));
     // The publication waits for A, which holds the period lock.
     await waitForLockWaiter("ExclusiveLock");
     expect(published).toBe(false);

@@ -181,8 +181,8 @@ CREATE TRIGGER "LedgerEntry_append_only"
 -- The period lock (an advisory lock, so no table privileges are needed): every
 -- posting holds it shared until its commit, a publication takes it
 -- exclusively. A publication thus waits for the postings in flight, and new
--- postings wait for it, then see the month closed. The number is arbitrary,
--- unique among the application's advisory locks.
+-- postings wait for it, then see the month closed. The number is arbitrary;
+-- the keys in use are listed in docs/architecture.md («Доступ к БД»).
 CREATE FUNCTION ledger_period_lock_key() RETURNS bigint
 LANGUAGE sql IMMUTABLE AS $$ SELECT 3700000001::bigint $$;
 
@@ -234,7 +234,22 @@ BEGIN
       RAISE EXCEPTION 'ledger: % lasts until %, it can''t be published before',
         NEW."period", NEW."periodEnd";
     END IF;
-    PERFORM pg_advisory_xact_lock(ledger_period_lock_key());
+    -- The report's figures must include every posting of the month: the
+    -- publishing transaction takes the period lock before computing them
+    -- (it waits for postings in flight), and in READ COMMITTED, whose
+    -- queries see what committed while it waited.
+    IF current_setting('transaction_isolation') <> 'read committed' THEN
+      RAISE EXCEPTION 'ledger: publish in a READ COMMITTED transaction, not %',
+        current_setting('transaction_isolation');
+    END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_locks
+       WHERE locktype = 'advisory' AND pid = pg_backend_pid() AND granted
+         AND mode = 'ExclusiveLock' AND objsubid = 1
+         AND (classid::bigint << 32 | objid::bigint) = ledger_period_lock_key()
+    ) THEN
+      RAISE EXCEPTION 'ledger: take the period lock first (SELECT pg_advisory_xact_lock(ledger_period_lock_key())), then compute the report and publish it';
+    END IF;
   END IF;
 
   IF TG_OP = 'DELETE' THEN
@@ -296,7 +311,10 @@ BEGIN
   IF NOT FOUND THEN
     RAISE EXCEPTION 'ledger: transaction % not found', NEW."transactionId";
   END IF;
-  IF tx."createdXid" IS DISTINCT FROM pg_current_xact_id() THEN
+  -- postedAt too: after a logical restore into a new cluster, transaction ids
+  -- start over and an old createdXid may come up again.
+  IF tx."createdXid" IS DISTINCT FROM pg_current_xact_id()
+     OR tx."postedAt" IS DISTINCT FROM transaction_timestamp()::timestamptz(3) THEN
     RAISE EXCEPTION 'ledger: entries are added only together with their transaction, in the database transaction that created it (%)',
       NEW."transactionId";
   END IF;
