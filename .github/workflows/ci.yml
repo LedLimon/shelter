@@ -18,12 +18,22 @@ concurrency:
 env:
   NEXT_TELEMETRY_DISABLED: "1"
   DO_NOT_TRACK: "1"
-  # Throwaway values for env validation (src/lib/env.ts) in every job; the
-  # database itself runs only in the Checks job. Not secrets: real ones never
-  # go into the repository (AGENTS.md).
+  # Throwaway values for the env check on server start (src/lib/env/schema.ts):
+  # the e2e job starts the standalone server, `next build` needs none of them.
+  # Only the database runs (in the Checks job); S3 and SMTP are placeholders.
+  # Not secrets: real ones never go into the repository (AGENTS.md).
   DATABASE_URL: postgresql://shelter:shelter@localhost:5432/shelter_test
   APP_URL: http://127.0.0.1:3100
   SHELTER_TIMEZONE: Europe/Moscow
+  S3_ENDPOINT: http://127.0.0.1:9000
+  S3_REGION: ru-central1
+  S3_BUCKET: shelter
+  S3_ACCESS_KEY_ID: ci
+  S3_SECRET_ACCESS_KEY: ci
+  S3_FORCE_PATH_STYLE: "true"
+  SMTP_HOST: 127.0.0.1
+  SMTP_PORT: "1025"
+  SMTP_FROM: "Приют <no-reply@shelter.localhost>"
 
 jobs:
   checks:
