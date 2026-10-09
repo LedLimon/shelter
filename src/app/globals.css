@@ -193,7 +193,12 @@
 :root,
 .surface-notice,
 .surface-footer {
-  --background: var(--color-board);
+  /*
+   * Components sit on paper sheets, so "background" is paper (outline buttons,
+   * active tabs, switch thumbs blend into the sheet); the page itself is
+   * `bg-board`. secondary, muted and accent are the board showing through.
+   */
+  --background: var(--color-paper);
   --foreground: var(--color-toner);
   --card: var(--color-paper);
   --card-foreground: var(--color-toner);
@@ -331,7 +336,8 @@
     caret-color: var(--color-pen);
   }
   body {
-    @apply bg-background text-body text-foreground;
+    @apply bg-board text-body text-foreground;
+    overflow-wrap: break-word;
   }
   h1,
   h2,
@@ -343,6 +349,8 @@
     font-weight: 900;
     line-height: 0.95;
     text-wrap: balance;
+    /* Condensed display sizes: long Russian words hyphenate instead of overflowing. */
+    hyphens: auto;
   }
   a {
     text-decoration-thickness: 1.5px;

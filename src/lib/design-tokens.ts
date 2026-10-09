@@ -180,7 +180,7 @@ export const CONTRAST_PAIRS: readonly ContrastPair[] = [
     min: AA_UI,
   },
   {
-    label: "Рамка тонером на бумаге: «Помочь», фото, прогресс (UI)",
+    label: "Рамка тонером на бумаге: фото, прогресс (UI)",
     foreground: "toner",
     background: "paper",
     min: AA_UI,
