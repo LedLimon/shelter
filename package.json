@@ -23,6 +23,8 @@
     "format": "prettier --write . \"!**/.data/**\"",
     "format:check": "prettier --check . \"!**/.data/**\"",
     "test": "vitest run",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
     "e2e": "playwright test",
     "postinstall": "prisma generate"
   },

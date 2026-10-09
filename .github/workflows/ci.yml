@@ -20,8 +20,9 @@ env:
   DO_NOT_TRACK: "1"
   # Throwaway values for the env check on server start (src/lib/env/schema.ts):
   # the e2e job starts the standalone server, `next build` needs none of them.
-  # Only the database runs (in the Checks job); S3 and SMTP are placeholders.
-  # Not secrets: real ones never go into the repository (AGENTS.md).
+  # All are placeholders: no page reads the database yet, and integration tests
+  # start their own Postgres (Testcontainers). Not secrets: real ones never go
+  # into the repository (AGENTS.md).
   DATABASE_URL: postgresql://shelter:shelter@localhost:5432/shelter_test
   APP_URL: http://127.0.0.1:3100
   SHELTER_TIMEZONE: Europe/Moscow
@@ -40,21 +41,6 @@ jobs:
     name: Checks
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    services:
-      # For integration tests (tests/integration/, from FND-4 on).
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: shelter
-          POSTGRES_PASSWORD: shelter
-          POSTGRES_DB: shelter_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U shelter -d shelter_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -76,6 +62,8 @@ jobs:
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: pnpm lint
 
+      # Unit and integration tests; the latter start Postgres in Docker
+      # (Testcontainers), the same way as locally.
       - name: Test
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: pnpm test
