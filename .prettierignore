@@ -1,1 +1,5 @@
 pnpm-lock.yaml
+
+# Vendored agent skills: keep byte-identical to upstream (see docs/ai-tooling.md)
+.claude/skills/web-design-guidelines/
+.claude/skills/vercel-react-best-practices/
