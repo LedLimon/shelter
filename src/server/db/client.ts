@@ -37,8 +37,8 @@ export function createPrismaClient(connectionString: string): PrismaClient {
 export function withUtcSession(connectionString: string): string {
   let url: URL;
   try {
-    // A bare % is a literal one, as node-postgres reads it. Left as it is, it
-    // makes node-postgres re-encode the whole URL, %3D below included.
+    // A bare % is taken as a literal one. Left as it is, it would make
+    // node-postgres re-encode the whole URL, %3D below included.
     url = new URL(connectionString.replace(/%(?![0-9a-f]{2})/gi, "%25"));
   } catch {
     // Not the URL itself (error.input): it holds the password.
