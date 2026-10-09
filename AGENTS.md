@@ -22,6 +22,7 @@
 | [docs/payments.md](docs/payments.md)         | CloudPayments: платежи, вебхуки, рекурренты, возвраты, сверка, крайние случаи                             |
 | [docs/legal.md](docs/legal.md)               | 152-ФЗ, 54-ФЗ, оферта, согласия — требования к коду                                                       |
 | [docs/testing.md](docs/testing.md)           | Как и что тестируем                                                                                       |
+| [docs/ai-tooling.md](docs/ai-tooling.md)     | Инструменты агентов для дизайна и UX: скиллы, MCP-серверы, лицензии, приватность                          |
 | [docs/roadmap.md](docs/roadmap.md)           | Фазы, вехи, эпики                                                                                         |
 | [docs/adr/](docs/adr/)                       | Архитектурные решения и их причины                                                                        |
 
