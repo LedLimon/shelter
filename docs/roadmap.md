@@ -14,7 +14,7 @@
 
 - **[Организационные и юридические задачи](https://github.com/LedLimon/shelter/issues/1)** — 6 задач
 - **[Фундамент проекта](https://github.com/LedLimon/shelter/issues/2)** — 10 задач
-- **[Дизайн-система и публичный каркас](https://github.com/LedLimon/shelter/issues/3)** — 5 задач
+- **[Дизайн-система и публичный каркас](https://github.com/LedLimon/shelter/issues/3)** — 7 задач
 
 ## [Фаза 1 — MVP: прозрачный сбор](https://github.com/LedLimon/shelter/milestone/2)
 
@@ -49,4 +49,4 @@
 - [#21](https://github.com/LedLimon/shelter/issues/21) [ORG-6] Хостинг и домен в РФ: выбрать провайдера, выдать доступы — 👤 человек
 - [#22](https://github.com/LedLimon/shelter/issues/22) [FND-1] Инициализация Next.js: TS strict, pnpm, ESLint, Prettier, Tailwind v4, shadcn/ui — 🤖 агент
 
-Критический путь MVP: FND-1 → FND-2 → FND-4 → LED-1 / FND-6 → FND-7 → NEED-1 → NEED-2 → PAY-3 → PAY-4 → OPS-2 → OPS-3. Параллельно — дизайн-система (`DS-*`) и оргзадачи (`ORG-*`).
+Критический путь MVP: FND-1 → FND-2 → FND-4 → LED-1 / FND-6 → FND-7 → NEED-1 → NEED-2 → PAY-3 → PAY-4 → OPS-2 → OPS-3. Параллельно — дизайн-система (`DS-*`, начиная с DS-0 — визуальная концепция с человеком) и оргзадачи (`ORG-*`).
