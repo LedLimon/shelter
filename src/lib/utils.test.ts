@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { cn, MERGE_THEME } from "@/lib/utils";
+import { cn, MERGE_BORDER_WIDTHS, MERGE_THEME } from "@/lib/utils";
 
 const css = readFileSync(
   new URL("../app/globals.css", import.meta.url),
@@ -50,10 +50,20 @@ describe("cn", () => {
     );
   });
 
+  it("knows every --border-width-* token from globals.css", () => {
+    expect([...MERGE_BORDER_WIDTHS].sort()).toEqual(themeNames("border-width"));
+  });
+
   it("keeps a token size next to a token colour", () => {
     expect(cn("text-label text-toner")).toBe("text-label text-toner");
     expect(cn("border-line border-toner")).toBe("border-line border-toner");
     expect(cn("border-l-line border-toner")).toBe("border-l-line border-toner");
+    expect(cn("border-bs-line border-toner")).toBe(
+      "border-bs-line border-toner",
+    );
+    expect(cn("divide-y-line divide-perforation")).toBe(
+      "divide-y-line divide-perforation",
+    );
     expect(cn("font-display font-ultra")).toBe("font-display font-ultra");
     expect(cn("shadow-sheet ring-pen")).toBe("shadow-sheet ring-pen");
   });
