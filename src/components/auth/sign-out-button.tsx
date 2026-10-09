@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { authClient } from "./auth-client";
+import { AUTH_BUTTON_CLASS } from "./field";
 
 export function SignOutButton() {
   const router = useRouter();
@@ -13,7 +14,8 @@ export function SignOutButton() {
     <Button
       variant="outline"
       disabled={pending}
-      className="h-11 px-4 font-display text-label uppercase"
+      focusableWhenDisabled
+      className={AUTH_BUTTON_CLASS}
       onClick={() => {
         setPending(true);
         void authClient

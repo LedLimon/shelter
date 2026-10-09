@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   useEffect,
@@ -9,9 +10,18 @@ import {
   type ReactNode,
 } from "react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { attempt, authClient } from "./auth-client";
-import { authErrorMessage } from "./auth-errors";
-import { Field, FormError, formText, SubmitButton } from "./field";
+import { authErrorMessage, restartsSignIn } from "./auth-errors";
+import {
+  AUTH_BUTTON_CLASS,
+  AUTH_LINK_CLASS,
+  Field,
+  FormError,
+  formText,
+  SubmitButton,
+} from "./field";
+import { SignOutButton } from "./sign-out-button";
 import { manualKey, TotpQr } from "./totp-qr";
 
 type Enrollment = { totpURI: string; backupCodes: string[] };
@@ -28,28 +38,43 @@ export function TwoFactorSetup({ email }: { email: string }) {
   const [enrollment, setEnrollment] = useState<Enrollment>();
   const [verified, setVerified] = useState(false);
 
+  let step: ReactNode;
   if (!enrollment) {
-    return (
+    step = (
       <PasswordStep
         email={email}
         onEnrolled={setEnrollment}
         onAlreadyEnabled={() => router.refresh()}
       />
     );
-  }
-  if (!verified) {
-    return (
+  } else if (!verified) {
+    step = (
       <ScanStep enrollment={enrollment} onVerified={() => setVerified(true)} />
     );
+  } else {
+    step = (
+      <BackupCodesStep
+        email={email}
+        codes={enrollment.backupCodes}
+        onDone={() => {
+          router.replace("/admin");
+          router.refresh();
+        }}
+      />
+    );
   }
+
   return (
-    <BackupCodesStep
-      codes={enrollment.backupCodes}
-      onDone={() => {
-        router.replace("/admin");
-        router.refresh();
-      }}
-    />
+    <div className="flex flex-col gap-8">
+      {step}
+      {/* Signing out at the last step would lose the backup codes. */}
+      {!verified && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-perforation pt-5 text-caption text-toner-muted">
+          <span className="min-w-0 [overflow-wrap:anywhere]">{email}</span>
+          <SignOutButton />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -77,9 +102,7 @@ function StepHeader({
       <p className="font-mono text-mono-sm text-toner-muted uppercase">
         Шаг {step} из 3
       </p>
-      <div className="flex flex-col gap-2 text-caption text-toner-muted">
-        {children}
-      </div>
+      <div className="flex flex-col gap-2">{children}</div>
     </header>
   );
 }
@@ -95,12 +118,16 @@ function PasswordStep({
 }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
+  const [fieldError, setFieldError] = useState<string>();
+  const passwordInput = useRef<HTMLInputElement>(null);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (pending) return;
     const password = formText(new FormData(event.currentTarget), "password");
     if (!password) {
-      setError("Введите пароль, с которым вы только что вошли.");
+      setFieldError("Введите пароль, с которым вы только что вошли.");
+      passwordInput.current?.focus();
       return;
     }
 
@@ -120,14 +147,13 @@ function PasswordStep({
       }
       return result;
     });
-    setPending(false);
 
     if (failure?.code === "TOTP_ALREADY_ENABLED") return onAlreadyEnabled();
-    if (failure || !enrollment) {
-      setError(authErrorMessage(failure ?? { status: 500 }));
-      return;
-    }
-    onEnrolled(enrollment);
+    if (!failure && enrollment) return onEnrolled(enrollment);
+    setPending(false);
+    setError(authErrorMessage(failure ?? { status: 500 }));
+    passwordInput.current?.focus();
+    passwordInput.current?.select();
   }
 
   return (
@@ -140,11 +166,13 @@ function PasswordStep({
       <StepHeader step={1} title="Защитите вход кодом">
         <p>
           В админке — деньги приюта и данные доноров, поэтому после пароля здесь
-          всегда спрашивают код из приложения на телефоне. Подойдёт Яндекс Ключ,
-          Google Authenticator, «Пароли» на iPhone или любое другое приложение
-          для одноразовых кодов.
+          всегда спрашивают код из приложения на телефоне.
         </p>
-        <p>Настройка займёт пару минут. Для начала подтвердите пароль.</p>
+        <p className="text-caption text-toner-muted">
+          Подойдёт Яндекс Ключ, Google Authenticator, «Пароли» на iPhone или
+          любое другое приложение для одноразовых кодов. Настройка займёт пару
+          минут.
+        </p>
       </StepHeader>
       {error && <FormError>{error}</FormError>}
       {/* Lets password managers match the password to the account. */}
@@ -157,10 +185,13 @@ function PasswordStep({
         hidden
       />
       <Field
+        ref={passwordInput}
         label="Пароль"
         name="password"
         type="password"
         autoComplete="current-password"
+        error={fieldError}
+        onChange={() => setFieldError(undefined)}
       />
       <SubmitButton pending={pending} pendingLabel="Проверяем…">
         Продолжить
@@ -179,6 +210,7 @@ function ScanStep({
   const [code, setCode] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
+  const [sessionEnded, setSessionEnded] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const key = manualKey(enrollment.totpURI);
 
@@ -195,12 +227,33 @@ function ScanStep({
     const failure = await attempt((fetchOptions) =>
       authClient.twoFactor.verifyTotp({ code: value, fetchOptions }),
     );
-    setPending(false);
 
     if (!failure) return onVerified();
+    setPending(false);
+    if (restartsSignIn(failure)) {
+      setSessionEnded(true);
+      return;
+    }
     setError(authErrorMessage(failure));
     setCode("");
     input.current?.focus();
+  }
+
+  if (sessionEnded) {
+    return (
+      <div className="flex flex-col gap-5">
+        <FormError>
+          Сессия закончилась, пока шла настройка. Войдите заново — настройку
+          придётся начать сначала.
+        </FormError>
+        <Link
+          href="/admin/login"
+          className={cn(AUTH_LINK_CLASS, "text-caption text-pen")}
+        >
+          Войти заново
+        </Link>
+      </div>
+    );
   }
 
   return (
@@ -219,6 +272,16 @@ function ScanStep({
           который оно покажет.
         </p>
       </StepHeader>
+      {/* On a phone the QR can't be scanned by the phone itself. */}
+      <a
+        href={enrollment.totpURI}
+        className={cn(
+          AUTH_BUTTON_CLASS,
+          "inline-flex items-center justify-center border border-toner text-center pointer-fine:hidden",
+        )}
+      >
+        Открыть в приложении на этом телефоне
+      </a>
       <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
         <TotpQr
           uri={enrollment.totpURI}
@@ -229,9 +292,6 @@ function ScanStep({
             Не сканируется? Введите ключ вручную:
           </p>
           <code className="font-mono text-mono select-all">{key}</code>
-          <a href={enrollment.totpURI} className="text-pen underline">
-            Открыть в приложении на этом телефоне
-          </a>
         </div>
       </div>
       {error && <FormError>{error}</FormError>}
@@ -262,30 +322,57 @@ function ScanStep({
 }
 
 function BackupCodesStep({
+  email,
   codes,
   onDone,
 }: {
+  email: string;
   codes: string[];
   onDone: () => void;
 }) {
-  const [copied, setCopied] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
+    "idle",
+  );
+  const [leaving, setLeaving] = useState(false);
   const text = codes.join("\n");
 
+  // Reloading or closing the tab now would lose the codes for good.
   useEffect(() => {
-    if (!copied) return;
-    const timer = setTimeout(() => setCopied(false), 2000);
+    if (leaving) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [leaving]);
+
+  useEffect(() => {
+    if (copyState !== "copied") return;
+    const timer = setTimeout(() => setCopyState("idle"), 2000);
     return () => clearTimeout(timer);
-  }, [copied]);
+  }, [copyState]);
+
+  function copy() {
+    navigator.clipboard.writeText(text).then(
+      () => setCopyState("copied"),
+      () => setCopyState("failed"),
+    );
+  }
 
   function download() {
-    const url = URL.createObjectURL(
-      new Blob([`${text}\n`], { type: "text/plain" }),
-    );
+    const file = [
+      `Резервные коды для входа в админку ${window.location.host}`,
+      `Учётная запись: ${email}`,
+      "Каждый код работает один раз.",
+      "",
+      text,
+      "",
+    ].join("\n");
+    const url = URL.createObjectURL(new Blob([file], { type: "text/plain" }));
     const link = document.createElement("a");
     link.href = url;
     link.download = "rezervnye-kody.txt";
     link.click();
-    URL.revokeObjectURL(url);
+    // Revoking right away can cancel the download in some browsers.
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
 
   return (
@@ -293,43 +380,45 @@ function BackupCodesStep({
       <StepHeader step={3} title="Сохраните резервные коды">
         <p>
           Вход защищён. Если телефон потеряется, войти можно одним из этих кодов
-          — каждый работает один раз. Сохраните их в менеджер паролей или
-          распечатайте. Больше мы их не покажем.
+          — каждый работает один раз.
+        </p>
+        <p className="text-caption text-toner-muted">
+          Сохраните их в менеджер паролей или распечатайте. Больше мы их не
+          покажем.
         </p>
       </StepHeader>
-      <ol className="grid grid-cols-2 gap-x-4 gap-y-2 border-line border-dashed border-perforation p-card font-mono text-mono tabular-nums">
+      <ol className="grid grid-cols-2 gap-x-4 gap-y-2 border border-perforation p-card font-mono text-mono tabular-nums">
         {codes.map((code) => (
           <li key={code}>{code}</li>
         ))}
       </ol>
       <div className="flex flex-wrap gap-3">
-        <Button
-          variant="outline"
-          className="h-11 px-4 font-display text-label uppercase"
-          onClick={() => {
-            void navigator.clipboard
-              .writeText(text)
-              .then(() => setCopied(true));
-          }}
-        >
-          {copied ? "Скопировано" : "Скопировать"}
+        <Button variant="outline" className={AUTH_BUTTON_CLASS} onClick={copy}>
+          {copyState === "copied" ? "Скопировано" : "Скопировать"}
         </Button>
-        <span aria-live="polite" className="sr-only">
-          {copied ? "Коды скопированы" : ""}
-        </span>
         <Button
           variant="outline"
-          className="h-11 px-4 font-display text-label uppercase"
+          className={AUTH_BUTTON_CLASS}
           onClick={download}
         >
           Скачать файлом
         </Button>
       </div>
+      <p aria-live="polite" className="text-caption text-toner-muted">
+        {copyState === "copied" && "Коды скопированы."}
+        {copyState === "failed" &&
+          "Не получилось скопировать — выделите коды вручную или скачайте файлом."}
+      </p>
       <Button
-        className="h-11 w-full px-4 font-display text-label uppercase"
-        onClick={onDone}
+        disabled={leaving}
+        focusableWhenDisabled
+        className={cn(AUTH_BUTTON_CLASS, "w-full")}
+        onClick={() => {
+          setLeaving(true);
+          onDone();
+        }}
       >
-        Коды сохранены — в админку
+        {leaving ? "Открываем админку…" : "Коды сохранены — в админку"}
       </Button>
     </div>
   );

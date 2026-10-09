@@ -29,7 +29,9 @@ export function authErrorMessage(failure: AuthFailure): string {
     case "INVALID_CODE":
       return "Код не подошёл. Введите новый из приложения: коды меняются каждые 30 секунд.";
     case "INVALID_BACKUP_CODE":
-      return "Резервный код не подошёл. Каждый код работает один раз — возьмите другой из списка.";
+      return "Резервный код не подошёл. Проверьте, нет ли опечатки; если этот код уже использовали — возьмите другой из списка.";
+    case "TWO_FACTOR_REQUIRED":
+      return "Сначала войдите с кодом из приложения.";
     case "TOO_MANY_ATTEMPTS_REQUEST_NEW_CODE":
       return "Слишком много неверных кодов. Введите email и пароль ещё раз.";
     case "INVALID_TWO_FACTOR_COOKIE":

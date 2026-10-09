@@ -12,7 +12,8 @@ export function TotpQr({
   uri: string;
   className?: string;
 }) {
-  const { data, size } = encode(uri, { ecc: "M", border: 2 });
+  // A quiet zone of 4 modules, as the QR standard asks.
+  const { data, size } = encode(uri, { ecc: "M", border: 4 });
   let path = "";
   data.forEach((row, y) =>
     row.forEach((dark, x) => {

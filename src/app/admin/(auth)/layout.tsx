@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { AUTH_LINK_CLASS } from "@/components/auth/field";
+import { cn } from "@/lib/utils";
 
 /** Sign-in screens: one sheet on the board, nothing else to look at. */
 export default function AuthLayout({ children }: LayoutProps<"/admin">) {
@@ -9,7 +11,10 @@ export default function AuthLayout({ children }: LayoutProps<"/admin">) {
       </div>
       <Link
         href="/"
-        className="mt-6 text-caption text-toner-muted underline decoration-[1.5px] underline-offset-[3px]"
+        className={cn(
+          AUTH_LINK_CLASS,
+          "mt-4 text-caption text-toner-muted hover:text-toner",
+        )}
       >
         На сайт приюта
       </Link>

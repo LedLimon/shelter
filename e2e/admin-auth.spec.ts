@@ -98,9 +98,8 @@ test("new staff set up TOTP before the admin opens", async ({
   await page.getByLabel("Пароль").fill(E2E_PASSWORD);
   await page.getByRole("button", { name: "Продолжить" }).click();
 
-  const uri = await page
-    .getByRole("link", { name: "Открыть в приложении на этом телефоне" })
-    .getAttribute("href");
+  // The "open in the app" link (shown on touch screens only) carries the URI.
+  const uri = await page.locator('a[href^="otpauth:"]').getAttribute("href");
   expect(uri).toMatch(/^otpauth:\/\/totp\//);
   // Not in yet: the authenticator hasn't proven itself.
   const blocked = await page.request.get("/admin", { maxRedirects: 0 });
