@@ -279,10 +279,10 @@ export default function TokensPage() {
     <main className="mx-auto grid max-w-[80rem] grid-cols-[minmax(0,1fr)] gap-section px-gutter py-section">
       <header className="grid gap-sheet rounded-sheet bg-paper p-sheet shadow-sheet md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
         <div className="grid gap-3">
-          <SpecLabel>DS-1 · только в development</SpecLabel>
           <h1 className="text-hero">Токены «Объявление»</h1>
           <p className="max-w-prose">
-            Палитра, шрифты, формы и&nbsp;темы из&nbsp;
+            Временная витрина DS-1, только в&nbsp;development: палитра, шрифты,
+            формы и&nbsp;темы из&nbsp;
             <code className="font-mono text-mono">src/app/globals.css</code>.
             Цвета и&nbsp;контраст ниже читаются из&nbsp;CSS в&nbsp;браузере,
             поэтому показывают то, что действительно в&nbsp;коде. Правила
@@ -302,7 +302,7 @@ export default function TokensPage() {
           <p className="max-w-prose text-caption text-toner-muted">
             Порог WCAG 2.1 AA: 4,5:1 для текста, 3:1 для рамок, фокуса
             и&nbsp;штриховки. Значения для текущей темы; обе темы проверяет тест{" "}
-            <code className="font-mono text-mono-sm">
+            <code className="font-mono text-mono-sm whitespace-nowrap">
               design-tokens.test.ts
             </code>
             .

@@ -2,7 +2,7 @@
 
 import { Check, X } from "lucide-react";
 
-import { contrastRatio, formatRatio } from "@/lib/contrast";
+import { AA_TEXT, contrastRatio, formatRatio } from "@/lib/contrast";
 import {
   CONTRAST_PAIRS,
   KNOWN_LOW_CONTRAST_PAIRS,
@@ -34,7 +34,13 @@ export function ContrastTable() {
   const colors = useTokenColors();
 
   return (
-    <div className="relative overflow-x-auto">
+    // Scrolls sideways on phones: focusable and named for keyboard users.
+    <div
+      role="region"
+      aria-label="Пары цветов и их контраст"
+      tabIndex={0}
+      className="relative overflow-x-auto"
+    >
       <table className="w-full min-w-[34rem] border-collapse text-left text-caption">
         <thead className="font-mono text-mono-sm text-toner-muted">
           <tr className="border-b border-toner">
@@ -66,15 +72,34 @@ export function ContrastTable() {
                   {row.label}
                 </th>
                 <td className="py-2 pr-3">
-                  <span
-                    className="inline-block border border-toner px-2 py-1 font-display text-label whitespace-nowrap"
-                    style={{
-                      color: `var(--color-${row.foreground})`,
-                      backgroundColor: `var(--color-${row.background})`,
-                    }}
-                  >
-                    Аа Ёё 1&nbsp;000&nbsp;₽
-                  </span>
+                  {/* Text pairs show text, UI pairs (min 3:1 or unused) a 2 px frame. */}
+                  {row.min === AA_TEXT ? (
+                    <span
+                      aria-hidden
+                      className="inline-block border border-toner px-2 py-1 font-display text-label whitespace-nowrap"
+                      style={{
+                        color: `var(--color-${row.foreground})`,
+                        backgroundColor: `var(--color-${row.background})`,
+                      }}
+                    >
+                      Аа Ёё 1&nbsp;000&nbsp;₽
+                    </span>
+                  ) : (
+                    <span
+                      aria-hidden
+                      className="inline-block border border-toner p-1.5"
+                      style={{
+                        backgroundColor: `var(--color-${row.background})`,
+                      }}
+                    >
+                      <span
+                        className="block h-4 w-16 border-2"
+                        style={{
+                          borderColor: `var(--color-${row.foreground})`,
+                        }}
+                      />
+                    </span>
+                  )}
                 </td>
                 <td className="py-2 pr-3 text-right font-mono text-mono whitespace-nowrap tabular-nums">
                   {ratio === null ? "…" : formatRatio(ratio)}
