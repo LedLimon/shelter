@@ -29,6 +29,7 @@ CREATE TABLE "LedgerTransaction" (
     "publicMemo" TEXT,
     "reversesId" TEXT,
     "actorId" TEXT,
+    "createdXid" xid8 NOT NULL DEFAULT pg_current_xact_id(),
 
     CONSTRAINT "LedgerTransaction_pkey" PRIMARY KEY ("id")
 );
@@ -151,7 +152,7 @@ FROM unnest(ARRAY[
   'IN_KIND_IN', 'IN_KIND_USED'
 ]) AS kind;
 
--- 1. Append-only ---------------------------------------------------------------
+-- Append-only -------------------------------------------------------------------
 
 -- Statement-level, so even an UPDATE or DELETE that matches no rows fails, and
 -- TRUNCATE (which skips row triggers) is covered too.
@@ -175,41 +176,67 @@ CREATE TRIGGER "LedgerEntry_append_only"
   BEFORE UPDATE OR DELETE OR TRUNCATE ON "LedgerEntry"
   FOR EACH STATEMENT EXECUTE FUNCTION ledger_forbid_change();
 
--- 3. Closed months -------------------------------------------------------------
+-- Closed months -----------------------------------------------------------------
 
--- Fails if posted_at falls in a month with a published report. FOR SHARE on the
--- report row: a publication running concurrently either commits first (then
--- we see PUBLISHED and fail) or waits for our commit.
+-- The period lock (an advisory lock, so no table privileges are needed): every
+-- posting holds it shared until its commit, a publication takes it
+-- exclusively. A publication thus waits for the postings in flight, and new
+-- postings wait for it, then see the month closed. The number is arbitrary,
+-- unique among the application's advisory locks.
+CREATE FUNCTION ledger_period_lock_key() RETURNS bigint
+LANGUAGE sql IMMUTABLE AS $$ SELECT 3700000001::bigint $$;
+
+-- Fails if posted_at falls in a month with a published report.
 CREATE FUNCTION ledger_assert_period_open(posted_at timestamptz) RETURNS void
 LANGUAGE plpgsql AS $$
 DECLARE
-  report record;
+  closed_period text;
 BEGIN
-  SELECT "period", "status" INTO report
+  -- REPEATABLE READ and SERIALIZABLE keep the snapshot of the transaction's
+  -- first query, which may predate a publication: the check would miss it.
+  IF current_setting('transaction_isolation') <> 'read committed' THEN
+    RAISE EXCEPTION 'ledger: post in a READ COMMITTED transaction, not %',
+      current_setting('transaction_isolation');
+  END IF;
+  PERFORM pg_advisory_xact_lock_shared(ledger_period_lock_key());
+  -- A new query, a new snapshot: it sees a publication that committed while
+  -- we waited for the lock.
+  SELECT "period" INTO closed_period
     FROM "MonthlyReport"
-   WHERE "periodStart" <= posted_at AND posted_at < "periodEnd"
-     FOR SHARE;
-  IF FOUND AND report."status" = 'PUBLISHED' THEN
+   WHERE "status" = 'PUBLISHED'
+     AND "periodStart" <= posted_at AND posted_at < "periodEnd";
+  IF FOUND THEN
     RAISE EXCEPTION 'ledger: the report for % is published, nothing can be posted in that month',
-      report."period";
+      closed_period;
   END IF;
 END
 $$;
 
--- A published report is final: its month can't be reopened or moved.
-CREATE FUNCTION monthly_report_keep_published() RETURNS trigger
+-- Publishing closes a month that is over; a published report is final.
+CREATE FUNCTION monthly_report_guard() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
-  IF OLD."status" = 'PUBLISHED' AND (
-       TG_OP = 'DELETE'
-       OR NEW."status" IS DISTINCT FROM OLD."status"
-       OR NEW."period" IS DISTINCT FROM OLD."period"
-       OR NEW."periodStart" IS DISTINCT FROM OLD."periodStart"
-       OR NEW."periodEnd" IS DISTINCT FROM OLD."periodEnd"
-     ) THEN
-    RAISE EXCEPTION 'ledger: the report for % is published, its month stays closed',
-      OLD."period";
+  IF TG_OP <> 'INSERT' AND OLD."status" = 'PUBLISHED' THEN
+    -- Every column is frozen but updatedAt. Columns that may change after
+    -- publication (REP-1: commentary?) are listed here explicitly.
+    IF TG_OP = 'DELETE'
+       OR (to_jsonb(NEW) - 'updatedAt') IS DISTINCT FROM (to_jsonb(OLD) - 'updatedAt') THEN
+      RAISE EXCEPTION 'ledger: the report for % is published, its month stays closed',
+        OLD."period";
+    END IF;
   END IF;
+
+  IF TG_OP <> 'DELETE' AND NEW."status" = 'PUBLISHED'
+     AND (TG_OP = 'INSERT' OR OLD."status" <> 'PUBLISHED') THEN
+    -- A month published early would reject every posting until it ends,
+    -- webhooks included, and can't be reopened.
+    IF NEW."periodEnd" > transaction_timestamp() THEN
+      RAISE EXCEPTION 'ledger: % lasts until %, it can''t be published before',
+        NEW."period", NEW."periodEnd";
+    END IF;
+    PERFORM pg_advisory_xact_lock(ledger_period_lock_key());
+  END IF;
+
   IF TG_OP = 'DELETE' THEN
     RETURN OLD;
   END IF;
@@ -217,24 +244,29 @@ BEGIN
 END
 $$;
 
-CREATE TRIGGER "MonthlyReport_keep_published"
-  BEFORE UPDATE OR DELETE ON "MonthlyReport"
-  FOR EACH ROW EXECUTE FUNCTION monthly_report_keep_published();
+CREATE TRIGGER "MonthlyReport_guard"
+  BEFORE INSERT OR UPDATE OR DELETE ON "MonthlyReport"
+  FOR EACH ROW EXECUTE FUNCTION monthly_report_guard();
 
 CREATE TRIGGER "MonthlyReport_no_truncate"
   BEFORE TRUNCATE ON "MonthlyReport"
   FOR EACH STATEMENT EXECUTE FUNCTION ledger_forbid_change();
 
--- New transactions -------------------------------------------------------------
+-- New transactions and entries --------------------------------------------------
 
--- postedAt is the start time of the database transaction (the column default
--- transaction_timestamp(), same as now()): the application can't backdate a
--- posting into a closed month.
+-- Both columns come from the database's defaults, any other value is refused:
+-- - postedAt is the start time of the database transaction
+--   (transaction_timestamp(), same as now()), so nothing is backdated;
+-- - createdXid is the database transaction's id (top-level, also inside a
+--   savepoint), so only that transaction can add entries.
 CREATE FUNCTION ledger_transaction_before_insert() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
   IF NEW."postedAt" IS DISTINCT FROM transaction_timestamp()::timestamptz(3) THEN
     RAISE EXCEPTION 'ledger: "postedAt" is set by the database, don''t pass it';
+  END IF;
+  IF NEW."createdXid" IS DISTINCT FROM pg_current_xact_id() THEN
+    RAISE EXCEPTION 'ledger: "createdXid" is set by the database, don''t pass it';
   END IF;
   PERFORM ledger_assert_period_open(NEW."postedAt");
   IF NEW."reversesId" IS NOT NULL AND EXISTS (
@@ -251,48 +283,28 @@ CREATE TRIGGER "LedgerTransaction_before_insert"
   BEFORE INSERT ON "LedgerTransaction"
   FOR EACH ROW EXECUTE FUNCTION ledger_transaction_before_insert();
 
--- Remembers the transactions inserted by the current database transaction in
--- a transaction-local setting (reset at commit or rollback, rolled back with a
--- savepoint). AFTER, so a row skipped by ON CONFLICT DO NOTHING isn't listed.
-CREATE FUNCTION ledger_transaction_after_insert() RETURNS trigger
-LANGUAGE plpgsql AS $$
-BEGIN
-  PERFORM set_config(
-    'shelter.ledger_new_transactions',
-    coalesce(nullif(current_setting('shelter.ledger_new_transactions', true), ''), ',')
-      || NEW."id" || ',',
-    true
-  );
-  RETURN NULL;
-END
-$$;
-
-CREATE TRIGGER "LedgerTransaction_after_insert"
-  AFTER INSERT ON "LedgerTransaction"
-  FOR EACH ROW EXECUTE FUNCTION ledger_transaction_after_insert();
-
--- An entry joins only a transaction created in the same database transaction:
+-- An entry joins only a transaction created by the same database transaction:
 -- a committed transaction can't gain entries later. It carries its
 -- transaction's postedAt.
 CREATE FUNCTION ledger_entry_before_insert() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
-  posted_at timestamptz;
+  tx record;
 BEGIN
-  IF position(
-    ',' || NEW."transactionId" || ','
-    IN coalesce(current_setting('shelter.ledger_new_transactions', true), '')
-  ) = 0 THEN
+  SELECT "postedAt", "createdXid" INTO tx
+    FROM "LedgerTransaction" WHERE "id" = NEW."transactionId";
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'ledger: transaction % not found', NEW."transactionId";
+  END IF;
+  IF tx."createdXid" IS DISTINCT FROM pg_current_xact_id() THEN
     RAISE EXCEPTION 'ledger: entries are added only together with their transaction, in the database transaction that created it (%)',
       NEW."transactionId";
   END IF;
-  SELECT "postedAt" INTO posted_at
-    FROM "LedgerTransaction" WHERE "id" = NEW."transactionId";
-  IF NEW."postedAt" IS DISTINCT FROM posted_at THEN
+  IF NEW."postedAt" IS DISTINCT FROM tx."postedAt" THEN
     RAISE EXCEPTION 'ledger: an entry''s "postedAt" must equal its transaction''s (%)',
       NEW."transactionId";
   END IF;
-  PERFORM ledger_assert_period_open(posted_at);
+  PERFORM ledger_assert_period_open(tx."postedAt");
   RETURN NEW;
 END
 $$;
@@ -301,7 +313,7 @@ CREATE TRIGGER "LedgerEntry_before_insert"
   BEFORE INSERT ON "LedgerEntry"
   FOR EACH ROW EXECUTE FUNCTION ledger_entry_before_insert();
 
--- 2. Balance -------------------------------------------------------------------
+-- Balance -----------------------------------------------------------------------
 
 -- At commit, for every new transaction and every new entry's transaction: at
 -- least two entries, summing to zero; a REVERSAL mirrors exactly the entries

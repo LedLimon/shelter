@@ -184,6 +184,9 @@ model LedgerTransaction {
   /// The staff member who posted it; null for webhooks and jobs.
   actorId        String?
   actor          User?                 @relation(fields: [actorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  /// The database transaction that inserted it: only that one may add its
+  /// entries. Set by the default, checked by a trigger.
+  createdXid     Unsupported("xid8")   @default(dbgenerated("pg_current_xact_id()"))
   // donationId, expenseId and inKindId come with their models, each with a
   // foreign key (onDelete: Restrict) — docs/ledger.md#модель.
 
@@ -229,7 +232,8 @@ model MonthlyReport {
   /// Half-open: periodStart <= t < periodEnd.
   periodStart DateTime            @db.Timestamptz(3)
   periodEnd   DateTime            @db.Timestamptz(3)
-  /// PUBLISHED closes the month for the ledger; a trigger forbids reopening it.
+  /// PUBLISHED closes the month for the ledger: allowed once periodEnd has
+  /// passed, final (a trigger freezes the report).
   status      MonthlyReportStatus @default(DRAFT)
   createdAt   DateTime            @default(now()) @db.Timestamptz(3)
   updatedAt   DateTime            @updatedAt @db.Timestamptz(3)
