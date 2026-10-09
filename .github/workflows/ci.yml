@@ -20,10 +20,14 @@ env:
   DO_NOT_TRACK: "1"
   # Throwaway values for the env check on server start (src/lib/env/schema.ts):
   # the e2e job starts the standalone server, `next build` needs none of them.
-  # All are placeholders: no page reads the database yet, and integration tests
-  # start their own Postgres (Testcontainers). Not secrets: real ones never go
-  # into the repository (AGENTS.md).
+  # The database is the e2e job's Postgres service; integration tests start
+  # their own (Testcontainers). Not secrets: real ones never go into the
+  # repository (AGENTS.md).
   DATABASE_URL: postgresql://shelter:shelter@localhost:5432/shelter_test
+  BETTER_AUTH_SECRET: ci-only-placeholder-not-a-real-secret
+  SEED_OWNER_EMAIL: owner@shelter.localhost
+  SEED_OWNER_PASSWORD: ci-owner-password
+  SEED_OWNER_TOTP_SECRET: ci-owner-totp-secret
   APP_URL: http://127.0.0.1:3100
   SHELTER_TIMEZONE: Europe/Moscow
   S3_ENDPOINT: http://127.0.0.1:9000
@@ -76,6 +80,22 @@ jobs:
     name: E2E smoke
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    # Sign-in scenarios need a database (DATABASE_URL above); same image as
+    # docker-compose.yml.
+    services:
+      postgres:
+        image: postgres:16.15-alpine
+        env:
+          POSTGRES_USER: shelter
+          POSTGRES_PASSWORD: shelter
+          POSTGRES_DB: shelter_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U shelter -d shelter_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -97,6 +117,13 @@ jobs:
       # System packages are not cached; a cached browser is not downloaded again.
       - name: Install Playwright browser
         run: pnpm exec playwright install --with-deps --only-shell chromium
+
+      # The migrations as deployments apply them, then the seed as the first
+      # deployment runs it; e2e/global-setup.ts adds the test users.
+      - name: Prepare database
+        run: |
+          pnpm exec prisma migrate deploy
+          pnpm db:seed
 
       - name: Build
         run: pnpm build

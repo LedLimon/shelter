@@ -81,7 +81,7 @@ e2e/                      # Playwright
 
 ### Идентичность
 
-- `User`: email (unique), emailVerified, name, phone?, role (`DONOR | VOLUNTEER | COORDINATOR | EDITOR | ADMIN | OWNER`), deletedAt + таблицы Better Auth.
+- `User`: email (unique), emailVerified, name, phone?, role (`DONOR | VOLUNTEER | COORDINATOR | EDITOR | ADMIN | OWNER`), twoFactorEnabled, deletedAt + таблицы Better Auth: `Session` (с флагом `twoFactorVerified`), `Account` (хеш пароля), `Verification`, `TwoFactor`, `RateLimit`. Имена полей — как ждёт Better Auth (он сверяет их со схемой при старте), id — `cuid(2)` из схемы (`generateId: false`). У таблиц входа `onDelete: Cascade`: истории в них нет, а пользователей мы всё равно не удаляем.
 - `StaffProfile`: userId, каналы связи (telegram, whatsapp, max, vk, phone), showPublicly.
 
 ### Собаки
@@ -168,8 +168,19 @@ e2e/                      # Playwright
 
 ## Безопасность
 
-- Сотрудники — TOTP обязателен; `/admin` закрыт в middleware и в layout.
+- Сотрудники — TOTP обязателен; `/admin` закрыт в proxy и в layout. Подробно — [«Вход сотрудников»](#вход-сотрудников).
 - Rate limit (на Postgres) для форм доната, входа, upload.
 - Вебхуки — проверка HMAC по **сырому** телу (`await req.text()`), Node runtime.
 - Загрузки: лимит размера, проверка MIME, удаление EXIF/GPS, HEIC конвертируется в браузере.
 - Каналы куратора: телефон раскрывается по клику (против скрейпинга).
+
+### Вход сотрудников
+
+Better Auth ([`src/server/auth`](../src/server/auth)): email + пароль, затем TOTP-код из приложения. Регистрации нет — сотрудников заводит владелец (первого — seed).
+
+- **Конфигурация** — `createAuth()` в `config.ts` (без `server-only`: её же используют seed и e2e, чтобы формат хеша пароля и шифрования TOTP-секрета был тот же). Приложение берёт экземпляр через `getAuth()` из `@/server/auth`, браузер ходит в `/api/auth/*` через `authClient` из `src/components/auth`.
+- **Второй фактор обязателен.** Сессия создаётся только после кода: пароль без кода сессии не даёт. Сотрудник без настроенного приложения после пароля попадает только на `/admin/two-factor` (подтвердить пароль → QR → код → резервные коды). Сессия, прошедшая TOTP или резервный код, помечена `Session.twoFactorVerified`; админка пускает только такие — поэтому вход донора по коду на email (ACC-1) или через VK ID не откроет админку сотруднику. Сессия без этой отметки у пользователя с TOTP не может ничего, кроме входа с кодом и выхода (смена пароля, управление сессиями и т. п. отвечают 403), а после входа с кодом такие сессии пользователя удаляются. «Доверять устройству» запрещено; отключить TOTP, увидеть секрет заново или перевыпустить резервные коды по сессии и паролю нельзя (сброс — владельцем, задача `users.manage`).
+- **Проверки.** `src/proxy.ts` — оптимистичная: нет cookie сессии → `/admin/login?next=…`. Настоящая — `adminAccessOf()` (`access.ts`): роль сотрудника, не удалён, TOTP настроен, сессия прошла TOTP. Страницы и layout вызывают `requireStaff(permission?)` (редирект на вход или настройку TOTP, иначе 403 через `forbidden()`); layout не перепроверяется при клиентской навигации, поэтому каждая страница админки вызывает его сама. Server actions и route handlers — `getStaffUser()` и `assertCan(user, permission)`.
+- **Права** — карта `permission → roles` в [`permissions.ts`](../src/server/auth/permissions.ts), матрица проверяется unit-тестом; функции `can()` и `assertCan()`.
+- **Ограничения попыток:** пароль — 5 в минуту с одного IP, коды — 3 за 10 секунд с IP и 5 на один вход; после 10 неверных кодов подряд вход в аккаунт закрыт на 15 минут. Счётчики IP — в таблице `RateLimit`. IP берётся из `X-Forwarded-For`, поэтому в production приложение доступно только через Caddy, который этот заголовок перезаписывает.
+- **Прочее:** запросы к `/api/auth` принимаются только с origin `APP_URL`; сессия живёт 7 дней с момента входа и не продлевается (Server Components не могут переписать cookie, а продлевать только строку в БД бессмысленно); закрыты эндпоинты регистрации, правки профиля, отключения TOTP, повторного показа секрета и перевыпуска резервных кодов. `BETTER_AUTH_SECRET` подписывает cookie и шифрует TOTP-секреты: его смена завершает все сессии и ломает настроенные TOTP.
