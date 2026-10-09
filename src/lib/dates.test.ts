@@ -11,7 +11,7 @@ import {
   formatTime,
 } from "@/lib/dates";
 
-const _ = "\u00A0"; // between a number and its word
+const _ = "\u00A0"; // binds a number or «в» to the next word
 const MSK = "Europe/Moscow"; // UTC+3 all year since 2014
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -86,7 +86,7 @@ describe("formatTime, formatDateTime, formatDateNumeric", () => {
     expect(formatTime(date, { timeZone: MSK })).toBe("00:05");
     expect(formatTime(date, { timeZone: "UTC" })).toBe("21:05");
     expect(formatDateTime(date, { timeZone: MSK, now })).toBe(
-      `9${_}октября в 00:05`,
+      `9${_}октября в${_}00:05`,
     );
     expect(formatDateNumeric(date, { timeZone: MSK })).toBe("09.10.2026");
     expect(formatDateNumeric(date, { timeZone: "UTC" })).toBe("08.10.2026");
@@ -98,7 +98,7 @@ describe("formatTime, formatDateTime, formatDateNumeric", () => {
     );
     expect(
       formatDateTime(utc("2025-03-01T20:00:00"), { timeZone: MSK, now }),
-    ).toBe(`1${_}марта 2025 в 23:00`);
+    ).toBe(`1${_}марта 2025 в${_}23:00`);
   });
 });
 
