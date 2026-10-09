@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   formatRub,
+  MAX_AMOUNT_KOP,
   parseRubInput,
   validateRubInput,
   type FormatRubOptions,
@@ -82,6 +83,7 @@ describe("formatRub", () => {
     fc.assert(
       fc.property(fc.maxSafeInteger(), (kop) => {
         // A decimal string keeps Intl exact where kop / 100 would not be.
+        // Fails if ICU changes ru-RU separators: then decide whether to follow.
         const expected = intl
           .format(`${kop}E-2` as Intl.StringNumericLiteral)
           .replace("-", MINUS);
@@ -136,7 +138,7 @@ describe("parseRubInput", () => {
     ["500 Руб.", 50_000],
     ["500 р.", 50_000],
     ["500р", 50_000],
-    ["90071992547409,91", Number.MAX_SAFE_INTEGER],
+    ["21 474 836,47", MAX_AMOUNT_KOP],
   ])("%j → %i", (input, kop) => {
     expect(parseRubInput(input)).toBe(kop);
     expect(validateRubInput(input)).toEqual({ ok: true, kop });
@@ -150,14 +152,21 @@ describe("parseRubInput", () => {
     [`${MINUS}500`, "negative"],
     ["\u2013500", "negative"], // en dash
     ["- 500", "negative"],
+    ["-500 ₽", "negative"],
     ["2,500", "too-many-decimals"],
     ["2.500", "too-many-decimals"],
     ["1 500,555", "too-many-decimals"],
-    ["90071992547409,92", "too-large"],
+    ["-2,555", "too-many-decimals"],
+    ["21 474 836,48", "too-large"],
+    ["21474837", "too-large"],
     ["99999999999999999999", "too-large"],
     ["abc", "invalid"],
-    ["₽", "invalid"],
-    ["руб.", "invalid"],
+    ["₽", "empty"],
+    [" руб. ", "empty"],
+    ["-abc", "invalid"],
+    ["-", "invalid"],
+    ["0 500", "invalid"],
+    ["000 000", "invalid"],
     ["25 00", "invalid"],
     ["2 50", "invalid"],
     ["2  500", "invalid"],
@@ -183,7 +192,7 @@ describe("parseRubInput", () => {
   it("reads back whatever formatRub writes (property)", () => {
     fc.assert(
       fc.property(
-        fc.maxSafeNat(),
+        fc.integer({ min: 0, max: MAX_AMOUNT_KOP }),
         fc.constantFrom("auto", "always"),
         fc.boolean(),
         (kop, kopecks, symbol) => {
@@ -196,8 +205,7 @@ describe("parseRubInput", () => {
   it("reads hand-typed amounts in every accepted spelling (property)", () => {
     const typed = fc
       .record({
-        rubles: fc.bigInt({ min: BigInt(0), max: BigInt(10 ** 13) }),
-        kopecks: fc.integer({ min: 0, max: 99 }),
+        kop: fc.integer({ min: 0, max: MAX_AMOUNT_KOP }),
         group: fc.constantFrom(null, " ", NBSP, NARROW_NBSP, THIN_SPACE),
         separator: fc.constantFrom(",", "."),
         shortFraction: fc.boolean(),
@@ -206,18 +214,19 @@ describe("parseRubInput", () => {
         padding: fc.constantFrom("", " ", NBSP),
       })
       .map((r) => {
+        const rubles = String(Math.trunc(r.kop / 100));
         const integer = r.group
-          ? r.rubles.toString().replace(/\B(?=(\d{3})+$)/g, r.group)
-          : r.rubles.toString();
-        let fraction = String(r.kopecks).padStart(2, "0");
+          ? rubles.replace(/\B(?=(\d{3})+$)/g, r.group)
+          : rubles;
+        let fraction = String(r.kop % 100).padStart(2, "0");
         if (r.shortFraction && fraction.endsWith("0")) fraction = fraction[0]!;
         const withFraction =
-          r.kopecks === 0 && r.dropZeroFraction
+          fraction === "00" && r.dropZeroFraction
             ? integer
             : `${integer}${r.separator}${fraction}`;
         return {
           input: `${r.padding}${withFraction}${r.suffix}${r.padding}`,
-          kop: Number(r.rubles * BigInt(100) + BigInt(r.kopecks)),
+          kop: r.kop,
         };
       });
 
@@ -228,7 +237,7 @@ describe("parseRubInput", () => {
     );
   });
 
-  it("returns null or safe non-negative kopecks for any string (property)", () => {
+  it("returns null or kopecks within limits for any string (property)", () => {
     const amountish = fc.string({
       unit: fc.constantFrom(..."0123456789 ,.-₽р", NBSP, MINUS),
       maxLength: 24,
@@ -237,8 +246,9 @@ describe("parseRubInput", () => {
       fc.property(fc.oneof(amountish, fc.string({ unit: "binary" })), (s) => {
         const kop = parseRubInput(s);
         if (kop === null) return;
-        expect(Number.isSafeInteger(kop)).toBe(true);
+        expect(Number.isInteger(kop)).toBe(true);
         expect(kop).toBeGreaterThanOrEqual(0);
+        expect(kop).toBeLessThanOrEqual(MAX_AMOUNT_KOP);
       }),
     );
   });

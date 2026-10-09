@@ -45,9 +45,15 @@ export type RubInputError =
 export type RubInputResult =
   { ok: true; kop: number } | { ok: false; error: RubInputError };
 
+/**
+ * Largest amount `parseRubInput` accepts: 21 474 836,47 ₽, what a Prisma
+ * `Int` column holds. Larger input is "too-large" rather than a failed write.
+ */
+export const MAX_AMOUNT_KOP = 2_147_483_647;
+
 // Spaces people (and formatRub) put between digit groups.
 const GROUP_SPACE = "[ \u00A0\u202F\u2009]";
-const INTEGER = `(\\d{1,3}(?:${GROUP_SPACE}\\d{3})+|\\d+)`;
+const INTEGER = `([1-9]\\d{0,2}(?:${GROUP_SPACE}\\d{3})+|\\d+)`;
 const AMOUNT = new RegExp(`^${INTEGER}(?:[.,](\\d{1,2}))?$`);
 const LONG_FRACTION = new RegExp(`^${INTEGER}[.,]\\d{3,}$`);
 const CURRENCY_SUFFIX = /(?:₽|руб\.?|р\.?)$/i;
@@ -61,20 +67,20 @@ const LEADING_MINUS = /^[-\u2212\u2013\u2014]/;
  * than guessed). `0` is a valid amount: minimums are the caller's business.
  */
 export function validateRubInput(input: string): RubInputResult {
-  const text = input.trim();
+  const text = input.trim().replace(CURRENCY_SUFFIX, "").trimEnd();
   if (text === "") return { ok: false, error: "empty" };
-  if (LEADING_MINUS.test(text)) return { ok: false, error: "negative" };
 
-  const amount = text.replace(CURRENCY_SUFFIX, "").trimEnd();
+  const amount = text.replace(LEADING_MINUS, "").trimStart();
   const match = AMOUNT.exec(amount);
   if (!match) {
     const error = LONG_FRACTION.test(amount) ? "too-many-decimals" : "invalid";
     return { ok: false, error };
   }
+  if (amount !== text) return { ok: false, error: "negative" };
 
   const [, integer = "", fraction = ""] = match;
   const kop = Number(integer.replace(/\D/g, "") + fraction.padEnd(2, "0"));
-  if (!Number.isSafeInteger(kop)) return { ok: false, error: "too-large" };
+  if (kop > MAX_AMOUNT_KOP) return { ok: false, error: "too-large" };
   return { ok: true, kop };
 }
 
