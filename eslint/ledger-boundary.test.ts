@@ -22,6 +22,8 @@ new RuleTester({
     "db.need.findMany();",
     "db.ledger.find();",
     "const key = db[ledgerEntry];",
+    // Reading a relation off a result: getting it there takes an include.
+    "const total = user.ledgerTransactions.length;",
     // A foreign key column, not the relation (Need.ledgerAccountId).
     "db.need.create({ data: { ledgerAccountId: id } });",
     'db.$queryRaw`SELECT * FROM "Need"`;',
@@ -33,36 +35,37 @@ new RuleTester({
   invalid: [
     {
       code: "await tx.ledgerEntry.create({ data });",
-      errors: [{ messageId: "model", data: { name: "ledgerEntry" } }],
+      errors: [{ messageId: "delegate", data: { name: "ledgerEntry" } }],
     },
     {
       code: "await getDb().ledgerTransaction.findMany();",
-      errors: [{ messageId: "model" }],
+      errors: [{ messageId: "delegate" }],
     },
     {
       code: 'db["ledgerAccount"].count();',
-      errors: [{ messageId: "model" }],
+      errors: [{ messageId: "delegate" }],
     },
     {
       code: "db[`ledgerEntry`].count();",
-      errors: [{ messageId: "model" }],
+      errors: [{ messageId: "delegate" }],
     },
     {
       code: "const { ledgerEntry } = db;",
-      errors: [{ messageId: "model" }],
+      errors: [{ messageId: "relation" }],
     },
     {
       // A nested write through a relation skips the module's checks.
       code: "db.user.update({ where, data: { ledgerTransactions: { create: tx } } });",
-      errors: [{ messageId: "model", data: { name: "ledgerTransactions" } }],
+      errors: [{ messageId: "relation", data: { name: "ledgerTransactions" } }],
     },
     {
       code: "db.need.findMany({ include: { ledgerAccount: { include: { entries: true } } } });",
-      errors: [{ messageId: "model", data: { name: "ledgerAccount" } }],
+      errors: [{ messageId: "relation", data: { name: "ledgerAccount" } }],
     },
     {
-      code: "const total = user.ledgerTransactions.length;",
-      errors: [{ messageId: "model" }],
+      // The names are reserved for the relations, DTOs included.
+      code: "function Table({ ledgerEntries }) {}",
+      errors: [{ messageId: "relation" }],
     },
     {
       code: 'await db.$executeRaw`DELETE FROM "LedgerEntry" WHERE id = ${id}`;',
