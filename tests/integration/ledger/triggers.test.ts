@@ -117,11 +117,10 @@ describe("append-only", () => {
 
   it("rejects an upsert (INSERT … ON CONFLICT DO UPDATE)", async () => {
     await expect(
-      getDb().ledgerAccount.upsert({
-        where: { id: SYSTEM_ACCOUNT.GENERAL_FUND },
-        create: { kind: "GENERAL_FUND", code: "GENERAL_FUND" },
-        update: { code: "GENERAL_FUND_2" },
-      }),
+      getDb().$executeRaw`
+        INSERT INTO "LedgerAccount" ("id", "code", "kind")
+        VALUES ('GENERAL_FUND', 'GENERAL_FUND', 'GENERAL_FUND')
+        ON CONFLICT ("id") DO UPDATE SET "code" = 'GENERAL_FUND_2'`,
     ).rejects.toThrow(APPEND_ONLY);
   });
 
@@ -306,6 +305,16 @@ describe("postedAt", () => {
         }),
       ),
     ).rejects.toThrow(/ledger: "postedAt" is set by the database/);
+  });
+
+  it("comes with the creating transaction's id, which can't be passed", async () => {
+    await expect(
+      getDb().$transaction(
+        (tx) => tx.$executeRaw`
+          INSERT INTO "LedgerTransaction" ("id", "kind", "idempotencyKey", "createdXid")
+          VALUES ('forged', 'DONATION', ${uniqueKey("forged")}, '1'::xid8)`,
+      ),
+    ).rejects.toThrow(/ledger: "createdXid" is set by the database/);
   });
 
   it("of an entry must equal its transaction's", async () => {
