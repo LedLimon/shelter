@@ -40,7 +40,8 @@ export const serverEnvSchema = z
   .object({
     // Public origin of the site: links in emails, redirects, OG tags.
     APP_URL: httpUrl().transform((url) => url.replace(/\/+$/, "")),
-    // Default shelter time zone; times are stored in UTC.
+    // Fallback until the shelter.timezone setting exists (the seed copies
+    // this value there). Times are stored in UTC.
     SHELTER_TIMEZONE: timeZone(),
 
     DATABASE_URL: databaseUrl(),
@@ -80,7 +81,8 @@ export const seedEnvSchema = z.object({
   DATABASE_URL: databaseUrl(),
   // Written to the shelter.timezone setting.
   SHELTER_TIMEZONE: timeZone(),
-  // The first OWNER account. Its password and TOTP come with FND-6 (Better Auth).
+  // Becomes the OWNER while the database has none. Its password and TOTP come
+  // with FND-6 (Better Auth).
   SEED_OWNER_EMAIL: z
     .email({ error: "must be an email address" })
     .transform((email) => email.toLowerCase()),

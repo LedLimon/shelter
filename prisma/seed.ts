@@ -2,7 +2,13 @@
 // already loaded .env.
 import { EnvValidationError, parseEnv, seedEnvSchema } from "@/lib/env/schema";
 import { createPrismaClient } from "@/server/db/client";
-import { seedDatabase } from "@/server/db/seed";
+import { seedDatabase, type SeedResult } from "@/server/db/seed";
+
+const OWNER_MESSAGES = {
+  created: "owner created",
+  promoted: "existing user made the owner",
+  unchanged: "the database already has an owner, roles untouched",
+} satisfies Record<SeedResult["owner"], string>;
 
 async function main() {
   const env = parseEnv(seedEnvSchema, process.env, "seed");
@@ -13,7 +19,7 @@ async function main() {
       timeZone: env.SHELTER_TIMEZONE,
     });
     console.log(
-      `Seed: owner ${result.ownerCreated ? "created" : "already exists"}, ` +
+      `Seed: ${OWNER_MESSAGES[result.owner]}; ` +
         `settings added: ${result.settingsCreated}.`,
     );
   } finally {
