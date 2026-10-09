@@ -10,6 +10,9 @@ import { createPrismaClient } from "@/server/db/client";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
+// How far the clocks of this process and of the container may differ (Docker
+// Desktop's drifts after sleep). Still well under the 3-hour shift.
+const SKEW = 30 * MINUTE;
 const OCTOBER = new Date("2026-10-01T00:00:00.000Z");
 
 async function sessionZone(db: PrismaClient): Promise<string | undefined> {
@@ -26,7 +29,7 @@ async function received(db: PrismaClient, value: Date): Promise<string> {
   return row?.iso ?? "";
 }
 
-/** How far now() read through the client is from the clock of this process. */
+/** How far now() read through the client is from this process's clock. */
 async function nowSkew(db: PrismaClient): Promise<number> {
   const [row] = await db.$queryRaw<{ now: Date }[]>`SELECT now() AS now`;
   return (row?.now.getTime() ?? Number.NaN) - Date.now();
@@ -44,9 +47,7 @@ describe("Postgres of the integration tests", () => {
         "2026-09-30T21:00:00.000Z",
       );
       // Read 3 hours late.
-      expect(Math.abs((await nowSkew(unpinned)) - 3 * HOUR)).toBeLessThan(
-        MINUTE,
-      );
+      expect(Math.abs((await nowSkew(unpinned)) - 3 * HOUR)).toBeLessThan(SKEW);
     } finally {
       await unpinned.$disconnect();
     }
@@ -63,7 +64,7 @@ describe("createPrismaClient()", () => {
   });
 
   it("reads now() as the current time", async () => {
-    expect(Math.abs(await nowSkew(getDb()))).toBeLessThan(MINUTE);
+    expect(Math.abs(await nowSkew(getDb()))).toBeLessThan(SKEW);
   });
 
   it("compares times set by Postgres with Date parameters", async () => {
@@ -76,8 +77,8 @@ describe("createPrismaClient()", () => {
 
     const createdBefore = (at: Date) =>
       db.user.count({ where: { createdAt: { lt: at } } });
-    expect(await createdBefore(new Date(Date.now() + MINUTE))).toBe(1);
-    expect(await createdBefore(new Date(Date.now() - MINUTE))).toBe(0);
+    expect(await createdBefore(new Date(Date.now() + SKEW))).toBe(1);
+    expect(await createdBefore(new Date(Date.now() - SKEW))).toBe(0);
   });
 
   it("keeps the options of the URL, and UTC wins over their TimeZone", async () => {
