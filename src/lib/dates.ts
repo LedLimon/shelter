@@ -109,7 +109,7 @@ export function formatTime(
 
 /** `8 октября в 14:05`, `8 октября 2025 в 14:05`. */
 export function formatDateTime(date: Date, options: FormatDateOptions): string {
-  return `${formatDate(date, options)} в ${formatTime(date, options)}`;
+  return `${formatDate(date, options)} в${NBSP}${formatTime(date, options)}`;
 }
 
 /**
@@ -166,7 +166,9 @@ export type Deadline = {
 
 /**
  * A deadline is a whole calendar day in the shelter time zone: the day that
- * `deadline` falls on, whichever moment of it was stored.
+ * `deadline` falls on, whichever moment of it was stored. A `@db.Date` value
+ * (UTC midnight) lands on the right day in zones at or east of UTC, which
+ * covers all of Russia.
  */
 export function describeDeadline(
   deadline: Date,
