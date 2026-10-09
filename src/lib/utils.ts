@@ -26,7 +26,9 @@ export const MERGE_THEME = {
   shadow: ["sheet"],
 } as const;
 
-const borderWidths = ["line"];
+/** `--border-width-*` names: `border-line`, `border-t-line`, `divide-y-line`… */
+export const MERGE_BORDER_WIDTHS = ["line"];
+const borderWidths = MERGE_BORDER_WIDTHS;
 
 const twMerge = extendTailwindMerge({
   extend: {
@@ -44,10 +46,14 @@ const twMerge = extendTailwindMerge({
       "border-w-y": [{ "border-y": borderWidths }],
       "border-w-s": [{ "border-s": borderWidths }],
       "border-w-e": [{ "border-e": borderWidths }],
+      "border-w-bs": [{ "border-bs": borderWidths }],
+      "border-w-be": [{ "border-be": borderWidths }],
       "border-w-t": [{ "border-t": borderWidths }],
       "border-w-r": [{ "border-r": borderWidths }],
       "border-w-b": [{ "border-b": borderWidths }],
       "border-w-l": [{ "border-l": borderWidths }],
+      "divide-x": [{ "divide-x": borderWidths }],
+      "divide-y": [{ "divide-y": borderWidths }],
     },
   },
 });
