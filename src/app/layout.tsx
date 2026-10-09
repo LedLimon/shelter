@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { ThemeScript } from "@/components/theme/theme-script";
 import { cn } from "@/lib/utils";
 
-import { bodyFont, displayFont, monoFont } from "./fonts";
+import { bodyFont, displayFont, monoFont, roubleFont } from "./fonts";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -16,7 +16,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     // ThemeScript adds the `dark` class before React hydrates <html>.
     <html
       lang="ru"
-      className={cn(displayFont.variable, bodyFont.variable, monoFont.variable)}
+      className={cn(
+        displayFont.variable,
+        roubleFont.variable,
+        bodyFont.variable,
+        monoFont.variable,
+      )}
       suppressHydrationWarning
     >
       <head>

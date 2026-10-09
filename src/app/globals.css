@@ -119,7 +119,10 @@
 
 /* Fonts come from next/font (src/app/fonts.ts) as CSS variables on <html>. */
 @theme inline {
-  --font-display: var(--font-face-display), "Arial Narrow", sans-serif;
+  /* ₽ face first: Sofia Sans Extra Condensed has no ₽ (src/app/fonts.ts). */
+  --font-display:
+    var(--font-face-rouble), var(--font-face-display), "Arial Narrow",
+    sans-serif;
   --font-body: var(--font-face-body), Georgia, "Times New Roman", serif;
   --font-mono: var(--font-face-mono), ui-monospace, Menlo, monospace;
   --font-heading: var(--font-display);
