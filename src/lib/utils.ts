@@ -20,7 +20,7 @@ export const MERGE_THEME = {
     "mono-sm",
   ],
   font: ["display", "body", "mono", "heading"],
-  "font-weight": ["ultra"],
+  "font-weight": ["normal", "bold", "ultra"],
   spacing: ["gutter", "grid", "sheet", "card", "section", "tab", "cta"],
   radius: ["sheet", "stamp"],
   shadow: ["sheet"],

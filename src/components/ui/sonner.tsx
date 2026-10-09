@@ -1,40 +1,61 @@
 "use client";
 
-import { useTheme } from "next-themes";
-import { Toaster as Sonner, type ToasterProps } from "sonner";
 import {
   CircleCheckIcon,
+  CircleXIcon,
   InfoIcon,
   TriangleAlertIcon,
-  OctagonXIcon,
-  Loader2Icon,
 } from "lucide-react";
+import { Toaster as Sonner, type ToasterProps } from "sonner";
 
-const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme();
+import { buttonVariants } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 
+/*
+ * Toasts are paper slips in a toner frame. Sonner's own look is switched off
+ * (`unstyled`), so they follow the palette and the theme class by themselves.
+ * The state is carried by an icon and the words, the ink colours the icon only.
+ * Sonner's injected CSS is unlayered and sets `outline: none`, hence the
+ * important focus outline.
+ */
+const Toaster = ({ toastOptions, ...props }: ToasterProps) => {
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
       className="toaster group"
+      containerAriaLabel="Уведомления"
       icons={{
-        success: <CircleCheckIcon className="size-4" />,
-        info: <InfoIcon className="size-4" />,
-        warning: <TriangleAlertIcon className="size-4" />,
-        error: <OctagonXIcon className="size-4" />,
-        loading: <Loader2Icon className="size-4 animate-spin" />,
+        success: (
+          <CircleCheckIcon aria-hidden className="size-5 text-success" />
+        ),
+        info: <InfoIcon aria-hidden className="size-5 text-info" />,
+        warning: (
+          <TriangleAlertIcon aria-hidden className="size-5 text-warning" />
+        ),
+        error: <CircleXIcon aria-hidden className="size-5 text-danger" />,
+        loading: <Spinner aria-hidden className="size-5" />,
       }}
-      style={
-        {
-          "--normal-bg": "var(--popover)",
-          "--normal-text": "var(--popover-foreground)",
-          "--normal-border": "var(--border)",
-          "--border-radius": "var(--radius)",
-        } as React.CSSProperties
-      }
       toastOptions={{
+        unstyled: true,
+        ...toastOptions,
         classNames: {
-          toast: "cn-toast",
+          toast: cn(
+            "flex w-(--width) items-start gap-3 border border-foreground bg-popover p-4 font-body text-popover-foreground shadow-sheet",
+            "focus-visible:outline-3! focus-visible:outline-offset-2! focus-visible:outline-ring! focus-visible:outline-solid!",
+          ),
+          icon: "mt-0.5 flex shrink-0",
+          content: "flex min-w-0 flex-1 flex-col gap-1",
+          title: "text-body font-bold",
+          description: "text-caption text-muted-foreground",
+          actionButton: cn(
+            buttonVariants({ size: "sm" }),
+            "ml-auto self-center",
+          ),
+          cancelButton: cn(
+            buttonVariants({ variant: "outline", size: "sm" }),
+            "self-center",
+          ),
+          ...toastOptions?.classNames,
         },
       }}
       {...props}
