@@ -4,9 +4,9 @@ import { LedgerError } from "./errors";
 
 /**
  * The account's balance in kopecks: the sum of its entries — of those posted
- * before `at` if given (half-open, so balance(id, periodEnd) is the balance at
- * the end of a period). Positive on fund and need accounts; source accounts
- * (DONATIONS_IN, IN_KIND_IN) go negative.
+ * before `at` if given (half-open, so balance(db, id, periodEnd) is the
+ * balance at the end of a period). Positive on fund and need accounts; source
+ * accounts (DONATIONS_IN, IN_KIND_IN) go negative.
  */
 export async function balance(
   db: Db,
@@ -35,9 +35,8 @@ export async function balance(
 
   const kop = Number(row.balanceKop);
   if (!Number.isSafeInteger(kop)) {
-    throw new LedgerError(
-      "INVALID_INPUT",
-      `balance of ${accountId} is beyond the safe integer range`,
+    throw new RangeError(
+      `ledger: balance of ${accountId} is beyond the safe integer range`,
     );
   }
   return kop;

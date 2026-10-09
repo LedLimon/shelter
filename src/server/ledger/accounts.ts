@@ -1,6 +1,7 @@
 import type { LedgerAccountKind } from "@/generated/prisma/enums";
 import type { Db } from "@/server/db";
 import { parseNeedId } from "./input";
+import { assertTransaction } from "./transaction";
 
 /**
  * Ids of the system accounts. The migration creates them with id = code =
@@ -17,13 +18,15 @@ export const SYSTEM_ACCOUNT = {
 } as const satisfies { [K in Exclude<LedgerAccountKind, "NEED">]: K };
 
 /**
- * The need's own account, created on first call; returns its id. Call it in
- * the transaction that creates the need.
+ * The need's own account, created on first call; returns its id. Runs in the
+ * transaction that creates the need: an account can't be deleted, so one
+ * left behind by a need that failed to save would stay forever.
  */
 export async function createNeedAccount(
   tx: Db,
   needId: string,
 ): Promise<string> {
+  assertTransaction(tx, "createNeedAccount");
   const id = parseNeedId(needId);
   // skipDuplicates (ON CONFLICT DO NOTHING): a concurrent or repeated call
   // finds the existing account instead of aborting the transaction.

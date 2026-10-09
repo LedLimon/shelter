@@ -7,7 +7,10 @@ export type LedgerErrorCode =
   | "IDEMPOTENCY_CONFLICT"
   | "UNKNOWN_ACCOUNT"
   | "UNKNOWN_TRANSACTION"
-  /** A REVERSAL can't be reversed: post the original again instead. */
+  /**
+   * A REVERSAL can't be reversed. To restore the original, post it again with
+   * a new idempotency key (the old key would return the original as a no-op).
+   */
   | "REVERSAL_OF_REVERSAL";
 
 /**

@@ -8,6 +8,7 @@ import {
   type PostInput,
   type ReverseInput,
 } from "./input";
+import { assertTransaction } from "./transaction";
 
 export type PostResult = {
   transactionId: string;
@@ -77,7 +78,7 @@ export async function reverse(
   if (original.kind === "REVERSAL") {
     throw new LedgerError(
       "REVERSAL_OF_REVERSAL",
-      `transaction ${input.transactionId} is a reversal itself; post the original again instead`,
+      `transaction ${input.transactionId} is a reversal itself; to restore its original, post it again with a new idempotency key`,
     );
   }
 
@@ -206,23 +207,6 @@ async function assertAccountsExist(
     throw new LedgerError(
       "UNKNOWN_ACCOUNT",
       `unknown account ${missing.join(", ")}`,
-    );
-  }
-}
-
-/**
- * Db doesn't tell the client from a transaction. Outside a transaction each
- * statement would commit on its own: the transaction without its entries.
- * The transaction client has no $disconnect.
- */
-function assertTransaction(
-  db: Db,
-  operation: string,
-): asserts db is Prisma.TransactionClient {
-  if ("$disconnect" in db) {
-    throw new LedgerError(
-      "NOT_IN_TRANSACTION",
-      `${operation}() writes several rows and must run inside db.$transaction()`,
     );
   }
 }
