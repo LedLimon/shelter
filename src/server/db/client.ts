@@ -9,9 +9,9 @@ import { PrismaClient, type Prisma } from "@/generated/prisma/client";
 export type Db = PrismaClient | Prisma.TransactionClient;
 
 /**
- * A new client with its own connection pool. The app shares one through
- * getDb() from `@/server/db`; this is for code outside Next.js: the seed,
- * integration tests and the worker.
+ * A new client with its own connection pool. The app (and integration tests)
+ * share one through getDb() from `@/server/db`; this is for code that can't
+ * import `server-only` modules, like the seed, or needs another database.
  */
 export function createPrismaClient(connectionString: string): PrismaClient {
   return new PrismaClient({ adapter: new PrismaPg({ connectionString }) });

@@ -72,9 +72,10 @@ pnpm dev:reset   # стереть .data/ (база, файлы) и поднят�
 
   ```bash
   pnpm db:migrate  # применить миграции; после правки схемы — создать новую: pnpm db:migrate --name <имя>
-  pnpm db:seed     # владелец (SEED_OWNER_EMAIL) и настройки по умолчанию; повторный запуск ничего не ломает
+  pnpm db:seed     # настройки по умолчанию и владелец (SEED_OWNER_EMAIL), если его ещё нет; можно повторять
   pnpm db:reset    # стереть базу, применить миграции и seed заново (спросит подтверждение)
   pnpm db:studio   # Prisma Studio: данные в браузере
+  pnpm db:generate # пересоздать Prisma Client (обычно делают pnpm install и db:migrate)
   ```
 
 - **Один стек на машину.** Если стек уже поднят из другого checkout или worktree (`docker ps`), используйте его: порты и пароли те же. Второй `dev:up` из другого каталога упадёт с «port is already allocated». Перед удалением worktree выполните в нём `pnpm dev:down`.

@@ -51,6 +51,7 @@ pnpm db:migrate       # prisma generate + migrate dev (новая миграци
 pnpm db:seed          # владелец и настройки по умолчанию; можно запускать повторно
 pnpm db:reset         # стереть БД, миграции и seed заново — только с согласия человека
 pnpm db:studio        # Prisma Studio
+pnpm db:generate      # prisma generate (Prisma Client в src/generated/prisma)
 pnpm typecheck        # next typegen && tsc --noEmit
 pnpm lint             # eslint
 pnpm test             # vitest: unit + integration (Postgres в Docker через Testcontainers)
