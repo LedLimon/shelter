@@ -1,0 +1,100 @@
+# Local development dependencies: `pnpm dev:up` / `pnpm dev:down` / `pnpm dev:reset`.
+# Dev-only credentials; they match .env.example. Ports listen on 127.0.0.1 only
+# and can be overridden via POSTGRES_PORT, MINIO_PORT, MINIO_CONSOLE_PORT,
+# MAILPIT_SMTP_PORT, MAILPIT_UI_PORT (e.g. in .env, which compose reads too).
+
+x-minio-image: &minio-image
+  # The official minio/minio images are no longer published; pgsty/minio is a
+  # community-maintained build of the same server (AGPL-3.0) and ships `mc`.
+  image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
+
+services:
+  postgres:
+    image: postgres:16.15-alpine
+    environment:
+      POSTGRES_USER: shelter
+      POSTGRES_PASSWORD: shelter
+      POSTGRES_DB: shelter
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - ./.data/pg:/var/lib/postgresql/data
+    healthcheck:
+      # TCP check: during initdb the temporary server listens on the socket only.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U shelter -d shelter"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+      start_interval: 1s
+    restart: unless-stopped
+
+  minio:
+    <<: *minio-image
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: shelter
+      MINIO_ROOT_PASSWORD: shelter-dev-secret
+      # Same region as Yandex Object Storage, so request signing matches prod.
+      MINIO_SITE_REGION: ru-central1
+    ports:
+      - "127.0.0.1:${MINIO_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - ./.data/minio:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+      start_interval: 1s
+    restart: unless-stopped
+
+  # One-shot: creates the bucket from S3_BUCKET in .env.example. `pnpm dev:up`
+  # runs it after `up --wait`, which treats exited containers as failures.
+  minio-init:
+    <<: *minio-image
+    profiles: ["tools"]
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: shelter
+      MINIO_ROOT_PASSWORD: shelter-dev-secret
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        mc alias set dev http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" &&
+        mc mb --ignore-existing dev/shelter
+    restart: "no"
+
+  mailpit:
+    image: axllent/mailpit:v1.31.4
+    environment:
+      # Accept any SMTP credentials, so SMTP_USER/SMTP_PASSWORD may be set or empty.
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+      MP_MAX_MESSAGES: "5000"
+    ports:
+      - "127.0.0.1:${MAILPIT_SMTP_PORT:-1025}:1025"
+      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+      start_interval: 1s
+    restart: unless-stopped
+
+  # `pnpm dev:reset` runs this to wipe .data: on Linux the files belong to
+  # container users, so the host user can't always delete them.
+  data-reset:
+    image: postgres:16.15-alpine
+    profiles: ["tools"]
+    volumes:
+      - ./.data:/data
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["rm -rf /data/pg /data/minio"]
+    restart: "no"

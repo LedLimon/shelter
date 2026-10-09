@@ -8,6 +8,9 @@
   },
   "scripts": {
     "dev": "next dev",
+    "dev:up": "docker compose up -d --wait && docker compose run --rm minio-init",
+    "dev:down": "docker compose down",
+    "dev:reset": "docker compose down --remove-orphans && docker compose run --rm data-reset && pnpm dev:up",
     "build": "next build",
     "start": "next start",
     "lint": "eslint --max-warnings=0",
