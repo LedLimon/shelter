@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Controller, useForm, useWatch } from "react-hook-form";
+import { Controller, useForm, useWatch, type Control } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -38,35 +38,51 @@ const FREQUENCIES = [
   { value: "monthly", label: "Каждый месяц" },
 ] as const;
 
-const schema = z.object({
-  amount: z.string().superRefine((value, context) => {
-    const result = validateRubInput(value);
-    if (!result.ok) {
-      context.addIssue({
-        code: "custom",
-        message: AMOUNT_ERRORS[result.error],
-      });
-    } else if (result.kop < MIN_AMOUNT_KOP) {
-      context.addIssue({
-        code: "custom",
-        message: `Минимальная сумма — ${formatRub(MIN_AMOUNT_KOP)}.`,
-      });
-    }
-  }),
-  email: z.email(
-    "Проверьте адрес: нужны «@» и домен, например name@example.ru.",
-  ),
-  frequency: z.enum(["once", "monthly"], {
-    error: "Выберите, как часто помогать.",
-  }),
-  comment: z
-    .string()
-    .max(COMMENT_MAX, `Не больше ${COMMENT_MAX} знаков.`)
-    .optional(),
-  consent: z.boolean().refine(Boolean, {
-    message: "Без согласия мы не сможем принять пожертвование.",
-  }),
-});
+const schema = z
+  .object({
+    amount: z.string().superRefine((value, context) => {
+      const result = validateRubInput(value);
+      if (!result.ok) {
+        context.addIssue({
+          code: "custom",
+          message: AMOUNT_ERRORS[result.error],
+        });
+      } else if (result.kop < MIN_AMOUNT_KOP) {
+        context.addIssue({
+          code: "custom",
+          message: `Минимальная сумма — ${formatRub(MIN_AMOUNT_KOP)}.`,
+        });
+      }
+    }),
+    email: z.email(
+      "Проверьте адрес: нужны «@» и домен, например name@example.ru.",
+    ),
+    frequency: z.enum(["once", "monthly"], {
+      error: "Выберите, как часто помогать.",
+    }),
+    comment: z
+      .string()
+      .max(COMMENT_MAX, `Не больше ${COMMENT_MAX} знаков.`)
+      .optional(),
+    // docs/legal.md: every consent is its own unchecked box.
+    offer: z.boolean().refine(Boolean, {
+      message: "Чтобы помочь, примите условия оферты.",
+    }),
+    personalData: z.boolean().refine(Boolean, {
+      message:
+        "Без согласия на обработку персональных данных мы не сможем принять пожертвование.",
+    }),
+    recurring: z.boolean().optional(),
+  })
+  .refine(
+    (values) => values.frequency !== "monthly" || values.recurring === true,
+    {
+      path: ["recurring"],
+      message: "Подтвердите ежемесячное списание или выберите «Один раз».",
+      // Report it together with the other errors, not after they are fixed.
+      when: () => true,
+    },
+  );
 
 type FormInput = z.input<typeof schema>;
 type FormOutput = z.output<typeof schema>;
@@ -75,10 +91,15 @@ const DEFAULT_VALUES: Partial<FormInput> = {
   amount: "",
   email: "",
   comment: "",
-  consent: false,
+  offer: false,
+  personalData: false,
+  recurring: false,
 };
 
-/** react-hook-form + zod with Field components: the pattern for every form. */
+/**
+ * The mechanics every form follows: react-hook-form + zod + Field. Not the
+ * donation form itself — that one (DS-3, DON) also records consent versions.
+ */
 export function FormDemo() {
   const form = useForm<FormInput, unknown, FormOutput>({
     resolver: zodResolver(schema),
@@ -98,6 +119,12 @@ export function FormDemo() {
   }
 
   const comment = useWatch({ control: form.control, name: "comment" }) ?? "";
+  const frequency = useWatch({ control: form.control, name: "frequency" });
+  const amount = useWatch({ control: form.control, name: "amount" }) ?? "";
+  const amountKop = validateRubInput(amount);
+  const monthlySum = amountKop.ok
+    ? formatRub(amountKop.kop)
+    : "выбранную сумму";
 
   return (
     <form
@@ -230,37 +257,26 @@ export function FormDemo() {
           )}
         />
 
-        <Controller
-          name="consent"
-          control={form.control}
-          render={({ field, fieldState }) => (
-            <Field
-              orientation="horizontal"
-              data-invalid={fieldState.invalid || undefined}
-            >
-              <Checkbox
-                id="donate-consent"
-                name={field.name}
-                checked={field.value ?? false}
-                onCheckedChange={field.onChange}
-                inputRef={field.ref}
-                aria-invalid={fieldState.invalid || undefined}
-                aria-describedby={
-                  fieldState.invalid ? "donate-consent-error" : undefined
-                }
-              />
-              <FieldContent>
-                <FieldLabel htmlFor="donate-consent" variant="option">
-                  Принимаю оферту и&nbsp;политику обработки персональных данных
-                </FieldLabel>
-                <FieldError
-                  id="donate-consent-error"
-                  errors={[fieldState.error]}
-                />
-              </FieldContent>
-            </Field>
+        <FieldSet>
+          <FieldLegend className="sr-only">Согласия</FieldLegend>
+          <ConsentField
+            control={form.control}
+            name="offer"
+            label="Принимаю условия оферты на пожертвование"
+          />
+          <ConsentField
+            control={form.control}
+            name="personalData"
+            label="Даю согласие на обработку персональных данных"
+          />
+          {frequency === "monthly" && (
+            <ConsentField
+              control={form.control}
+              name="recurring"
+              label={`Разрешаю списывать ${monthlySum} каждый месяц, пока не отменю подписку`}
+            />
           )}
-        />
+        </FieldSet>
       </FieldGroup>
 
       <div className="flex flex-wrap gap-3">
@@ -277,5 +293,46 @@ export function FormDemo() {
         </Button>
       </div>
     </form>
+  );
+}
+
+/** One consent: its own unchecked box, label and error. */
+function ConsentField({
+  control,
+  name,
+  label,
+}: {
+  control: Control<FormInput, unknown, FormOutput>;
+  name: "offer" | "personalData" | "recurring";
+  label: string;
+}) {
+  const id = `donate-${name}`;
+  return (
+    <Controller
+      name={name}
+      control={control}
+      render={({ field, fieldState }) => (
+        <Field
+          orientation="horizontal"
+          data-invalid={fieldState.invalid || undefined}
+        >
+          <Checkbox
+            id={id}
+            name={field.name}
+            checked={field.value ?? false}
+            onCheckedChange={field.onChange}
+            inputRef={field.ref}
+            aria-invalid={fieldState.invalid || undefined}
+            aria-describedby={fieldState.invalid ? `${id}-error` : undefined}
+          />
+          <FieldContent>
+            <FieldLabel htmlFor={id} variant="option">
+              {label}
+            </FieldLabel>
+            <FieldError id={`${id}-error`} errors={[fieldState.error]} />
+          </FieldContent>
+        </Field>
+      )}
+    />
   );
 }

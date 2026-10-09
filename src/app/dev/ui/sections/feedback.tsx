@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
+import { formatRub } from "@/lib/money";
 
 import { Paper, Section, SpecimenGroup, Specimens } from "../showcase";
 
@@ -27,7 +28,7 @@ const TOASTS: { label: string; show: () => void }[] = [
     label: "Предупреждение",
     show: () =>
       toast.warning("Сбор почти закрыт", {
-        description: "Осталось 350 ₽ — лишнее уйдёт в общий фонд.",
+        description: `Осталось ${formatRub(350_00)} — лишнее уйдёт в общий фонд.`,
       }),
   },
   {

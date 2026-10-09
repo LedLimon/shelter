@@ -8,8 +8,10 @@ import { useEffect } from "react";
  */
 export type PreviewState = "hover" | "focus-visible" | "active";
 
-const PSEUDO = /:(hover|focus-visible|active)\b/g;
-const HAS_PSEUDO = /:(?:hover|focus-visible|active)\b/;
+// A real pseudo-class, not the escaped `\:hover` inside a class name such as
+// `.not-data-disabled\:hover\:-translate-y-px`.
+const PSEUDO = /(?<!\\):(hover|focus-visible|active)\b/g;
+const HAS_PSEUDO = /(?<!\\):(?:hover|focus-visible|active)\b/;
 const STYLE_ID = "dev-ui-pseudo-states";
 
 /** `.x:hover` → `.x[data-preview~="hover"]` (also inside :has() and groups). */
