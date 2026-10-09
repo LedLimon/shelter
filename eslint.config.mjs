@@ -50,6 +50,8 @@ const eslintConfig = defineConfig([
     "blob-report/**",
     // Claude Code worktrees of this repo (other sessions' checkouts).
     ".claude/worktrees/**",
+    // Docker volumes; on Linux they belong to container users and can't be read.
+    ".data/**",
   ]),
 ]);
 

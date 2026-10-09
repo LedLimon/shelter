@@ -32,7 +32,7 @@ brew install mise
 mise install
 ```
 
-Дальше (нужен Docker: Docker Desktop, OrbStack или Colima):
+Дальше (нужен Docker Engine 25+: Docker Desktop, OrbStack или Colima):
 
 ```bash
 pnpm install
@@ -68,6 +68,7 @@ pnpm dev:reset   # стереть .data/ (база, файлы) и поднят�
 ```
 
 - **Данные** — в `.data/pg` и `.data/minio` (в `.gitignore`). Письма Mailpit не сохраняются между перезапусками.
+- **Один стек на машину.** Если стек уже поднят из другого checkout или worktree (`docker ps`), используйте его: порты и пароли те же. Второй `dev:up` из другого каталога упадёт с «port is already allocated». Перед удалением worktree выполните в нём `pnpm dev:down`.
 - **Порт занят** — задайте в `.env` `POSTGRES_PORT`, `MINIO_PORT`, `MINIO_CONSOLE_PORT`, `MAILPIT_SMTP_PORT` или `MAILPIT_UI_PORT` и поправьте адрес сервиса там же (`DATABASE_URL`, `S3_ENDPOINT`, `SMTP_PORT`).
 - **Переменные окружения** проверяются при старте `pnpm dev` и `next start` (схема — [`src/lib/env/schema.ts`](src/lib/env/schema.ts)). Если чего-то не хватает, сервер не запустится и перечислит, какие переменные не заданы или неверны. Новую переменную добавляйте в схему и в `.env.example` — тест сверяет их.
 - **MinIO** — официальные образы `minio/minio` больше не публикуются, поэтому используется [`pgsty/minio`](https://github.com/pgsty/minio) — поддерживаемая сообществом сборка того же сервера. Регион — `ru-central1`, как у Yandex Object Storage.

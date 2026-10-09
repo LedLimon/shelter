@@ -2,6 +2,7 @@
 # Dev-only credentials; they match .env.example. Ports listen on 127.0.0.1 only
 # and can be overridden via POSTGRES_PORT, MINIO_PORT, MINIO_CONSOLE_PORT,
 # MAILPIT_SMTP_PORT, MAILPIT_UI_PORT (e.g. in .env, which compose reads too).
+# No restart policy: stacks of deleted worktrees must not come back with Docker.
 
 x-minio-image: &minio-image
   # The official minio/minio images are no longer published; pgsty/minio is a
@@ -27,7 +28,6 @@ services:
       retries: 5
       start_period: 30s
       start_interval: 1s
-    restart: unless-stopped
 
   minio:
     <<: *minio-image
@@ -49,10 +49,9 @@ services:
       retries: 5
       start_period: 30s
       start_interval: 1s
-    restart: unless-stopped
 
-  # One-shot: creates the bucket from S3_BUCKET in .env.example. `pnpm dev:up`
-  # runs it after `up --wait`, which treats exited containers as failures.
+  # One-shot: creates the S3_BUCKET bucket. `pnpm dev:up` runs it after
+  # `up --wait`, which treats exited containers as failures.
   minio-init:
     <<: *minio-image
     profiles: ["tools"]
@@ -62,11 +61,12 @@ services:
     environment:
       MINIO_ROOT_USER: shelter
       MINIO_ROOT_PASSWORD: shelter-dev-secret
+      S3_BUCKET: ${S3_BUCKET:-shelter}
     entrypoint: ["/bin/sh", "-c"]
     command:
       - >-
         mc alias set dev http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" &&
-        mc mb --ignore-existing dev/shelter
+        mc mb --ignore-existing "dev/$$S3_BUCKET"
     restart: "no"
 
   mailpit:
@@ -86,7 +86,6 @@ services:
       retries: 5
       start_period: 10s
       start_interval: 1s
-    restart: unless-stopped
 
   # `pnpm dev:reset` runs this to wipe .data: on Linux the files belong to
   # container users, so the host user can't always delete them.

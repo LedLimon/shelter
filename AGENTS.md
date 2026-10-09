@@ -41,7 +41,7 @@ Next.js (App Router) · TypeScript strict · Tailwind CSS v4 · shadcn/ui · Pri
 ```bash
 pnpm install          # зависимости
 cp .env.example .env  # переменные окружения (один раз)
-pnpm dev:up           # docker compose: Postgres, MinIO, Mailpit (ждёт healthchecks)
+pnpm dev:up           # docker compose: Postgres, MinIO, Mailpit (один стек на машину, см. README)
 pnpm dev:down         # остановить контейнеры, данные в .data/ остаются
 pnpm dev:reset        # стереть .data/ и поднять заново
 pnpm dev              # Next.js dev server
@@ -65,7 +65,7 @@ pnpm format:check     # prettier --check (для CI)
 4. **Блокировки в фиксированном порядке:** `Donation → Need → Subscription` (`SELECT … FOR UPDATE`), чтобы не было дедлоков.
 5. **Сначала проверка прав, потом действие.** Каждая server action и route handler вызывают `can(user, permission)`; действия сотрудников пишутся в `AuditLog`.
 6. **Персональные данные:** не логировать email/телефоны/карты; на публичных чеках ПДн закрашены (флаг `redacted`); имя донора показывается только с его согласия. Подробно — [docs/legal.md](docs/legal.md).
-7. **Секреты не коммитятся.** Только `.env.example`: секреты в нём пустые, остальное — dev-значения для `pnpm dev:up`. Не читай `.env`.
+7. **Секреты не коммитятся.** Только `.env.example`: боевые секреты (CloudPayments, prod-ключи) в нём пустые, dev-пароли контейнеров из `docker-compose.yml` допустимы. Не читай `.env`.
 8. **Языки:** тексты интерфейса, письма, документация, задачи и PR — **на русском**; код, идентификаторы, имена веток и коммиты — **на английском**.
 9. **Без внешних сервисов вне РФ для персональных данных** (Google Analytics, облачный Sentry, иностранные email-провайдеры) — см. ADR-0004.
 
@@ -75,7 +75,7 @@ pnpm format:check     # prettier --check (для CI)
 - Страницы и server actions — тонкие; логика — в `src/server/<домен>`.
 - UI-компоненты — shadcn/ui в стиле `base-nova` (Base UI, не Radix): вместо `asChild` — проп `render`. `cn()` импортируй только из `@/lib/utils`; если `shadcn add` принёс импорт из пакета `cn` — замени импорт и удали зависимость `cn` (ESLint это ловит).
 - Next.js 16: сверяйся с документацией установленной версии в `node_modules/next/dist/docs/`, а не с памятью — API между мажорными версиями меняются.
-- Переменные окружения — только через `env` из `@/lib/env` (сервер) и `publicEnv` из `@/lib/env/public` (`NEXT_PUBLIC_*`), не через `process.env`. Новая переменная — в схему `src/lib/env/schema.ts` и в `.env.example` (тест сверяет их).
+- Переменные окружения — только через `getEnv()` из `@/lib/env` (сервер) и `getPublicEnv()` из `@/lib/env/public` (`NEXT_PUBLIC_*`), не через `process.env`. Вызывай внутри функций, не на уровне модуля — иначе `next build` потребует переменные. Новая переменная — в схему `src/lib/env/schema.ts` и в `.env.example` (тест сверяет их).
 - Валидация входа — zod-схемы рядом с action. Формы — react-hook-form + zod.
 - Публичные страницы — Server Components + ISR, инвалидация через `revalidateTag`.
 - Время хранится в UTC, показывается в часовом поясе приюта (настройка).
