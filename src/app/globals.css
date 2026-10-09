@@ -50,6 +50,13 @@
   --inset-shadow-*: initial;
   --drop-shadow-*: initial;
   --text-shadow-*: initial;
+  /*
+   * Type comes only from the scale below: `text-sm`, `font-medium`,
+   * `tracking-wide` generate nothing. Display weights live in the text tokens.
+   */
+  --text-*: initial;
+  --tracking-*: initial;
+  --font-weight-*: initial;
 
   /* Paper is not rounded; only the «Собрано» and «Дома» stamps are. */
   --radius-sheet: 1px;
@@ -65,6 +72,12 @@
    */
   --border-width-line: 1.5px;
 
+  /*
+   * Literata weights: regular, and bold for emphasis (popover and toast
+   * titles, like `<b>`). Display weights come with the text tokens below.
+   */
+  --font-weight-normal: 400;
+  --font-weight-bold: 700;
   --font-weight-ultra: 1000;
 
   /*

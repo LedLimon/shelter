@@ -204,7 +204,7 @@ Mobile-first: один столбец листов на доске; на дес�
 
 ## Components
 
-Базовые компоненты shadcn/ui стилизует DS-2, доменные (`NeedCard`, `DogCard`, `TearTabs`, `UrgencyBadge`) — DS-3; их назначение — [docs/design.md#компоненты-дизайн-системы](docs/design.md#компоненты-дизайн-системы). Токены и утилиты, из которых они собираются (поверхности `surface-notice` и `surface-footer`, рамки срочности `urgency-*`, тень `shadow-sheet`), — [docs/design.md#токены-в-коде](docs/design.md#токены-в-коде). Витрина в dev — `/dev/tokens`.
+Базовые компоненты shadcn/ui стилизованы в DS-2 ([docs/design.md#базовые-компоненты](docs/design.md#базовые-компоненты)), доменные (`NeedCard`, `DogCard`, `TearTabs`, `UrgencyBadge`) — DS-3; их назначение — [docs/design.md#компоненты-дизайн-системы](docs/design.md#компоненты-дизайн-системы). Токены и утилиты, из которых они собираются (поверхности `surface-notice` и `surface-footer`, рамки срочности `urgency-*`, тень `shadow-sheet`), — [docs/design.md#токены-в-коде](docs/design.md#токены-в-коде). Витрина компонентов и токенов в dev — `/dev/ui`.
 
 **The Bordered Yellow Rule.** Кнопка «Помочь» — жёлтая бумага с рамкой 2 px цветом `notice-foreground` в обеих темах: без рамки жёлтый на бумаге — 1,26:1.
 
