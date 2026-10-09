@@ -1,6 +1,6 @@
 {
   "updateCheck": false,
-  "stalenessCheck": false,
+  "stalenessCheck": true,
   "detector": {
     "ignoreRules": ["em-dash-overuse"]
   }
