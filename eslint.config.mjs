@@ -2,6 +2,7 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 import tseslint from "typescript-eslint";
+import shelter from "./eslint/ledger-boundary.mjs";
 
 // esquery regex literals: hex colours and colour functions (color-mix() over
 // tokens is fine), and classes of Tailwind's default palette.
@@ -70,6 +71,18 @@ const eslintConfig = defineConfig([
         ]),
       ],
     },
+  },
+  // Only src/server/ledger touches the Ledger* tables (docs/ledger.md). Its
+  // integration tests check the triggers, so they write to the tables directly.
+  {
+    files: ["**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}"],
+    ignores: [
+      "src/server/ledger/**",
+      "tests/integration/ledger/**",
+      "eslint/ledger-boundary.test.ts",
+    ],
+    plugins: { shelter },
+    rules: { "shelter/ledger-boundary": "error" },
   },
   // Override default ignores of eslint-config-next.
   globalIgnores([
