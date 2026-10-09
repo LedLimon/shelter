@@ -23,7 +23,7 @@ function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
   return (
     <SelectPrimitive.Value
       data-slot="select-value"
-      className={cn("flex flex-1 text-left", className)}
+      className={cn("min-w-0 flex-1 truncate text-left", className)}
       {...props}
     />
   );
@@ -46,7 +46,7 @@ function SelectTrigger({
         fieldBoxClassName,
         "flex items-center justify-between gap-2 py-2 pr-2.5 pl-3 text-left select-none data-placeholder:text-muted-foreground data-popup-open:border-foreground data-[size=default]:min-h-11 data-[size=sm]:min-h-9 data-[size=sm]:py-1",
         "data-disabled:cursor-not-allowed data-disabled:border-dashed data-disabled:bg-transparent data-disabled:text-muted-foreground data-disabled:hover:border-input",
-        "*:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className,
       )}
       {...props}
@@ -79,6 +79,8 @@ function SelectContent({
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Positioner
+        // Keep popups off the screen edge, like the page gutter.
+        collisionPadding={16}
         side={side}
         sideOffset={sideOffset}
         align={align}
@@ -90,7 +92,7 @@ function SelectContent({
           data-slot="select-content"
           data-align-trigger={alignItemWithTrigger}
           className={cn(
-            "relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 origin-(--transform-origin) overflow-x-hidden overflow-y-auto border border-foreground bg-popover p-1 text-popover-foreground shadow-sheet",
+            "relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 origin-(--transform-origin) overflow-x-hidden overflow-y-auto overscroll-contain border border-foreground bg-popover p-1 text-popover-foreground shadow-sheet",
             "duration-150 ease-out data-[align-trigger=true]:animate-none data-[side=bottom]:slide-in-from-top-1 data-[side=inline-end]:slide-in-from-left-1 data-[side=inline-start]:slide-in-from-right-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
             className,
           )}
@@ -143,7 +145,8 @@ function SelectItem({
       </SelectPrimitive.ItemText>
       <SelectPrimitive.ItemIndicator
         render={
-          <span className="pointer-events-none absolute right-3 flex size-4 items-center justify-center" />
+          // The tick is a pen mark, in the text colour on the toner highlight.
+          <span className="pointer-events-none absolute right-3 flex size-4 items-center justify-center text-pen in-data-highlighted:text-current" />
         }
       >
         <CheckIcon

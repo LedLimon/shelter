@@ -130,6 +130,7 @@ export function FieldsSection() {
                 <Input
                   id={id}
                   type="email"
+                  spellCheck={false}
                   autoComplete="off"
                   placeholder="name@example.ru"
                   defaultValue={value}
@@ -146,13 +147,14 @@ export function FieldsSection() {
               <Input
                 id="input-error"
                 type="email"
+                spellCheck={false}
                 autoComplete="off"
-                defaultValue="anna@gmial.com"
+                defaultValue="anna@example"
                 aria-invalid
                 aria-describedby="input-error-message"
               />
               <FieldError id="input-error-message">
-                Похоже на опечатку в&nbsp;домене: проверьте «gmial.com».
+                После «@» нужен домен целиком, например example.ru.
               </FieldError>
             </Field>
             <Field data-disabled>
@@ -160,6 +162,7 @@ export function FieldsSection() {
               <Input
                 id="input-disabled"
                 type="email"
+                spellCheck={false}
                 defaultValue="anna@example.ru"
                 disabled
                 aria-describedby="input-disabled-caption"

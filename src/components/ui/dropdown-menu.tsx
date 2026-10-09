@@ -33,6 +33,8 @@ function DropdownMenuContent({
   return (
     <MenuPrimitive.Portal>
       <MenuPrimitive.Positioner
+        // Keep popups off the screen edge, like the page gutter.
+        collisionPadding={16}
         className="isolate z-50 outline-none"
         align={align}
         alignOffset={alignOffset}
@@ -42,7 +44,7 @@ function DropdownMenuContent({
         <MenuPrimitive.Popup
           data-slot="dropdown-menu-content"
           className={cn(
-            "z-50 max-h-(--available-height) w-(--anchor-width) min-w-48 origin-(--transform-origin) overflow-x-hidden overflow-y-auto border border-foreground bg-popover p-1 text-popover-foreground shadow-sheet outline-none",
+            "z-50 max-h-(--available-height) w-(--anchor-width) min-w-48 origin-(--transform-origin) overflow-x-hidden overflow-y-auto overscroll-contain border border-foreground bg-popover p-1 text-popover-foreground shadow-sheet outline-none",
             "duration-150 ease-out data-[side=bottom]:slide-in-from-top-1 data-[side=inline-end]:slide-in-from-left-1 data-[side=inline-start]:slide-in-from-right-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1 data-[side=top]:slide-in-from-bottom-1 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:overflow-hidden data-closed:fade-out-0",
             className,
           )}
@@ -178,7 +180,7 @@ function DropdownMenuCheckboxItem({
       {...props}
     >
       <span
-        className="pointer-events-none absolute right-3 flex items-center justify-center"
+        className="pointer-events-none absolute right-3 flex items-center justify-center text-pen in-data-highlighted:text-current"
         data-slot="dropdown-menu-checkbox-item-indicator"
       >
         <MenuPrimitive.CheckboxItemIndicator>
@@ -220,12 +222,11 @@ function DropdownMenuRadioItem({
       {...props}
     >
       <span
-        className="pointer-events-none absolute right-3 flex items-center justify-center"
+        className="pointer-events-none absolute right-3 flex size-4 items-center justify-center text-pen in-data-highlighted:text-current"
         data-slot="dropdown-menu-radio-item-indicator"
       >
-        <MenuPrimitive.RadioItemIndicator>
-          <CheckIcon aria-hidden strokeWidth={3} />
-        </MenuPrimitive.RadioItemIndicator>
+        {/* A radio choice is a filled dot, a checkbox choice a tick. */}
+        <MenuPrimitive.RadioItemIndicator className="size-2.5 rounded-full bg-current forced-colors:forced-color-adjust-none" />
       </span>
       {children}
     </MenuPrimitive.RadioItem>

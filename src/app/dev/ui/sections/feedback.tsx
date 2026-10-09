@@ -39,6 +39,8 @@ const TOASTS: { label: string; show: () => void }[] = [
     label: "С действием",
     show: () =>
       toast("Расход удалён", {
+        // Long enough to reach the action.
+        duration: 10_000,
         action: { label: "Вернуть", onClick: () => toast("Расход вернули") },
       }),
   },
@@ -117,7 +119,7 @@ export function FeedbackSection() {
       </Paper>
       <div className="grid justify-items-start gap-2">
         <NeedCardSkeleton />
-        <p className="font-mono text-mono-sm text-toner-muted">
+        <p className="text-caption text-toner-muted">
           Skeleton по форме NeedCard — лежит на доске, как сама карточка
         </p>
       </div>

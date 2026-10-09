@@ -16,7 +16,7 @@ function Card({
       data-slot="card"
       data-size={size}
       className={cn(
-        "group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-sheet border border-transparent bg-card py-(--card-spacing) text-body text-card-foreground shadow-sheet",
+        "group/card flex flex-col gap-(--card-spacing) rounded-sheet border border-transparent bg-card py-(--card-spacing) text-body text-card-foreground shadow-sheet",
         "[--card-spacing:var(--spacing-sheet)] data-[size=sm]:[--card-spacing:var(--spacing-card)]",
         "has-data-[slot=card-footer]:pb-(--card-spacing) has-[>img:first-child]:pt-0",
         className,
@@ -31,7 +31,7 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-header"
       className={cn(
-        "group/card-header @container/card-header grid auto-rows-min items-start gap-2 px-(--card-spacing) has-data-[slot=card-action]:grid-cols-[minmax(0,1fr)_auto] has-data-[slot=card-description]:grid-rows-[auto_auto] [.border-b]:pb-(--card-spacing)",
+        "group/card-header @container/card-header grid auto-rows-min items-start gap-2 px-(--card-spacing) has-data-[slot=card-action]:grid-cols-[minmax(0,1fr)_fit-content(50%)] has-data-[slot=card-description]:grid-rows-[auto_auto] [.border-b]:pb-(--card-spacing)",
         className,
       )}
       {...props}

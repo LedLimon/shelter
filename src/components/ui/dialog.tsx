@@ -55,7 +55,7 @@ function DialogContent({
         className={cn(
           // A sheet laid over the dimmed board. The frame is transparent in the light
           // theme and shows in the dark one and in Windows contrast themes.
-          "fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-5 overflow-y-auto rounded-sheet border border-transparent bg-popover p-sheet text-body text-popover-foreground shadow-sheet sm:max-w-md dark:border-input",
+          "fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-5 overflow-y-auto overscroll-contain rounded-sheet border border-transparent bg-popover p-sheet text-body text-popover-foreground shadow-sheet sm:max-w-md dark:border-input",
           "duration-150 ease-out data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-2 data-closed:animate-out data-closed:fade-out-0",
           className,
         )}
@@ -104,7 +104,8 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
+        // Visual order follows the DOM, so focus moves the way the eye does.
+        "flex flex-col gap-2 sm:flex-row sm:justify-end",
         className,
       )}
       {...props}

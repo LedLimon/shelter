@@ -62,8 +62,11 @@ function TabsTrigger({ className, ...props }: TabsPrimitive.Tab.Props) {
     <TabsPrimitive.Tab
       data-slot="tabs-trigger"
       className={cn(
-        "relative inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 px-3 font-display text-label text-foreground uppercase transition-colors duration-150 ease-out select-none group-data-vertical/tabs:justify-start focus-visible:z-10",
-        "data-disabled:cursor-not-allowed data-disabled:text-muted-foreground",
+        // Equal segments that may shrink: a long word hyphenates inside its
+        // tab instead of widening the page. Line tabs keep their own width.
+        "relative inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1.5 px-3 text-center font-display text-label hyphens-auto text-foreground uppercase transition-colors duration-150 ease-out select-none group-data-vertical/tabs:justify-start focus-visible:z-10",
+        // Disabled is dashed, like every other disabled control, not only paler.
+        "data-disabled:cursor-not-allowed data-disabled:text-muted-foreground data-disabled:underline data-disabled:decoration-dashed data-disabled:decoration-1 data-disabled:underline-offset-4 forced-colors:data-disabled:text-[GrayText]",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         // default: segments divided by toner lines; the active one is filled.
         "group-data-[variant=default]/tabs-list:not-first:border-l-line group-data-[variant=default]/tabs-list:not-first:border-foreground group-data-vertical/tabs:group-data-[variant=default]/tabs-list:not-first:border-t-line group-data-vertical/tabs:group-data-[variant=default]/tabs-list:not-first:border-l-0",
@@ -71,7 +74,7 @@ function TabsTrigger({ className, ...props }: TabsPrimitive.Tab.Props) {
         "group-data-[variant=default]/tabs-list:data-active:bg-foreground group-data-[variant=default]/tabs-list:data-active:text-background",
         "forced-colors:group-data-[variant=default]/tabs-list:data-active:bg-[Highlight] forced-colors:group-data-[variant=default]/tabs-list:data-active:text-[HighlightText] forced-colors:group-data-[variant=default]/tabs-list:data-active:forced-color-adjust-none",
         // line: muted words, the active one in toner with a 3 px underline.
-        "group-data-[variant=line]/tabs-list:px-0 group-data-[variant=line]/tabs-list:text-muted-foreground group-data-vertical/tabs:group-data-[variant=line]/tabs-list:px-3 group-data-[variant=line]/tabs-list:not-data-disabled:hover:text-foreground group-data-[variant=line]/tabs-list:data-active:text-foreground",
+        "group-data-[variant=line]/tabs-list:flex-initial group-data-[variant=line]/tabs-list:px-0 group-data-[variant=line]/tabs-list:text-muted-foreground group-data-vertical/tabs:group-data-[variant=line]/tabs-list:px-3 group-data-[variant=line]/tabs-list:not-data-disabled:hover:text-foreground group-data-[variant=line]/tabs-list:data-active:text-foreground",
         "after:absolute after:bg-foreground after:opacity-0 group-data-horizontal/tabs:after:inset-x-0 group-data-horizontal/tabs:after:-bottom-px group-data-horizontal/tabs:after:h-[3px] group-data-vertical/tabs:after:inset-y-0 group-data-vertical/tabs:after:-left-px group-data-vertical/tabs:after:w-[3px] forced-colors:after:bg-[CanvasText] forced-colors:after:forced-color-adjust-none group-data-[variant=line]/tabs-list:data-active:after:opacity-100",
         className,
       )}

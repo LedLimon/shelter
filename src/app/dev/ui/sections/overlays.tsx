@@ -33,7 +33,6 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -95,7 +94,7 @@ function DialogDemo() {
         <DialogHeader>
           <DialogTitle>Удалить черновик нужды?</DialogTitle>
           <DialogDescription>
-            «Утеплить шесть будок к&nbsp;зиме» ещё не&nbsp;опубликована,
+            Нужда «Утеплить шесть будок к&nbsp;зиме» ещё не&nbsp;опубликована,
             её&nbsp;никто не&nbsp;видел. Восстановить черновик будет нельзя.
           </DialogDescription>
         </DialogHeader>
@@ -165,7 +164,7 @@ function DonateSheetDemo() {
               toast(`Пример: ${formatRub(amount)} — дальше была бы оплата`)
             }
           >
-            Помочь — {formatRub(amount)}
+            Помочь&nbsp;— {formatRub(amount)}
           </SheetClose>
         </SheetFooter>
       </SheetContent>
@@ -204,7 +203,7 @@ function FiltersSheetDemo() {
         </FieldGroup>
         <SheetFooter>
           <SheetClose render={<Button />}>Показать 12&nbsp;собак</SheetClose>
-          <SheetClose render={<Button variant="ghost" />}>Сбросить</SheetClose>
+          <SheetClose render={<Button variant="ghost" />}>Отмена</SheetClose>
         </SheetFooter>
       </SheetContent>
     </Sheet>
@@ -250,7 +249,6 @@ function MenuDemo() {
           <DropdownMenuItem>
             <PencilIcon aria-hidden />
             Изменить
-            <DropdownMenuShortcut>E</DropdownMenuShortcut>
           </DropdownMenuItem>
           <DropdownMenuItem>
             <CopyIcon aria-hidden />

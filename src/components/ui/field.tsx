@@ -1,6 +1,3 @@
-"use client";
-
-import { useMemo } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { CircleXIcon } from "lucide-react";
 
@@ -181,9 +178,26 @@ function FieldSeparator({
   );
 }
 
+function errorContent(errors?: Array<{ message?: string } | undefined>) {
+  const messages = [
+    ...new Set(errors?.map((error) => error?.message).filter(Boolean)),
+  ];
+  if (messages.length <= 1) return messages[0];
+  return (
+    <ul className="ml-4 flex list-disc flex-col gap-1">
+      {messages.map((message) => (
+        <li key={message}>{message}</li>
+      ))}
+    </ul>
+  );
+}
+
 /**
  * The message under a field with an error: what happened and what to do,
- * always with an icon (colour is never the only signal).
+ * always with an icon (colour is never the only signal). No live region by
+ * default: the field points to it with aria-describedby and the form focuses
+ * the first invalid field. Pass role="alert" for errors that arrive later
+ * (from the server, on blur).
  */
 function FieldError({
   className,
@@ -193,32 +207,7 @@ function FieldError({
 }: React.ComponentProps<"div"> & {
   errors?: Array<{ message?: string } | undefined>;
 }) {
-  const content = useMemo(() => {
-    if (children) {
-      return children;
-    }
-
-    if (!errors?.length) {
-      return null;
-    }
-
-    const uniqueErrors = [
-      ...new Map(errors.map((error) => [error?.message, error])).values(),
-    ];
-
-    if (uniqueErrors?.length == 1) {
-      return uniqueErrors[0]?.message;
-    }
-
-    return (
-      <ul className="ml-4 flex list-disc flex-col gap-1">
-        {uniqueErrors.map(
-          (error, index) =>
-            error?.message && <li key={index}>{error.message}</li>,
-        )}
-      </ul>
-    );
-  }, [children, errors]);
+  const content = children ?? errorContent(errors);
 
   if (!content) {
     return null;
@@ -226,7 +215,6 @@ function FieldError({
 
   return (
     <div
-      role="alert"
       data-slot="field-error"
       className={cn(
         "flex items-start gap-1.5 text-caption text-destructive",

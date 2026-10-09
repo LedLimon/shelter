@@ -18,6 +18,11 @@ async function openShowcase(page: Page) {
     page.getByRole("heading", { level: 1, name: "Витрина «Объявление»" }),
   ).toBeVisible();
   await page.waitForLoadState("networkidle");
+  // Base UI names its checkboxes from <label for> only after hydration, and a
+  // cold `next dev` (CI) hydrates well after the network is idle.
+  await expect(
+    page.getByRole("checkbox", { name: "Прислать чек на почту" }),
+  ).toBeVisible();
   return errors;
 }
 
@@ -159,6 +164,19 @@ for (const colorScheme of ["light", "dark"] as const) {
     expect(summary).toEqual([]);
   });
 }
+
+test("pins real hover styles on previews, stacked variants included", async ({
+  page,
+}) => {
+  await openShowcase(page);
+
+  // «Помочь» lifts on hover through `not-data-disabled:hover:-translate-y-px`.
+  const help = page
+    .locator("section[aria-labelledby=buttons] [data-preview=hover]")
+    .first();
+  await expect(help).toHaveText(/Помочь Бурану/i);
+  await expect(help).toHaveCSS("translate", "0px -1px");
+});
 
 test("has no horizontal scroll on a 375 px phone", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
