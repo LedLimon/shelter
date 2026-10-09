@@ -1,0 +1,104 @@
+// Schema conventions (ids, time, money, naming): docs/architecture.md#соглашения-схемы
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// --- Identity -----------------------------------------------------------------
+
+enum UserRole {
+  DONOR
+  VOLUNTEER
+  COORDINATOR
+  EDITOR
+  ADMIN
+  OWNER
+}
+
+/// Staff and donors. Better Auth tables (sessions, accounts) come with FND-6.
+model User {
+  id            String    @id @default(cuid(2))
+  /// Stored lowercased.
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  name          String
+  phone         String?
+  role          UserRole  @default(DONOR)
+  /// Soft delete: donations and audit records keep pointing at the user.
+  deletedAt     DateTime? @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @db.Timestamptz(3)
+
+  uploadedMedia Media[]
+}
+
+// --- Settings -----------------------------------------------------------------
+
+/// Shelter-wide settings edited in the admin. Value shapes: src/server/settings.
+model Setting {
+  key       String   @id
+  value     Json
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+}
+
+// --- Media --------------------------------------------------------------------
+
+enum MediaKind {
+  PHOTO
+  RECEIPT
+  INVOICE
+  DOCUMENT
+}
+
+/// A file in S3. Receipts and invoices are shown publicly only when redacted.
+model Media {
+  id           String    @id @default(cuid(2))
+  storageKey   String    @unique
+  mime         String
+  kind         MediaKind
+  width        Int?
+  height       Int?
+  /// Tiny blurred placeholder (data URL).
+  blur         String?
+  /// Personal data on the document is painted over; only then it may be public.
+  redacted     Boolean   @default(false)
+  uploadedById String?
+  uploadedBy   User?     @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@index([uploadedById])
+}
+
+// --- Outbox -------------------------------------------------------------------
+
+enum OutboxStatus {
+  PENDING
+  PROCESSED
+  FAILED
+}
+
+/// Side effects (emails, notifications) written in the same transaction as the
+/// business data; the worker (FND-5) runs them after commit.
+model Outbox {
+  id          String       @id @default(cuid(2))
+  /// Event type, e.g. "donation.thanks".
+  type        String
+  payload     Json
+  status      OutboxStatus @default(PENDING)
+  attempts    Int          @default(0)
+  /// Not to be picked up before this time (retry backoff).
+  availableAt DateTime     @default(now()) @db.Timestamptz(3)
+  lastError   String?
+  processedAt DateTime?    @db.Timestamptz(3)
+  createdAt   DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime     @updatedAt @db.Timestamptz(3)
+
+  @@index([status, availableAt])
+}

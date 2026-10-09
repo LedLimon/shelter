@@ -4,6 +4,8 @@ node_modules/
 
 # Next.js / build
 .next/
+# Prisma Client: `prisma generate` (postinstall, pnpm db:migrate)
+src/generated/
 out/
 build/
 dist/
