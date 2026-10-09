@@ -126,8 +126,8 @@ function DonateSheetDemo() {
         <SheetHeader>
           <SheetTitle>Помочь Бурану</SheetTitle>
           <SheetDescription>
-            Операция на&nbsp;лапе. Собрано {formatRub(24_650_00)}
-            из&nbsp;{formatRub(38_000_00)}.
+            Операция на&nbsp;лапе. Собрано {formatRub(24_650_00)} из&nbsp;
+            {formatRub(38_000_00)}.
           </SheetDescription>
         </SheetHeader>
         <div className="px-sheet">

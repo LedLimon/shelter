@@ -37,7 +37,7 @@ function Switch({
           "pointer-events-none block bg-foreground transition-transform duration-150 ease-out",
           "group-data-[size=default]/switch:size-4 group-data-[size=sm]/switch:size-3",
           "data-checked:bg-background group-data-[size=default]/switch:data-checked:translate-x-5 group-data-[size=sm]/switch:data-checked:translate-x-4",
-          "group-data-disabled/switch:bg-input forced-colors:bg-[CanvasText] forced-colors:forced-color-adjust-none group-data-disabled/switch:data-checked:bg-input",
+          "group-data-disabled/switch:bg-input forced-colors:bg-[CanvasText]! forced-colors:forced-color-adjust-none group-data-disabled/switch:data-checked:bg-input",
         )}
       />
     </SwitchPrimitive.Root>
