@@ -6,13 +6,14 @@
 
 /*
  * Design tokens of the «Объявление» direction: docs/design.md#визуальный-стиль
- * and docs/adr/0006-visual-direction.md. src/app/design-tokens.test.ts checks
- * that the palette matches docs/design.md and that every text/background pair
- * passes WCAG AA in both themes.
+ * and docs/adr/0006-visual-direction.md. src/lib/design-tokens.test.ts checks
+ * that the palette matches docs/design.md and DESIGN.md and that every
+ * text/background pair passes WCAG AA in both themes and on every surface.
  *
  * Colours, shadows, radii and fonts come only from these tokens: Tailwind's
- * default palette and scales are switched off, so `bg-white`, `shadow-md` or
- * `rounded-xl` generate nothing.
+ * default palette, shadows and font families are switched off (`bg-white`,
+ * `shadow-md`, `font-sans` generate nothing), and every radius except the
+ * sheet and stamp tokens is 0.
  */
 
 /* Palette, light theme. Dark values are in `.dark` below. */
@@ -175,14 +176,20 @@
   }
 }
 
-/*
- * shadcn/ui variables point to the palette, so both themes switch with it.
- * Square corners everywhere: the radius scale above is derived from --radius.
- */
+/* Square corners everywhere: the radius scale above is derived from --radius. */
 :root {
   color-scheme: light;
-
   --radius: 0rem;
+}
+
+/*
+ * shadcn/ui variables point to the palette, so both themes switch with it.
+ * They are also declared on the surfaces below, so that they are recomputed
+ * from the surface's palette instead of inheriting the page's values.
+ */
+:root,
+.surface-notice,
+.surface-footer {
   --background: var(--color-board);
   --foreground: var(--color-toner);
   --card: var(--color-paper);
@@ -242,55 +249,70 @@
 }
 
 /*
- * The yellow sheet and the footer re-map the roles inside them: pen and pale
- * toner fail AA there, so links, marks and the focus ring take the surface's
- * text colour and secondary text takes the surface's muted token.
+ * The yellow sheet and the footer re-map the palette roles inside them: pen,
+ * pale toner and the form inks fail AA there, so links, marks, form states and
+ * the focus ring take the surface's text colour, secondary text and lines take
+ * its muted token, and paper and board become the surface itself. With the
+ * shadcn variables recomputed above, components inside need no changes.
+ * Use them without variants: the selector above matches the bare class.
  */
 @utility surface-notice {
+  color-scheme: light;
   background-color: var(--color-notice);
   color: var(--color-notice-foreground);
+  --color-board: var(--color-notice);
   --color-paper: var(--color-notice);
   --color-toner: var(--color-notice-foreground);
   --color-toner-muted: var(--color-notice-muted);
   --color-pen: var(--color-notice-foreground);
   --color-perforation: var(--color-notice-muted);
-  --foreground: var(--color-notice-foreground);
-  --muted-foreground: var(--color-notice-muted);
-  --border: var(--color-notice-muted);
-  --ring: var(--color-notice-foreground);
+  --color-success: var(--color-notice-foreground);
+  --color-danger: var(--color-notice-foreground);
+  --color-warning: var(--color-notice-foreground);
+  --color-info: var(--color-notice-foreground);
 }
 
 @utility surface-footer {
+  color-scheme: dark;
   background-color: var(--color-footer);
   color: var(--color-footer-foreground);
+  --color-board: var(--color-footer);
   --color-paper: var(--color-footer);
   --color-toner: var(--color-footer-foreground);
   --color-toner-muted: var(--color-footer-muted);
   --color-pen: var(--color-footer-foreground);
   --color-perforation: var(--color-footer-muted);
-  --foreground: var(--color-footer-foreground);
-  --muted-foreground: var(--color-footer-muted);
-  --border: var(--color-footer-muted);
-  --ring: var(--color-footer-foreground);
+  --color-success: var(--color-footer-foreground);
+  --color-danger: var(--color-footer-foreground);
+  --color-warning: var(--color-footer-foreground);
+  --color-info: var(--color-footer-foreground);
 }
 
 /*
  * Urgency is never carried by colour: filled toner plate / 2 px frame /
  * 1 px frame / dashed frame, always with an icon and a word (UrgencyBadge).
- * Inset frames keep all four badges the same size.
+ * Frames are inset outlines: all four badges keep one size, and outlines,
+ * unlike box-shadow, survive Windows contrast themes.
  */
 @utility urgency-critical {
   background-color: var(--color-toner);
   color: var(--color-paper);
+  @media (forced-colors: active) {
+    forced-color-adjust: none;
+    background-color: CanvasText;
+    color: Canvas;
+  }
 }
 
 @utility urgency-high {
-  box-shadow: inset 0 0 0 2px var(--color-toner);
+  outline: 2px solid var(--color-toner);
+  outline-offset: -2px;
   color: var(--color-toner);
 }
 
 @utility urgency-normal {
-  box-shadow: inset 0 0 0 1px var(--color-perforation);
+  outline: 1px solid var(--color-perforation);
+  outline-offset: -1px;
   color: var(--color-toner-muted);
 }
 
@@ -303,10 +325,10 @@
 @layer base {
   * {
     @apply border-border outline-ring;
+    caret-color: var(--color-pen);
   }
   body {
     @apply bg-background text-body text-foreground;
-    caret-color: var(--color-pen);
   }
   h1,
   h2,
