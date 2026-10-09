@@ -3,6 +3,13 @@ import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 import tseslint from "typescript-eslint";
 
+// esquery regex literals: hex colours and colour functions (color-mix() over
+// tokens is fine), and classes of Tailwind's default palette.
+const COLOR_LITERAL =
+  "/#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})\\b|\\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch)\\(/i";
+const DEFAULT_PALETTE_CLASS =
+  "/\\b(?:bg|text|border(?:-[trblxyse])?|ring(?:-offset)?|outline|fill|stroke|from|via|to|decoration|accent|caret|divide|placeholder|shadow|inset-shadow|drop-shadow|text-shadow)-(?:black|white|slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)\\b/";
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -33,6 +40,32 @@ const eslintConfig = defineConfig([
             },
           ],
         },
+      ],
+    },
+  },
+  // Colours come only from the design tokens in src/app/globals.css
+  // (docs/design.md#токены-в-коде). Tailwind's default palette is switched
+  // off there, so its classes would silently generate nothing.
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/**/*.test.{ts,tsx}"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        ...["Literal[value=%s]", "TemplateElement[value.raw=%s]"].flatMap(
+          (selector) => [
+            {
+              selector: selector.replace("%s", COLOR_LITERAL),
+              message:
+                "Use a colour token (bg-paper, text-pen, var(--color-toner)…) instead of a colour value.",
+            },
+            {
+              selector: selector.replace("%s", DEFAULT_PALETTE_CLASS),
+              message:
+                "Tailwind's default palette is disabled: use a colour token (bg-paper, text-toner…).",
+            },
+          ],
+        ),
       ],
     },
   },
