@@ -132,6 +132,7 @@ function PasswordStep({
 
   return (
     <form
+      method="post"
       noValidate
       onSubmit={(event) => void submit(event)}
       className="flex flex-col gap-5"
@@ -204,6 +205,7 @@ function ScanStep({
 
   return (
     <form
+      method="post"
       noValidate
       onSubmit={(event) => {
         event.preventDefault();

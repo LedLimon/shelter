@@ -19,6 +19,8 @@ export function LoginForm({ next }: { next: string }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>("password");
   const [error, setError] = useState<string>();
+  // Kept across steps: shown at the code step, prefilled if sign-in restarts.
+  const [email, setEmail] = useState("");
 
   function restart(message?: string) {
     setStep("password");
@@ -34,9 +36,11 @@ export function LoginForm({ next }: { next: string }) {
     <div className="flex flex-col gap-6">
       {step === "password" ? (
         <PasswordStep
+          defaultEmail={email}
           error={error}
           setError={setError}
-          onTwoFactor={() => {
+          onTwoFactor={(signedInEmail) => {
+            setEmail(signedInEmail);
             setError(undefined);
             setStep("totp");
           }}
@@ -46,6 +50,7 @@ export function LoginForm({ next }: { next: string }) {
         <CodeStep
           key={step}
           kind={step}
+          email={email}
           error={error}
           setError={setError}
           onRestart={restart}
@@ -68,11 +73,15 @@ type StepProps = {
 };
 
 function PasswordStep({
+  defaultEmail,
   error,
   setError,
   onTwoFactor,
   onSignedIn,
-}: StepProps & { onTwoFactor: () => void }) {
+}: StepProps & {
+  defaultEmail: string;
+  onTwoFactor: (email: string) => void;
+}) {
   const [pending, setPending] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{
     email?: string;
@@ -121,12 +130,15 @@ function PasswordStep({
     setPending(false);
 
     if (failure) setError(authErrorMessage(failure));
-    else if (needsCode) onTwoFactor();
+    else if (needsCode) onTwoFactor(email);
     else onSignedIn();
   }
 
   return (
+    // method="post": a submit before hydration must not put the password
+    // into the URL (GET is the default).
     <form
+      method="post"
       noValidate
       onSubmit={(event) => void submit(event)}
       className="flex flex-col gap-5"
@@ -146,6 +158,7 @@ function PasswordStep({
         autoCapitalize="none"
         spellCheck={false}
         inputMode="email"
+        defaultValue={defaultEmail}
         error={fieldErrors.email}
       />
       <Field
@@ -164,6 +177,7 @@ function PasswordStep({
 
 function CodeStep({
   kind,
+  email,
   error,
   setError,
   onSignedIn,
@@ -172,6 +186,7 @@ function CodeStep({
   onBack,
 }: StepProps & {
   kind: "totp" | "backup";
+  email: string;
   onRestart: (message: string) => void;
   onSwitch: () => void;
   onBack: () => void;
@@ -215,6 +230,7 @@ function CodeStep({
 
   return (
     <form
+      method="post"
       noValidate
       onSubmit={(event) => {
         event.preventDefault();
@@ -228,8 +244,10 @@ function CodeStep({
         </h1>
         <p className="text-caption text-toner-muted">
           {isTotp
-            ? "Откройте приложение-аутентификатор и введите 6 цифр для этого сайта."
-            : "Введите один из кодов, которые вы сохранили при настройке входа. Каждый код работает один раз."}
+            ? "Откройте приложение-аутентификатор и введите 6 цифр для "
+            : "Введите один из кодов, которые вы сохранили при настройке входа для "}
+          <span className="break-all text-toner">{email}</span>
+          {isTotp ? "." : ". Каждый код работает один раз."}
         </p>
       </header>
       {error && <FormError>{error}</FormError>}
