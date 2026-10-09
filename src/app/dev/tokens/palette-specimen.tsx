@@ -81,7 +81,7 @@ export function PaletteSpecimen() {
   const colors = useTokenColors();
 
   return (
-    <div className="grid gap-grid md:grid-cols-2">
+    <div className="grid items-start gap-grid md:grid-cols-2">
       {GROUPS.map(({ title, swatches }) => (
         <section
           key={title}
