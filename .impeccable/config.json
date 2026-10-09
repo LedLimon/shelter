@@ -1,0 +1,7 @@
+{
+  "updateCheck": false,
+  "stalenessCheck": false,
+  "detector": {
+    "ignoreRules": ["em-dash-overuse"]
+  }
+}

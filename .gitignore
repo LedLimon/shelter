@@ -40,7 +40,7 @@ mise.local.toml
 # impeccable-ignore-start
 # Impeccable working files: ephemeral output, runtime state, per-dev overrides.
 # Shared artifacts stay tracked: config.json, live/config.json,
-# design.json, surfaces/*.md, critique/*.md.
+# design.json, surfaces/*.md.
 **/.impeccable/config.local.json
 **/.impeccable/hook.cache.json
 **/.impeccable/hook.pending.json
@@ -58,4 +58,8 @@ mise.local.toml
 **/.impeccable/live/pending-manual-edits.json
 **/.impeccable/live/deferred-svelte-component-accepts.json
 **/.impeccable/live/*.png
+# Project additions: DS-0 mocks, comp builds and critique reports (results go to the PR/issue).
+**/.impeccable/mocks/
+**/.impeccable/build/
+**/.impeccable/critique/
 # impeccable-ignore-end
