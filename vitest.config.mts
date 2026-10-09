@@ -29,8 +29,10 @@ export default defineConfig({
           include: ["tests/integration/**/*.test.ts"],
           globalSetup: ["tests/integration/setup/postgres.ts"],
           setupFiles: ["tests/integration/setup/database.ts"],
-          // The first run pulls the Postgres image.
-          hookTimeout: 120_000,
+          // A fresh process per file: the setup points DATABASE_URL at the
+          // file's database, and getEnv()/getDb() cache it per process.
+          isolate: true,
+          // Concurrency tests on slow CI runners.
           testTimeout: 30_000,
         },
       },
