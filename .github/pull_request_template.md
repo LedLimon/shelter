@@ -6,7 +6,7 @@ Closes #
 
 ## Как проверено
 
-- [ ] `pnpm typecheck && pnpm lint && pnpm test`
+- [ ] `pnpm format:check && pnpm typecheck && pnpm lint && pnpm test`
 - [ ] e2e (если затронут пользовательский сценарий)
 - [ ] UI в браузере: mobile 375 px и desktop, светлая и тёмная тема (скриншоты ниже)
 

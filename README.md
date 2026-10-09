@@ -42,7 +42,7 @@ pnpm dev         # http://localhost:3000
 Проверки перед PR:
 
 ```bash
-pnpm typecheck && pnpm lint && pnpm test && pnpm build
+pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm build
 ```
 
 После задач FND-2 и FND-4 (dev-окружение и БД) перед `pnpm dev` понадобится ещё:
@@ -78,21 +78,21 @@ pnpm db:migrate && pnpm db:seed
 
 Каждый PR и каждый пуш в `main` проверяет [GitHub Actions](.github/workflows/ci.yml) — два параллельных job:
 
-- **Checks** — `format:check` → `typecheck` → `lint` → `test` → `build`; рядом поднят Postgres 16 для интеграционных тестов;
+- **Checks** — `format:check` → `typecheck` → `lint` → `test` → `build`; в нём заготовлен Postgres 16 для будущих интеграционных тестов;
 - **E2E smoke** — production-сборка и Playwright: главная открывается на desktop и mobile без ошибок в консоли.
 
-Локально e2e: один раз `pnpm exec playwright install --only-shell chromium`, дальше `pnpm e2e` — тесты сами поднимут `next dev` на порту 3100 (другой порт — `E2E_PORT=3200 pnpm e2e`).
+Локально e2e: один раз `pnpm exec playwright install --only-shell chromium`, дальше `pnpm e2e` — тесты сами поднимут `next dev` на порту 3100 (другой порт — `E2E_PORT=3200 pnpm e2e`). Если `pnpm dev` в этой папке уже запущен, второй Next.js не стартует — направьте тесты на него: `E2E_BASE_URL=http://localhost:3000 pnpm e2e`.
 
 ### Защита ветки `main`
 
 Включает владелец репозитория один раз, после первого прогона CI — чтобы проверки появились в списке:
 
 1. **Settings → Rules → Rulesets → New ruleset → New branch ruleset.**
-2. **Ruleset name** — `main`, **Enforcement status** — Active, **Target branches** → Add target → Include default branch. **Bypass list** оставить пустым: агенты работают с правами владельца, и обход сработал бы и для них.
-3. Включить правила:
-   - **Restrict deletions** и **Block force pushes**;
-   - **Require a pull request before merging**;
-   - **Require status checks to pass** → Add checks → `Checks` и `E2E smoke`. Флажок **Require branches to be up to date before merging** надёжнее (PR проверяется поверх свежего `main`), но после каждого merge остальные PR придётся обновлять.
+2. **Ruleset name** — `main`, **Enforcement status** — Active, **Target branches** → Add a target → Include default branch. **Bypass list** оставить пустым: агенты работают с правами владельца, и обход сработал бы и для них.
+3. Правила:
+   - **Restrict deletions** и **Block force pushes** — включены по умолчанию, оставить;
+   - **Require a pull request before merging** — включить, **Required approvals** оставить `0`: PR агентов открываются от аккаунта владельца, а одобрить собственный PR GitHub не даёт;
+   - **Require status checks to pass before merging** — включить и кнопкой «+» добавить `Checks` и `E2E smoke`, источник — **GitHub Actions** (не «any source»: иначе проверку закроет любой commit status с тем же именем). Флажок **Require branches to be up to date before merging** надёжнее (PR проверяется поверх свежего `main`), но после каждого merge остальные PR придётся обновлять.
 4. **Create.**
 
 ## Лицензия
