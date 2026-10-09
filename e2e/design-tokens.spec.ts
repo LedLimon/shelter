@@ -106,15 +106,24 @@ test.describe("fonts", () => {
         }
       }
       document.body.append(probe);
-      await Promise.all(
+      // Load only our web fonts: next/font's "… Fallback" faces are
+      // local("Arial"), which Linux CI lacks, and a failed face rejects
+      // fonts.load(). The CDP check below judges the result anyway.
+      await Promise.allSettled(
         [...probe.children].map((span) => {
           const style = getComputedStyle(span);
+          const webFonts = style.fontFamily
+            .split(",")
+            .map((family) => family.trim())
+            .filter((family) => !/ Fallback"?$/.test(family))
+            .join(", ");
           return document.fonts.load(
-            `${style.fontWeight} 40px ${style.fontFamily}`,
+            `${style.fontWeight} 40px ${webFonts}`,
             span.textContent ?? "",
           );
         }),
       );
+      await document.fonts.ready;
     });
     const cdp = await page.context().newCDPSession(page);
     await cdp.send("DOM.enable");
