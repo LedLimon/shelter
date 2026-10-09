@@ -12,9 +12,12 @@ export const ADMIN_LOGIN_PATH = "/admin/login";
 export const TWO_FACTOR_SETUP_PATH = "/admin/two-factor";
 
 /** The request's session, read from the database once per render. */
-export const getSession = cache(async () =>
-  getAuth().api.getSession({ headers: await headers() }),
-);
+export const getSession = cache(async () => {
+  // headers() first: it makes the route dynamic, so `next build` doesn't
+  // prerender it (and getAuth() doesn't ask for runtime env at build time).
+  const requestHeaders = await headers();
+  return getAuth().api.getSession({ headers: requestHeaders });
+});
 
 export async function getAdminAccess(): Promise<AdminAccess> {
   return adminAccessOf(await getSession());

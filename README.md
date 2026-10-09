@@ -37,11 +37,18 @@ mise install
 ```bash
 pnpm install
 cp .env.example .env
+```
+
+В `.env` заполните пустые секреты: `BETTER_AUTH_SECRET` (`openssl rand -base64 32`) и `SEED_OWNER_PASSWORD` — пароль владельца для входа в админку, от 12 символов. Потом:
+
+```bash
 pnpm dev:up      # Postgres, MinIO, Mailpit в Docker
 pnpm db:migrate  # схема БД
-pnpm db:seed     # владелец и настройки по умолчанию
-pnpm dev         # http://localhost:3000
+pnpm db:seed     # владелец (SEED_OWNER_EMAIL с паролем) и настройки по умолчанию
+pnpm dev         # http://localhost:3000, админка — /admin
 ```
+
+При первом входе в [`/admin`](http://localhost:3000/admin) админка попросит настроить приложение-аутентификатор (Яндекс Ключ, Google Authenticator и т. п.): без кода из него сотрудники не входят. `SEED_OWNER_TOTP_SECRET` задаёт владельцу известный TOTP-секрет вместо этой настройки — он для автотестов (CI), в production пуст.
 
 Проверки перед PR (`pnpm test` запускает и интеграционные тесты — нужен запущенный Docker):
 
@@ -80,6 +87,7 @@ pnpm dev:reset   # стереть .data/ (база, файлы) и поднят�
 
 - **Один стек на машину.** Если стек уже поднят из другого checkout или worktree (`docker ps`), используйте его: порты и пароли те же. Второй `dev:up` из другого каталога упадёт с «port is already allocated». Перед удалением worktree выполните в нём `pnpm dev:down`.
 - **Порт занят** — задайте в `.env` `POSTGRES_PORT`, `MINIO_PORT`, `MINIO_CONSOLE_PORT`, `MAILPIT_SMTP_PORT` или `MAILPIT_UI_PORT` и поправьте адрес сервиса там же (`DATABASE_URL`, `S3_ENDPOINT`, `SMTP_PORT`).
+- **e2e** (`pnpm e2e`) ходят в ту же базу, что и `pnpm dev`: нужны поднятый стек, применённые миграции и `BETTER_AUTH_SECRET` в `.env`. Перед прогоном [`e2e/global-setup.ts`](e2e/global-setup.ts) создаёт в ней тестовых пользователей `e2e-*@shelter.localhost` (только если база локальная).
 - **Переменные окружения** проверяются при старте `pnpm dev` и `next start` (схема — [`src/lib/env/schema.ts`](src/lib/env/schema.ts)). Если чего-то не хватает, сервер не запустится и перечислит, какие переменные не заданы или неверны. Значения запоминаются при старте: после правки `.env` перезапустите `pnpm dev`. Новую переменную добавляйте в схему и в `.env.example` — тест сверяет их.
 - **MinIO** — официальные образы `minio/minio` больше не публикуются, поэтому используется [`pgsty/minio`](https://github.com/pgsty/minio) — поддерживаемая сообществом сборка того же сервера. Регион — `ru-central1`, как у Yandex Object Storage.
 

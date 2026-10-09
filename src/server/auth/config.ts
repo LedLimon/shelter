@@ -8,6 +8,7 @@ import { nextCookies } from "better-auth/next-js";
 import { twoFactor } from "better-auth/plugins";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { UserRole } from "@/generated/prisma/enums";
+import { generateBackupCodes } from "./backup-codes";
 import {
   MAX_PASSWORD_LENGTH,
   MIN_PASSWORD_LENGTH,
@@ -149,6 +150,7 @@ export function createAuth(db: PrismaClient, { secret, baseURL }: AuthConfig) {
         twoFactorCookieMaxAge: TWO_FACTOR_CHALLENGE_SECONDS,
         // Defaults, written out: 10 wrong codes in a row lock sign-in for 15 min.
         accountLockout: { maxFailedAttempts: 10, durationSeconds: 15 * 60 },
+        backupCodeOptions: { customBackupCodesGenerate: generateBackupCodes },
       }),
       // Lets server actions set auth cookies; must stay the last plugin.
       nextCookies(),

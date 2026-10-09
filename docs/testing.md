@@ -39,6 +39,10 @@
 - Донор: пожертвование на нужду → прогресс обновился; сообщение о переплате; ежемесячная подписка и отмена по токен-ссылке.
 - Админ: нужда → сбор → расход с чеком → закрытие → строки в публичной книге.
 - Права: куратор не может провести расход или опубликовать нужду.
+- Вход сотрудников: владелец входит с паролем и TOTP, новый сотрудник сначала настраивает приложение, донор получает 403 в `/admin` ([`e2e/admin-auth.spec.ts`](../e2e/admin-auth.spec.ts)).
+
+E2E ходят в базу приложения: перед прогоном [`e2e/global-setup.ts`](../e2e/global-setup.ts) создаёт тестовых пользователей `e2e-*@shelter.localhost` с известными паролем и TOTP-секретом ([`e2e/support/users.ts`](../e2e/support/users.ts)) и сбрасывает то, что тесты меняют. В чужую (не локальную) базу он писать отказывается. TOTP-коды тесты считают сами ([`tests/support/totp.ts`](../tests/support/totp.ts), RFC 6238 — независимо от Better Auth). Каждый тест входит со своего IP (`X-Forwarded-For`), чтобы не упираться в лимит попыток.
+
 - Каталог собак: фильтры работают и сохраняются в URL.
 
 ## Соглашения
@@ -46,4 +50,4 @@
 - Тесты лежат рядом с кодом (`*.test.ts`) для unit; `tests/integration/` — для интеграционных; `e2e/` — Playwright.
 - Тестовые данные — фабрики, а не копипаста; seed для dev — отдельно (`prisma/seed.ts`).
 - Ни один тест не ходит в реальные внешние сервисы.
-- CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)): job `Checks` — format → typecheck → lint → unit и integration → build; интеграционные тесты и в CI поднимают Postgres через Testcontainers (Docker есть на раннере), как локально. Параллельно job `E2E smoke` — Playwright по production-сборке (`node .next/standalone/server.js`), desktop и mobile. Локально `pnpm e2e` поднимает `next dev` на порту 3100.
+- CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)): job `Checks` — format → typecheck → lint → unit и integration → build; интеграционные тесты и в CI поднимают Postgres через Testcontainers (Docker есть на раннере), как локально. Параллельно job `E2E smoke` — Playwright по production-сборке (`node .next/standalone/server.js`), desktop и mobile; перед ним в сервисе Postgres применяются миграции и запускается seed. Локально `pnpm e2e` поднимает `next dev` на порту 3100.
