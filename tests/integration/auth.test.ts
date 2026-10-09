@@ -195,6 +195,27 @@ describe("first sign-in of staff without TOTP", () => {
   });
 });
 
+describe("re-issued sessions", () => {
+  it("keep the second-factor mark after a password change", async () => {
+    const owner = await createUser({ role: "OWNER", totpSecret: TOTP_SECRET });
+    const browser = new Browser();
+    await signIn(browser, owner.email);
+    await browser.post("/two-factor/verify-totp", { code: totp(TOTP_SECRET) });
+
+    const changed = await browser.post("/change-password", {
+      currentPassword: PASSWORD,
+      newPassword: "a brand new password",
+      revokeOtherSessions: true,
+    });
+
+    expect(changed.status).toBe(200);
+    expect(adminAccessOf(await browser.session()).status).toBe("granted");
+    const sessions = await sessionsOf(owner.id);
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]?.token).toBe(changed.json.token);
+  });
+});
+
 describe("sessions that skipped the second factor", () => {
   it("don't open the admin for staff who have TOTP", async () => {
     // As if a later sign-in method (donor email codes) created the session.
