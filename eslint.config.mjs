@@ -38,10 +38,19 @@ const eslintConfig = defineConfig([
               message:
                 'Import { cn } from "@/lib/utils" and remove the "cn" dependency.',
             },
+            {
+              name: "@prisma/adapter-pg",
+              message:
+                "Make Prisma clients with createPrismaClient() from @/server/db/client: it pins sessions to UTC.",
+            },
           ],
         },
       ],
     },
+  },
+  {
+    files: ["src/server/db/client.ts"],
+    rules: { "no-restricted-imports": "off" },
   },
   // Colours come only from the design tokens in src/app/globals.css
   // (docs/design.md#токены-в-коде). Tailwind's default palette is switched
