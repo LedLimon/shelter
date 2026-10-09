@@ -85,39 +85,56 @@ test.describe("fonts", () => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
-    const uncovered = await page.evaluate(async () => {
-      const characters = "ёЁ«»—№₽";
-      const style = getComputedStyle(document.documentElement);
-      const faces = [
-        { variable: "--font-face-display", weight: 900 },
-        { variable: "--font-face-body", weight: 400 },
-        { variable: "--font-face-mono", weight: 400 },
-      ];
-      const context = document.createElement("canvas").getContext("2d");
-      if (!context) throw new Error("No canvas");
-      const problems: string[] = [];
-
-      for (const { variable, weight } of faces) {
-        // next/font puts its own fallback after the face: keep the face only.
-        const family = style.getPropertyValue(variable).split(",")[0]?.trim();
-        if (!family) {
-          problems.push(`${variable} is not set`);
-          continue;
-        }
-        await document.fonts.load(`${weight} 40px ${family}`, characters);
-        // A glyph missing from the face would come from the generic
-        // fallback, and serif and monospace fallbacks differ in width.
-        for (const character of characters) {
-          context.font = `${weight} 40px ${family}, serif`;
-          const withSerif = context.measureText(character).width;
-          context.font = `${weight} 40px ${family}, monospace`;
-          if (context.measureText(character).width !== withSerif) {
-            problems.push(`${family}: ${character}`);
-          }
+    // Render every character in each role's font stack, then ask Chromium
+    // which font actually draws it: a system font means the glyph is missing.
+    await page.evaluate(async () => {
+      const probe = document.createElement("div");
+      probe.id = "glyph-probe";
+      const roles = [
+        ["display", "var(--font-display)", "900"],
+        ["body", "var(--font-body)", "400"],
+        ["mono", "var(--font-mono)", "400"],
+      ] as const;
+      for (const [role, family, weight] of roles) {
+        for (const character of "ёЁ«»—№₽") {
+          const span = document.createElement("span");
+          span.dataset.probe = `${role} ${character}`;
+          span.style.fontFamily = family;
+          span.style.fontWeight = weight;
+          span.textContent = character;
+          probe.append(span);
         }
       }
-      return problems;
+      document.body.append(probe);
+      await Promise.all(
+        [...probe.children].map((span) => {
+          const style = getComputedStyle(span);
+          return document.fonts.load(
+            `${style.fontWeight} 40px ${style.fontFamily}`,
+            span.textContent ?? "",
+          );
+        }),
+      );
     });
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("DOM.enable");
+    await cdp.send("CSS.enable");
+    const { root } = await cdp.send("DOM.getDocument", { depth: -1 });
+    const { nodeIds } = await cdp.send("DOM.querySelectorAll", {
+      nodeId: root.nodeId,
+      selector: "#glyph-probe span",
+    });
+    const uncovered: string[] = [];
+    for (const nodeId of nodeIds) {
+      const { attributes } = await cdp.send("DOM.getAttributes", { nodeId });
+      const label = attributes[attributes.indexOf("data-probe") + 1];
+      const { fonts } = await cdp.send("CSS.getPlatformFontsForNode", {
+        nodeId,
+      });
+      for (const font of fonts.filter(({ isCustomFont }) => !isCustomFont)) {
+        uncovered.push(`${label}: ${font.familyName}`);
+      }
+    }
 
     expect(uncovered).toEqual([]);
     expect(googleRequests).toEqual([]);
