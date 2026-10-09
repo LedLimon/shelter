@@ -1,3 +1,11 @@
 ignoredBuiltDependencies:
+  - cpu-features
+  - esbuild
+  - protobufjs
   - sharp
+  - ssh2
   - unrs-resolver
+# Prisma checks the Node version and downloads its schema engine on install.
+onlyBuiltDependencies:
+  - "@prisma/engines"
+  - prisma

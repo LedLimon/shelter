@@ -2,7 +2,7 @@ import { z } from "zod";
 
 type EnvSource = Record<string, string | undefined>;
 
-function isTimeZone(value: string): boolean {
+export function isTimeZone(value: string): boolean {
   try {
     new Intl.DateTimeFormat("en", { timeZone: value });
     return true;
@@ -18,6 +18,15 @@ const required = () => z.string().min(1);
 
 const flag = () => z.stringbool({ error: "must be true or false" });
 
+const databaseUrl = () =>
+  z.url({ protocol: /^postgres(ql)?$/, error: "must be a postgresql:// URL" });
+
+const timeZone = () =>
+  z
+    .string()
+    .refine(isTimeZone, "must be an IANA time zone, e.g. Europe/Moscow")
+    .default("Europe/Moscow");
+
 const portError = "must be a port number (1-65535)";
 const port = () =>
   z.coerce
@@ -31,16 +40,11 @@ export const serverEnvSchema = z
   .object({
     // Public origin of the site: links in emails, redirects, OG tags.
     APP_URL: httpUrl().transform((url) => url.replace(/\/+$/, "")),
-    // Default shelter time zone; times are stored in UTC.
-    SHELTER_TIMEZONE: z
-      .string()
-      .refine(isTimeZone, "must be an IANA time zone, e.g. Europe/Moscow")
-      .default("Europe/Moscow"),
+    // Fallback until the shelter.timezone setting exists (the seed copies
+    // this value there). Times are stored in UTC.
+    SHELTER_TIMEZONE: timeZone(),
 
-    DATABASE_URL: z.url({
-      protocol: /^postgres(ql)?$/,
-      error: "must be a postgresql:// URL",
-    }),
+    DATABASE_URL: databaseUrl(),
 
     S3_ENDPOINT: httpUrl(),
     S3_REGION: required(),
@@ -72,6 +76,18 @@ export const serverEnvSchema = z
     }
   });
 
+/** Variables of `pnpm db:seed` (prisma/seed.ts); the app doesn't read them. */
+export const seedEnvSchema = z.object({
+  DATABASE_URL: databaseUrl(),
+  // Written to the shelter.timezone setting.
+  SHELTER_TIMEZONE: timeZone(),
+  // Becomes the OWNER while the database has none. Its password and TOTP come
+  // with FND-6 (Better Auth).
+  SEED_OWNER_EMAIL: z
+    .email({ error: "must be an email address" })
+    .transform((email) => email.toLowerCase()),
+});
+
 /**
  * Browser-visible variables (NEXT_PUBLIC_*). Next.js inlines them at build
  * time, so a Docker image keeps the values it was built with. Prefer passing
@@ -82,6 +98,7 @@ export const publicEnvSchema = z.object({});
 
 export type ServerEnv = z.output<typeof serverEnvSchema>;
 export type PublicEnv = z.output<typeof publicEnvSchema>;
+export type SeedEnv = z.output<typeof seedEnvSchema>;
 
 export class EnvValidationError extends Error {
   override name = "EnvValidationError";

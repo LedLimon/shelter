@@ -5,6 +5,7 @@ import {
   EnvValidationError,
   parseEnv,
   publicEnvSchema,
+  seedEnvSchema,
   serverEnvSchema,
 } from "./schema";
 
@@ -127,18 +128,56 @@ describe("server env", () => {
   });
 });
 
-describe("server and public schemas", () => {
-  it("are documented in .env.example: every variable, nothing extra", () => {
-    const declared = [
-      ...Object.keys(serverEnvSchema.shape),
-      ...Object.keys(publicEnvSchema.shape),
-    ];
+describe("seed env", () => {
+  it("accepts .env.example and lowercases the owner email", () => {
+    const env = parseEnv(
+      seedEnvSchema,
+      { ...example, SEED_OWNER_EMAIL: "Owner@Shelter.Localhost" },
+      "seed",
+    );
 
-    expect(Object.keys(example).sort()).toEqual(declared.sort());
+    expect(env).toEqual({
+      DATABASE_URL: "postgresql://shelter:shelter@localhost:5432/shelter",
+      SHELTER_TIMEZONE: "Europe/Moscow",
+      SEED_OWNER_EMAIL: "owner@shelter.localhost",
+    });
+  });
+
+  it("requires a valid owner email", () => {
+    expect(
+      errorOf(() =>
+        parseEnv(seedEnvSchema, { ...example, SEED_OWNER_EMAIL: "" }, "seed"),
+      ).message,
+    ).toContain("  - SEED_OWNER_EMAIL: is not set");
+    expect(
+      errorOf(() =>
+        parseEnv(
+          seedEnvSchema,
+          { ...example, SEED_OWNER_EMAIL: "owner" },
+          "seed",
+        ),
+      ).message,
+    ).toContain("  - SEED_OWNER_EMAIL: must be an email address");
+  });
+});
+
+describe("env schemas", () => {
+  const serverSideKeys = [
+    ...Object.keys(serverEnvSchema.shape),
+    ...Object.keys(seedEnvSchema.shape),
+  ];
+
+  it("are documented in .env.example: every variable, nothing extra", () => {
+    const declared = new Set([
+      ...serverSideKeys,
+      ...Object.keys(publicEnvSchema.shape),
+    ]);
+
+    expect(Object.keys(example).sort()).toEqual([...declared].sort());
   });
 
   it("keep NEXT_PUBLIC_* variables apart", () => {
-    for (const key of Object.keys(serverEnvSchema.shape)) {
+    for (const key of serverSideKeys) {
       expect(key).not.toMatch(/^NEXT_PUBLIC_/);
     }
     for (const key of Object.keys(publicEnvSchema.shape)) {

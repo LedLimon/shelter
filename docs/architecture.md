@@ -55,7 +55,29 @@ e2e/                      # Playwright
 
 ## Модель данных
 
-Деньги — **копейки, `Int`** (суммы в SQL — `bigint`). Время — UTC.
+Схема — [`prisma/schema.prisma`](../prisma/schema.prisma), миграции — `prisma/migrations/`. Ниже — целевая модель: в схеме пока только то, что уже сделано задачами.
+
+### Соглашения схемы
+
+- **Имена.** Модель — PascalCase в единственном числе (`Need`, `LedgerEntry`), поле — camelCase, enum — PascalCase, значения enum — `UPPER_SNAKE`. В БД имена те же, без `@map` / `@@map`: таблица `"Need"`, колонка `"goalKop"`. В raw SQL (триггеры, `$queryRaw`) — в двойных кавычках.
+- **`id`** — `String @id @default(cuid(2))`: 24 символа, не угадывается и не выдаёт порядок записей, поэтому годится для публичных URL (`/donate/status/[id]`). Строка, а не `uuid`, — в raw SQL не нужно приведение `::uuid`. Естественный ключ вместо `id` — только у справочников (`Setting.key`).
+- **Время** — `DateTime @db.Timestamptz(3)`, хранится в UTC, в часовой пояс приюта переводится только при показе. `createdAt @default(now())` и `updatedAt @updatedAt` — у всех изменяемых моделей; у append-only (`Ledger*`) — только время создания или проводки. `@default(now())` Prisma вычисляет в приложении, а не в БД; где нужно время БД (момент проводки) — `@default(dbgenerated("now()"))`. В SQL часовой пояс указываем явно (`AT TIME ZONE`): `date_trunc` и `to_char` зависят от `TimeZone` сессии.
+- **Деньги** — `Int` в копейках, поле с суффиксом `Kop` (`goalKop`, `amountKop`). В Postgres это `integer`: до 21 474 836,47 ₽ в одном значении; накопительные итоги в `Int` не храним. Суммы положительные, кроме `LedgerEntry.amountKop` (со знаком). Суммы внутри JSON (например, в `Setting`) — тоже целые копейки с суффиксом `Kop`.
+  - **Prisma не отклоняет дробное значение для `Int`, а молча отбрасывает дробную часть** (`1998.9999…` → `1998`, `NaN` в необязательном поле → `NULL`). Поэтому сумма проверяется до записи — zod `.int()` / `Number.isSafeInteger`, а рубли из внешних источников переводятся в копейки только общим хелпером.
+  - `SUM()` в raw SQL возвращает `bigint` (в TS — `bigint`, в `number` переводите явно) и `NULL` на пустом наборе — нужен `COALESCE`. `SUM(x::bigint)` и `AVG()` возвращают `Prisma.Decimal` — для денег не используем. `aggregate({ _sum })` возвращает `number`.
+- **Удаление.** Сущности с историей (пользователи, пожертвования) не удаляются — `deletedAt` или статус. Внешние ключи — `onDelete: Restrict`. Prisma ставит его по умолчанию **только у обязательных** связей, у необязательных (`needId String?`) — `SetNull`, и удаление нужды молча отвязало бы от неё пожертвования. Поэтому у необязательных связей `onDelete` пишем всегда: `Restrict` — для денег и всего, у чего есть история; `SetNull` — только для ссылок вроде «кто загрузил».
+- **Индексы.** Postgres не индексирует внешние ключи сам — у каждого FK-поля `@@index`.
+- **JSON** (`Json` → `jsonb`) — только для данных, по которым не фильтруют: настройки, payload событий, тексты Tiptap. Форма значения — zod-схема в коде, как в [`src/server/settings/schema.ts`](../src/server/settings/schema.ts). Сохранённые значения проверяются при чтении, поэтому новое поле в схеме — с `.optional()` / `.default()` или вместе с миграцией данных.
+- **Email** хранится в нижнем регистре (CHECK в БД) — так уникальность не зависит от регистра.
+- **Чего нет в Prisma** (CHECK, триггеры, частичные индексы) — raw SQL в той же миграции: `pnpm db:migrate --create-only --name <имя>`, дописать SQL в `migration.sql`, затем `pnpm db:migrate`. Миграцию, попавшую в `main`, не редактируем — только новая миграция. Если `schema.prisma` поменяли без миграции, интеграционные тесты падают.
+
+### Доступ к БД
+
+- `getDb()` из `@/server/db` — общий клиент процесса (`server-only`). Создаётся при первом вызове, а не при импорте: `next build` идёт без `DATABASE_URL`.
+- Функции доменов принимают `db: Db` — клиент или `tx` из `db.$transaction(async (tx) => …)`, чтобы вызывающий мог объединить несколько вызовов в одну транзакцию. Тип не отличает клиент от `tx`: функция, которой транзакция обязательна (`FOR UPDATE`, проводки), проверяет это сама.
+- Prisma Client генерируется в `src/generated/prisma` (не в git): `prisma generate` запускают `pnpm install` и `pnpm db:migrate`. Модели, типы и enum на сервере импортируем из `@/generated/prisma/client`, в клиентских компонентах — из `@/generated/prisma/browser`.
+- Модули с `import "server-only"` (`@/server/db`, `@/server/settings` …) за пределами Next.js не загружаются: пакета `server-only` в зависимостях нет, Next подставляет его сам, Vitest — заглушкой из `tests/stubs/`. Seed поэтому берёт клиент из `createPrismaClient(url)` (`@/server/db/client`, без `server-only`). Как воркеру (tsx) пользоваться доменными модулями — решается в FND-5.
+- `pnpm db:seed` ([`prisma/seed.ts`](../prisma/seed.ts)) создаёт настройки по умолчанию и владельца: пока в базе нет активного `OWNER`, им становится пользователь `SEED_OWNER_EMAIL` (создаётся, если его нет). Дальше роли меняются только в админке. Повторный запуск добавляет недостающее и не трогает то, что уже правили.
 
 ### Идентичность
 
@@ -71,7 +93,7 @@ e2e/                      # Playwright
 
 ### Медиа
 
-- `Media`: storageKey, mime, w, h, blur, kind (`PHOTO | RECEIPT | INVOICE | DOCUMENT`), redacted, uploadedById.
+- `Media`: storageKey, mime, width, height, blur, kind (`PHOTO | RECEIPT | INVOICE | DOCUMENT`), redacted, uploadedById.
 - Join-таблицы с `position`: `DogMedia` (isCover), `NeedMedia`, `ExpenseMedia` (role `RECEIPT | INVOICE | RESULT`), `DogUpdateMedia`.
 
 ### Нужды
@@ -98,7 +120,12 @@ e2e/                      # Playwright
 - `LegalDocument`: type (`OFFER | PRIVACY | PD_CONSENT | RECURRING | MARKETING`), version, body, sha256, effectiveAt.
 - `ConsentRecord`: email | userId, documentId, context, ip, ua, givenAt, withdrawnAt.
 - `AuditLog`: actorId, action, entity, entityId, diff, ip, at.
-- `Post` (новости, истории «Они дома»), `Page`, `Setting` (реквизиты, каналы, часовой пояс), `Outbox`.
+- `Post` (новости, истории «Они дома»), `Page`.
+
+### Служебные
+
+- `Setting`: key, value (JSON) — часовой пояс, реквизиты, контакты, готовые суммы доната. Ключи и формы значений — `src/server/settings/schema.ts`, чтение и запись — `getSetting()` / `setSetting()` из `@/server/settings`. Часовой пояс приюта для показа дат — настройка `shelter.timezone`; переменная `SHELTER_TIMEZONE` — её начальное значение (seed) и запасное, пока настройки нет.
+- `Outbox`: type, payload, dedupeKey (unique), status (`PENDING | PROCESSED | FAILED`), attempts, availableAt, lastError, processedAt — побочные эффекты после коммита (правило в [«Структуре кода»](#структура-кода)), выполняет [воркер](#фоновые-задачи-worker). В payload — только id, без ПДн: обработчик сам загружает email и имя; в lastError ПДн тоже не пишем.
 
 ## Маршруты
 
@@ -133,7 +160,7 @@ e2e/                      # Playwright
 
 ## Переменные окружения
 
-- Схема — `src/lib/env/schema.ts` (zod). Серверные переменные читаются через `getEnv()` из `@/lib/env`, браузерные (`NEXT_PUBLIC_*`) — через `getPublicEnv()` из `@/lib/env/public`. Напрямую `process.env` не читаем (кроме служебных `NODE_ENV` и `NEXT_RUNTIME`).
+- Схема — `src/lib/env/schema.ts` (zod). Серверные переменные читаются через `getEnv()` из `@/lib/env`, браузерные (`NEXT_PUBLIC_*`) — через `getPublicEnv()` из `@/lib/env/public`. Напрямую `process.env` не читаем (кроме служебных `NODE_ENV` и `NEXT_RUNTIME` и конфигов инструментов в корне: `prisma.config.ts` берёт `DATABASE_URL` сам, потому что `prisma generate` должен работать без него).
 - Проверка — при старте сервера (`src/instrumentation.ts`): если переменная не задана или неверна, процесс перечисляет проблемы (имена, без значений) и завершается с кодом 1. `next build` переменных не требует — Docker-образ собирается без секретов. Поэтому `getEnv()` вызываем внутри функций, а не на уровне модуля: при сборке Next импортирует модули маршрутов.
 - `NEXT_PUBLIC_*` вшиваются в сборку. Значения, которые различаются между staging и prod (ключи, ID счётчиков), передаём из Server Components, а не через `NEXT_PUBLIC_*`.
 - Новая переменная — в схему и в `.env.example` (unit-тест сверяет их). Пустое значение (`FOO=`) считается незаданным.

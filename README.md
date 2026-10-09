@@ -38,12 +38,12 @@ mise install
 pnpm install
 cp .env.example .env
 pnpm dev:up      # Postgres, MinIO, Mailpit в Docker
+pnpm db:migrate  # схема БД
+pnpm db:seed     # владелец и настройки по умолчанию
 pnpm dev         # http://localhost:3000
 ```
 
-После задачи FND-4 (БД) перед `pnpm dev` понадобится ещё `pnpm db:migrate && pnpm db:seed`.
-
-Проверки перед PR:
+Проверки перед PR (`pnpm test` запускает и интеграционные тесты — нужен запущенный Docker):
 
 ```bash
 pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm build
@@ -68,6 +68,16 @@ pnpm dev:reset   # стереть .data/ (база, файлы) и поднят�
 ```
 
 - **Данные** — в `.data/pg` и `.data/minio` (в `.gitignore`). Письма Mailpit не сохраняются между перезапусками.
+- **База данных** — Prisma, схема в [`prisma/schema.prisma`](prisma/schema.prisma), соглашения — в [docs/architecture.md](docs/architecture.md#соглашения-схемы):
+
+  ```bash
+  pnpm db:migrate  # применить миграции; после правки схемы — создать новую: pnpm db:migrate --name <имя>
+  pnpm db:seed     # настройки по умолчанию и владелец (SEED_OWNER_EMAIL), если его ещё нет; можно повторять
+  pnpm db:reset    # стереть базу, применить миграции и seed заново (спросит подтверждение)
+  pnpm db:studio   # Prisma Studio: данные в браузере
+  pnpm db:generate # пересоздать Prisma Client (обычно делают pnpm install и db:migrate)
+  ```
+
 - **Один стек на машину.** Если стек уже поднят из другого checkout или worktree (`docker ps`), используйте его: порты и пароли те же. Второй `dev:up` из другого каталога упадёт с «port is already allocated». Перед удалением worktree выполните в нём `pnpm dev:down`.
 - **Порт занят** — задайте в `.env` `POSTGRES_PORT`, `MINIO_PORT`, `MINIO_CONSOLE_PORT`, `MAILPIT_SMTP_PORT` или `MAILPIT_UI_PORT` и поправьте адрес сервиса там же (`DATABASE_URL`, `S3_ENDPOINT`, `SMTP_PORT`).
 - **Переменные окружения** проверяются при старте `pnpm dev` и `next start` (схема — [`src/lib/env/schema.ts`](src/lib/env/schema.ts)). Если чего-то не хватает, сервер не запустится и перечислит, какие переменные не заданы или неверны. Значения запоминаются при старте: после правки `.env` перезапустите `pnpm dev`. Новую переменную добавляйте в схему и в `.env.example` — тест сверяет их.
@@ -99,7 +109,7 @@ pnpm dev:reset   # стереть .data/ (база, файлы) и поднят�
 
 Каждый PR и каждый пуш в `main` проверяет [GitHub Actions](.github/workflows/ci.yml) — два параллельных job:
 
-- **Checks** — `format:check` → `typecheck` → `lint` → `test` → `build`; в нём заготовлен Postgres 16 для будущих интеграционных тестов;
+- **Checks** — `format:check` → `typecheck` → `lint` → `test` → `build`; интеграционные тесты поднимают Postgres 16 в Docker через Testcontainers, как локально;
 - **E2E smoke** — production-сборка и Playwright: главная открывается на desktop и mobile без ошибок в консоли.
 
 Локально e2e: один раз `pnpm exec playwright install --only-shell chromium`, дальше `pnpm e2e` — тесты сами поднимут `next dev` на порту 3100 (другой порт — `E2E_PORT=3200 pnpm e2e`). Если `pnpm dev` в этой папке уже запущен, второй Next.js не стартует — направьте тесты на него: `E2E_BASE_URL=http://localhost:3000 pnpm e2e`.
