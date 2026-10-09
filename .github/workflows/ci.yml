@@ -10,15 +10,17 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
-  # A new push to a PR supersedes the previous run; runs on main always finish.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # A new push to a PR supersedes its previous run. Every other run (main,
+  # manual) gets a group of its own, so no commit on main is left unchecked.
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
 
 env:
   NEXT_TELEMETRY_DISABLED: "1"
   DO_NOT_TRACK: "1"
-  # Throwaway values for env validation and the CI-only Postgres service below.
-  # Not secrets: real ones never go into the repository (AGENTS.md).
+  # Throwaway values for env validation (src/lib/env.ts) in every job; the
+  # database itself runs only in the Checks job. Not secrets: real ones never
+  # go into the repository (AGENTS.md).
   DATABASE_URL: postgresql://shelter:shelter@localhost:5432/shelter_test
   APP_URL: http://127.0.0.1:3100
   SHELTER_TIMEZONE: Europe/Moscow
@@ -88,19 +90,15 @@ jobs:
         run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
-        id: playwright-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+          # Keep the suffix in sync with the browsers installed below.
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-chromium-shell
 
+      # System packages are not cached; a cached browser is not downloaded again.
       - name: Install Playwright browser
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm exec playwright install --with-deps --only-shell chromium
-
-      - name: Install Playwright system dependencies
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: pnpm exec playwright install-deps chromium
 
       - name: Build
         run: pnpm build
