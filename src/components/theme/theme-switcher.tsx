@@ -37,7 +37,7 @@ export function ThemeSwitcher({ className }: { className?: string }) {
           <label
             key={value}
             className={cn(
-              "relative flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-1.5 px-3 font-display text-label text-toner uppercase select-none",
+              "relative flex min-h-11 flex-1 cursor-pointer items-center justify-center gap-1.5 px-2 font-display text-label text-toner uppercase select-none",
               "not-first:border-l-line not-first:border-toner",
               "hover:bg-board has-checked:bg-toner has-checked:text-paper",
               "has-focus-visible:z-10 has-focus-visible:outline-3 has-focus-visible:outline-offset-2 has-focus-visible:outline-ring",
@@ -51,7 +51,8 @@ export function ThemeSwitcher({ className }: { className?: string }) {
               onChange={() => writeThemePreference(value)}
               className="sr-only"
             />
-            <Icon aria-hidden className="size-4 shrink-0" />
+            {/* Narrow phones (320 px) fit the three words only without icons. */}
+            <Icon aria-hidden className="size-4 shrink-0 max-[22rem]:hidden" />
             {label}
           </label>
         ))}
