@@ -52,20 +52,22 @@ const eslintConfig = defineConfig([
     rules: {
       "no-restricted-syntax": [
         "error",
-        ...["Literal[value=%s]", "TemplateElement[value.raw=%s]"].flatMap(
-          (selector) => [
-            {
-              selector: selector.replace("%s", COLOR_LITERAL),
-              message:
-                "Use a colour token (bg-paper, text-pen, var(--color-toner)…) instead of a colour value.",
-            },
-            {
-              selector: selector.replace("%s", DEFAULT_PALETTE_CLASS),
-              message:
-                "Tailwind's default palette is disabled: use a colour token (bg-paper, text-toner…).",
-            },
-          ],
-        ),
+        // Anchors such as href="#feed" look like hex colours: skip them.
+        ...[
+          "Literal[value=%s]:not(JSXAttribute[name.name=/^(?:href|id|htmlFor)$/] > Literal)",
+          "TemplateElement[value.raw=%s]",
+        ].flatMap((selector) => [
+          {
+            selector: selector.replace("%s", COLOR_LITERAL),
+            message:
+              "Use a colour token (bg-paper, text-pen, var(--color-toner)…) instead of a colour value.",
+          },
+          {
+            selector: selector.replace("%s", DEFAULT_PALETTE_CLASS),
+            message:
+              "Tailwind's default palette is disabled: use a colour token (bg-paper, text-toner…).",
+          },
+        ]),
       ],
     },
   },
