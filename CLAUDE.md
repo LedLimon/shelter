@@ -11,7 +11,7 @@
 
 Подробно — откуда, какие лицензии, что с приватностью — в [docs/ai-tooling.md](docs/ai-tooling.md).
 
-- **`/impeccable <команда>`** (плагин Impeccable) — дизайн-скилл с антипаттернами ИИ-шаблонов. В работе: `shape` — до кода, `polish` и `harden` — перед PR, `critique` и `audit` — в ревью. **`/impeccable init` не запускай** — это задача DS-0 с человеком.
+- **`/impeccable <команда>`** (плагин Impeccable) — дизайн-скилл с антипаттернами ИИ-шаблонов. В работе: `shape` — до кода, `polish` и `harden` — перед PR, `critique` и `audit` — в ревью. `init` и выбор визуального направления уже прошли в DS-0 (направление «Объявление», ADR-0006) — повторно только по просьбе человека.
 - **`web-design-guidelines`** (Vercel) — проверка UI-кода на Web Interface Guidelines.
 - **`vercel-react-best-practices`** (Vercel) — производительность React/Next.js: водопады, бандл, ре-рендеры.
 - **MCP** (`.mcp.json`): `shadcn` — реестр компонентов shadcn/ui; `next-devtools` — ошибки и маршруты запущенного `pnpm dev`; `chrome-devtools` — performance trace и Core Web Vitals; `playwright` — сценарии в браузере. Плагин **context7** — актуальная документация библиотек.
