@@ -33,6 +33,27 @@ async function waitUntilPast(moment: Date): Promise<void> {
   while ((await dbNow()).getTime() <= moment.getTime()) await sleep(50);
 }
 
+/**
+ * Resolves once a session of this database waits for the period lock in
+ * `mode`: "ExclusiveLock" — a publication, "ShareLock" — a posting.
+ */
+async function waitForLockWaiter(
+  mode: "ExclusiveLock" | "ShareLock",
+): Promise<void> {
+  for (;;) {
+    const [row] = await getDb().$queryRaw<{ waiting: boolean }[]>`
+      SELECT EXISTS (
+        SELECT 1 FROM pg_locks
+         WHERE locktype = 'advisory' AND mode = ${mode} AND NOT granted
+           AND database = (
+             SELECT oid FROM pg_database WHERE datname = current_database()
+           )
+      ) AS waiting`;
+    if (row?.waiting) return;
+    await sleep(20);
+  }
+}
+
 /** A promise and the function that resolves it. */
 function signal<T = void>() {
   let resolve!: (value: T) => void;
@@ -149,12 +170,12 @@ describe("closed months", () => {
       })
       .then(() => (published = true));
     // The publication waits for A, which holds the period lock.
-    await sleep(300);
+    await waitForLockWaiter("ExclusiveLock");
     expect(published).toBe(false);
 
     // B's posting queues behind the publication.
     bMayPost.resolve();
-    await sleep(300);
+    await waitForLockWaiter("ShareLock");
     aMayCommit.resolve();
     await a;
     await publication;
