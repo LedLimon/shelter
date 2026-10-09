@@ -34,7 +34,8 @@ model User {
   createdAt     DateTime  @default(now()) @db.Timestamptz(3)
   updatedAt     DateTime  @updatedAt @db.Timestamptz(3)
 
-  uploadedMedia Media[]
+  uploadedMedia      Media[]
+  ledgerTransactions LedgerTransaction[]
 }
 
 // --- Settings -----------------------------------------------------------------
@@ -105,4 +106,131 @@ model Outbox {
   updatedAt   DateTime     @updatedAt @db.Timestamptz(3)
 
   @@index([status, availableAt])
+}
+
+// --- Ledger -------------------------------------------------------------------
+// Append-only double-entry book: docs/ledger.md, ADR-0003. Only
+// src/server/ledger reads and writes these models (ESLint rule
+// shelter/ledger-boundary). Invariants are enforced by triggers in the
+// migration `ledger`, not only by the module.
+
+enum LedgerAccountKind {
+  GENERAL_FUND
+  NEED
+  DONATIONS_IN
+  EXPENSES_OUT
+  REFUNDS_OUT
+  FEES_OUT
+  IN_KIND_IN
+  IN_KIND_USED
+}
+
+/// A balance holder. System accounts (one per kind except NEED) are created by
+/// the migration with id = code = kind; a need gets its own NEED account.
+/// Immutable: no UPDATE or DELETE.
+model LedgerAccount {
+  id        String            @id @default(cuid(2))
+  /// The kind for system accounts, "need:{needId}" for need accounts.
+  code      String            @unique
+  kind      LedgerAccountKind
+  /// Set exactly for NEED accounts. The foreign key to Need comes with the
+  /// Need model (NEED-1).
+  needId    String?           @unique
+  createdAt DateTime          @default(dbgenerated("transaction_timestamp()")) @db.Timestamptz(3)
+
+  entries LedgerEntry[]
+}
+
+enum LedgerTransactionKind {
+  DONATION
+  OVERFLOW
+  ALLOCATE_FROM_GENERAL
+  EXPENSE
+  LEFTOVER_TO_GENERAL
+  SHORTFALL_COVER
+  REFUND
+  FEE
+  IN_KIND
+  CANCEL_TO_GENERAL
+  REVERSAL
+}
+
+/// One business event: two or more entries that sum to zero. Immutable; a
+/// mistake is undone by a REVERSAL that mirrors the entries.
+model LedgerTransaction {
+  id             String                @id @default(cuid(2))
+  /// Insertion order, for a stable order of transactions with equal postedAt
+  /// (a donation and its overflow are posted in one database transaction).
+  seq            BigInt                @unique @default(autoincrement())
+  kind           LedgerTransactionKind
+  /// Deterministic per event: "donation:{id}", "overflow:{donationId}",
+  /// "reversal:{transactionId}"… A repeated post with the same key is a no-op.
+  idempotencyKey String                @unique
+  /// When the event happened (e.g. paid at the provider); may fall in a
+  /// closed month, e.g. a late webhook.
+  // transaction_timestamp() is now(); a default written as now() reads back
+  // as Prisma's @default(now()) and shows up as schema drift.
+  occurredAt     DateTime              @default(dbgenerated("transaction_timestamp()")) @db.Timestamptz(3)
+  /// When it entered the books: the start time of the database transaction,
+  /// set by the default; a trigger rejects any other value, so nothing is
+  /// backdated. Must not fall in a month with a published report.
+  postedAt       DateTime              @default(dbgenerated("transaction_timestamp()")) @db.Timestamptz(3)
+  /// Shown in the public ledger: no personal data.
+  publicMemo     String?
+  /// Set exactly for REVERSAL; unique, so a transaction is reversed at most once.
+  reversesId     String?               @unique
+  reverses       LedgerTransaction?    @relation("Reversal", fields: [reversesId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  reversedBy     LedgerTransaction?    @relation("Reversal")
+  /// The staff member who posted it; null for webhooks and jobs.
+  actorId        String?
+  actor          User?                 @relation(fields: [actorId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  // donationId, expenseId and inKindId come with their models, each with a
+  // foreign key (onDelete: Restrict) — docs/ledger.md#модель.
+
+  entries LedgerEntry[]
+
+  @@index([actorId])
+  @@index([postedAt])
+}
+
+/// A signed movement on one account: "−" at the source, "+" at the receiver.
+/// Immutable; added only together with its transaction.
+model LedgerEntry {
+  id            String            @id @default(cuid(2))
+  transactionId String
+  transaction   LedgerTransaction @relation(fields: [transactionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  accountId     String
+  account       LedgerAccount     @relation(fields: [accountId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  /// Signed, never zero.
+  amountKop     Int
+  /// Copy of the transaction's postedAt (checked by a trigger), for balances
+  /// at a moment without a join.
+  postedAt      DateTime          @db.Timestamptz(3)
+
+  @@index([transactionId])
+  @@index([accountId, postedAt])
+}
+
+// --- Reports ------------------------------------------------------------------
+
+enum MonthlyReportStatus {
+  DRAFT
+  PUBLISHED
+}
+
+/// Monthly transparency report. Minimal for now: the ledger needs to know which
+/// months are closed. Snapshot, commentary and the rest come with REP-1.
+model MonthlyReport {
+  id          String              @id @default(cuid(2))
+  /// "YYYY-MM" in the shelter's time zone.
+  period      String              @unique
+  /// The month's bounds as instants, fixed when the report is created, so a
+  /// later change of the shelter's time zone doesn't move a closed month.
+  /// Half-open: periodStart <= t < periodEnd.
+  periodStart DateTime            @db.Timestamptz(3)
+  periodEnd   DateTime            @db.Timestamptz(3)
+  /// PUBLISHED closes the month for the ledger; a trigger forbids reopening it.
+  status      MonthlyReportStatus @default(DRAFT)
+  createdAt   DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime            @updatedAt @db.Timestamptz(3)
 }
