@@ -48,10 +48,6 @@ const eslintConfig = defineConfig([
       ],
     },
   },
-  {
-    files: ["src/server/db/client.ts"],
-    rules: { "no-restricted-imports": "off" },
-  },
   // Colours come only from the design tokens in src/app/globals.css
   // (docs/design.md#токены-в-коде). Tailwind's default palette is switched
   // off there, so its classes would silently generate nothing.

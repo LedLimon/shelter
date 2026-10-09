@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-restricted-imports -- the one place clients are made
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient, type Prisma } from "@/generated/prisma/client";
 
@@ -12,11 +13,13 @@ export type Db = PrismaClient | Prisma.TransactionClient;
  * A new client with its own connection pool. The app (and integration tests)
  * share one through getDb() from `@/server/db`; this is for code that can't
  * import `server-only` modules, like the seed, or needs another database.
- * Every client is made here: its sessions are pinned to UTC (inUtc()).
+ * Every client is made here: its sessions are pinned to UTC (withUtcSession()).
  */
 export function createPrismaClient(connectionString: string): PrismaClient {
   return new PrismaClient({
-    adapter: new PrismaPg({ connectionString: inUtc(connectionString) }),
+    adapter: new PrismaPg({
+      connectionString: withUtcSession(connectionString),
+    }),
   });
 }
 
@@ -31,9 +34,18 @@ export function createPrismaClient(connectionString: string): PrismaClient {
  * repeated -c settings Postgres applies the last. PGOPTIONS no longer applies
  * (node-postgres reads it only when there are no options): put them in the URL.
  */
-function inUtc(connectionString: string): string {
-  const url = new URL(connectionString);
-  const options = url.searchParams.get("options");
+export function withUtcSession(connectionString: string): string {
+  let url: URL;
+  try {
+    // A bare % is a literal one, as node-postgres reads it. Left as it is, it
+    // makes node-postgres re-encode the whole URL, %3D below included.
+    url = new URL(connectionString.replace(/%(?![0-9a-f]{2})/gi, "%25"));
+  } catch {
+    // Not the URL itself (error.input): it holds the password.
+    throw new TypeError("The database connection string is not a valid URL");
+  }
+  // The last one, as node-postgres takes it; set() drops the rest.
+  const options = url.searchParams.getAll("options").at(-1);
   url.searchParams.set(
     "options",
     options ? `${options} -c TimeZone=UTC` : "-c TimeZone=UTC",
