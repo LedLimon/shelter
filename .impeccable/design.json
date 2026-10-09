@@ -1,0 +1,303 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-09T12:40:00Z",
+  "title": "Design System: Сайт приюта",
+  "extensions": {
+    "colorMeta": {
+      "board": {
+        "role": "neutral",
+        "displayName": "Доска объявлений"
+      },
+      "board-dark": {
+        "role": "neutral",
+        "displayName": "Доска объявлений, тёмная тема"
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Бумага"
+      },
+      "paper-dark": {
+        "role": "neutral",
+        "displayName": "Бумага, тёмная тема"
+      },
+      "toner": {
+        "role": "neutral",
+        "displayName": "Тонер"
+      },
+      "toner-dark": {
+        "role": "neutral",
+        "displayName": "Тонер, тёмная тема"
+      },
+      "toner-muted": {
+        "role": "neutral",
+        "displayName": "Бледный тонер"
+      },
+      "toner-muted-dark": {
+        "role": "neutral",
+        "displayName": "Бледный тонер, тёмная тема"
+      },
+      "pen": {
+        "role": "primary",
+        "displayName": "Шариковая ручка"
+      },
+      "pen-dark": {
+        "role": "primary",
+        "displayName": "Шариковая ручка, тёмная тема"
+      },
+      "notice": {
+        "role": "secondary",
+        "displayName": "Жёлтая бумага"
+      },
+      "notice-dark": {
+        "role": "secondary",
+        "displayName": "Жёлтая бумага, тёмная тема"
+      },
+      "notice-foreground": {
+        "role": "neutral",
+        "displayName": "Текст на жёлтом"
+      },
+      "notice-foreground-dark": {
+        "role": "neutral",
+        "displayName": "Текст на жёлтом, тёмная тема"
+      },
+      "notice-muted": {
+        "role": "neutral",
+        "displayName": "Вторичный на жёлтом"
+      },
+      "notice-muted-dark": {
+        "role": "neutral",
+        "displayName": "Вторичный на жёлтом, тёмная тема"
+      },
+      "perforation": {
+        "role": "neutral",
+        "displayName": "Перфорация"
+      },
+      "perforation-dark": {
+        "role": "neutral",
+        "displayName": "Перфорация, тёмная тема"
+      },
+      "footer": {
+        "role": "neutral",
+        "displayName": "Подвал"
+      },
+      "footer-dark": {
+        "role": "neutral",
+        "displayName": "Подвал, тёмная тема"
+      },
+      "footer-foreground": {
+        "role": "neutral",
+        "displayName": "Текст подвала"
+      },
+      "footer-foreground-dark": {
+        "role": "neutral",
+        "displayName": "Текст подвала, тёмная тема"
+      },
+      "footer-muted": {
+        "role": "neutral",
+        "displayName": "Вторичный в подвале"
+      },
+      "footer-muted-dark": {
+        "role": "neutral",
+        "displayName": "Вторичный в подвале, тёмная тема"
+      },
+      "success": {
+        "role": "tertiary",
+        "displayName": "Зелёные чернила (успех)"
+      },
+      "success-dark": {
+        "role": "tertiary",
+        "displayName": "Зелёные чернила (успех), тёмная тема"
+      },
+      "danger": {
+        "role": "tertiary",
+        "displayName": "Красные чернила (ошибка)"
+      },
+      "danger-dark": {
+        "role": "tertiary",
+        "displayName": "Красные чернила (ошибка), тёмная тема"
+      },
+      "warning": {
+        "role": "tertiary",
+        "displayName": "Коричневые чернила (предупреждение)"
+      },
+      "warning-dark": {
+        "role": "tertiary",
+        "displayName": "Коричневые чернила (предупреждение), тёмная тема"
+      },
+      "info": {
+        "role": "primary",
+        "displayName": "Ручка (инфо)"
+      },
+      "info-dark": {
+        "role": "primary",
+        "displayName": "Ручка (инфо), тёмная тема"
+      },
+      "scrim": {
+        "role": "neutral",
+        "displayName": "Затемнение"
+      },
+      "scrim-dark": {
+        "role": "neutral",
+        "displayName": "Затемнение, тёмная тема"
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Hero",
+        "purpose": "Заголовок hero: 46 → 84 px, обычный регистр."
+      },
+      "headline": {
+        "displayName": "Заголовок секции",
+        "purpose": "До трёх слов, капсом, на бумажной полоске."
+      },
+      "title": {
+        "displayName": "Заголовок карточки",
+        "purpose": "Заголовки нужд и листов."
+      },
+      "name": {
+        "displayName": "Кличка",
+        "purpose": "Кличка собаки капсом, насыщенность 1000."
+      },
+      "sum": {
+        "displayName": "Сумма",
+        "purpose": "Суммы в карточках, табличные цифры."
+      },
+      "sum-lg": {
+        "displayName": "Сумма в hero",
+        "purpose": "Собранная сумма на первом экране."
+      },
+      "button": {
+        "displayName": "Кнопка",
+        "purpose": "«Помочь» и другие кнопки, капсом."
+      },
+      "label": {
+        "displayName": "Метка",
+        "purpose": "Срочность, статусы, подписи полей, капсом."
+      },
+      "body": {
+        "displayName": "Текст",
+        "purpose": "Описания, истории, отчёты; строка 65–75 знаков."
+      },
+      "caption": {
+        "displayName": "Подпись",
+        "purpose": "Вторичный текст, остаток сбора."
+      },
+      "mono": {
+        "displayName": "Язычок",
+        "purpose": "Суммы на язычках, номера операций."
+      },
+      "mono-sm": {
+        "displayName": "Служебная",
+        "purpose": "Даты, категории."
+      }
+    },
+    "shadows": [
+      {
+        "name": "sheet",
+        "value": "0 1px 1px rgb(15 16 20 / 0.1), 0 14px 24px -16px rgb(15 16 20 / 0.55)",
+        "purpose": "Единственная тень: лист на доске; та же в тёмной теме."
+      }
+    ],
+    "motion": [
+      {
+        "name": "tear",
+        "value": "0.25s ease-out",
+        "purpose": "Язычок отрывается при нажатии."
+      },
+      {
+        "name": "scribble",
+        "value": "0.9s steps(14)",
+        "purpose": "Штриховка прогресса дописывается при загрузке."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "md",
+        "value": "768px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Кнопка «Помочь»",
+      "kind": "button",
+      "refersTo": "button-help",
+      "description": "Главное действие: жёлтая бумага с рамкой 2 px.",
+      "html": "<button class=\"ds-btn-help\">Помочь Бурану</button>",
+      "css": ".ds-btn-help { display: inline-flex; align-items: center; justify-content: center; min-height: 52px; padding: 0 24px; background: var(--color-notice); color: var(--color-notice-foreground); border: 2px solid var(--color-notice-foreground); border-radius: 0; font-family: var(--font-display); font-weight: 900; font-size: 1.375rem; letter-spacing: 0.03em; text-transform: uppercase; transition: translate 0.15s ease-out, box-shadow 0.15s ease-out; } .ds-btn-help:hover { translate: 0 -1px; box-shadow: 0 1px 1px rgb(15 16 20 / 0.1), 0 14px 24px -16px rgb(15 16 20 / 0.55); } .ds-btn-help:active { translate: 0 1px; box-shadow: none; } .ds-btn-help:focus-visible { outline: 3px solid var(--color-pen); outline-offset: 2px; } .ds-btn-help:disabled { background: transparent; color: var(--color-toner-muted); border-style: dashed; border-color: var(--color-perforation); }"
+    },
+    {
+      "name": "Кнопка действия",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Остальные действия: тонер с текстом цветом бумаги.",
+      "html": "<button class=\"ds-btn-primary\">Сохранить</button>",
+      "css": ".ds-btn-primary { min-height: 44px; padding: 0 16px; background: var(--color-toner); color: var(--color-paper); border: 0; border-radius: 0; font-family: var(--font-display); font-weight: 800; font-size: 0.875rem; letter-spacing: 0.06em; text-transform: uppercase; } .ds-btn-primary:focus-visible { outline: 3px solid var(--color-pen); outline-offset: 2px; }"
+    },
+    {
+      "name": "Лист",
+      "kind": "card",
+      "refersTo": "sheet",
+      "description": "Любая поверхность на доске: бумага, 1 px скругления, тень листа.",
+      "html": "<article class=\"ds-sheet\"><h3>Утеплить шесть будок к зиме</h3><p>из 54 000 ₽ · осталось 35 800 ₽</p></article>",
+      "css": ".ds-sheet { background: var(--color-paper); color: var(--color-toner); border-radius: 1px; padding: 16px; box-shadow: 0 1px 1px rgb(15 16 20 / 0.1), 0 14px 24px -16px rgb(15 16 20 / 0.55); } .ds-sheet h3 { margin: 0 0 8px; font-family: var(--font-display); font-weight: 900; font-size: 1.875rem; line-height: 0.95; } .ds-sheet p { margin: 0; font-family: var(--font-body); font-size: 0.875rem; color: var(--color-toner-muted); }"
+    },
+    {
+      "name": "Срочность",
+      "kind": "chip",
+      "refersTo": "urgency-critical",
+      "description": "Четыре уровня: плашка, рамка 2 px, рамка 1 px, пунктир — всегда с иконкой и словом.",
+      "html": "<span class=\"ds-urgency ds-urgency-critical\">Критично</span> <span class=\"ds-urgency ds-urgency-high\">Высокая</span> <span class=\"ds-urgency ds-urgency-normal\">Обычная</span> <span class=\"ds-urgency ds-urgency-low\">Низкая</span>",
+      "css": ".ds-urgency { display: inline-flex; padding: 2px 8px 1px 6px; font-family: var(--font-display); font-weight: 800; font-size: 0.875rem; letter-spacing: 0.06em; text-transform: uppercase; } .ds-urgency-critical { background: var(--color-toner); color: var(--color-paper); } .ds-urgency-high { box-shadow: inset 0 0 0 2px var(--color-toner); color: var(--color-toner); } .ds-urgency-normal { box-shadow: inset 0 0 0 1px var(--color-perforation); color: var(--color-toner-muted); } .ds-urgency-low { outline: 1px dashed var(--color-perforation); outline-offset: -1px; color: var(--color-toner-muted); }"
+    },
+    {
+      "name": "Поле ввода",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Поле на бумаге: рамка перфорацией, ошибка — красными чернилами.",
+      "html": "<input class=\"ds-input\" type=\"email\" placeholder=\"Почта для чека\">",
+      "css": ".ds-input { height: 44px; padding: 0 12px; background: var(--color-paper); color: var(--color-toner); border: 1px solid var(--color-perforation); border-radius: 0; font-family: var(--font-body); font-size: 1rem; caret-color: var(--color-pen); } .ds-input:focus-visible { outline: 3px solid var(--color-pen); outline-offset: 2px; } .ds-input[aria-invalid=\"true\"] { border-color: var(--color-danger); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Объявление на доске у подъезда",
+    "overview": "Каждая нужда и каждая собака — лист бумаги на серой доске: фото с телефона, короткий текст, отрывные язычки внизу. Помогают, отрывая язычок: у нужды язычки — суммы доната, у собаки — «Хочу забрать». Вёрстка чистая и честная, без бутафории: ни скотча, ни кнопок, ни поворотов. Тон соседский и прямой.",
+    "keyCharacteristics": [
+      "Доска — фон, бумага — все поверхности, тонер — текст, синяя ручка — ссылки и отметки, жёлтая бумага — только главное действие.",
+      "Сжатый гротеск для заголовков, книжная антиква для текста, моноширинный для язычков и дат.",
+      "Signature — отрывные язычки, всегда как действие."
+    ],
+    "rules": [
+      {
+        "name": "The One Yellow Rule",
+        "body": "Жёлтая бумага — только кнопка «Помочь» и один лист «Сегодня помогли» на экране. У жёлтой кнопки всегда рамка тонером. На жёлтом и в подвале ссылки и фокус — цветом текста поверхности.",
+        "section": "colors"
+      },
+      {
+        "name": "The Pen Rule",
+        "body": "Всё, что отмечает человек — ссылки, штриховка, крестики, штамп, — синей ручкой. Срочность цветом не передаётся.",
+        "section": "colors"
+      },
+      {
+        "name": "The Short Caps Rule",
+        "body": "Капс — только короткие метки и клички. Длинные заголовки — в обычном регистре.",
+        "section": "typography"
+      },
+      {
+        "name": "The Bordered Yellow Rule",
+        "body": "Кнопка «Помочь» — жёлтая бумага с рамкой 2 px цветом `notice-foreground` в обеих темах: без рамки жёлтый на бумаге — 1,26:1.",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "**Do** ставить язычки с суммами по нижнему краю листа нужды и «Хочу забрать» — у листа собаки.",
+      "**Do** держать пропорции фото из `docs/design.md#фото` и печатать фото в рамку.",
+      "**Do** показывать срочность плашкой, рамкой или пунктиром вместе с иконкой и словом."
+    ],
+    "donts": [
+      "**Don't** добавлять скотч, канцелярские кнопки, повороты, текстуры бумаги и рукописные шрифты.",
+      "**Don't** использовать жёлтый вне кнопки «Помочь» и листа «Сегодня помогли».",
+      "**Don't** ставить язычки, которые ничего не делают."
+    ]
+  }
+}

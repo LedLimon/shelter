@@ -18,6 +18,11 @@ const designDoc = readFileSync(
   new URL("../../docs/design.md", import.meta.url),
   "utf8",
 );
+// Root DESIGN.md: Impeccable's copy of the tokens in its YAML frontmatter.
+const designSystem = readFileSync(
+  new URL("../../DESIGN.md", import.meta.url),
+  "utf8",
+);
 
 type Theme = "light" | "dark";
 const THEMES: Theme[] = ["light", "dark"];
@@ -93,6 +98,21 @@ describe("colour tokens", () => {
       expect([tokenValue("light", token), tokenValue("dark", token)]).toEqual(
         documented.get(token),
       );
+    }
+  });
+
+  it("matches the DESIGN.md frontmatter (`-dark` keys for the dark theme)", () => {
+    const frontmatter = designSystem.split("\n---\n")[0] ?? "";
+    const documented = new Map(
+      [...frontmatter.matchAll(/^ {2}([\w-]+): "(#[0-9A-Fa-f]{6})"$/gm)].map(
+        ([, key, hex]) => [key, hex?.toLowerCase()],
+      ),
+    );
+    for (const token of COLOR_TOKENS) {
+      expect([documented.get(token), documented.get(`${token}-dark`)]).toEqual([
+        tokenValue("light", token),
+        tokenValue("dark", token),
+      ]);
     }
   });
 });
