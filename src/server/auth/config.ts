@@ -3,7 +3,11 @@
 // exactly the way sign-in checks them. The app uses getAuth() from ./index.
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { APIError, createAuthMiddleware } from "better-auth/api";
+import {
+  APIError,
+  createAuthMiddleware,
+  getSessionFromCtx,
+} from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { twoFactor } from "better-auth/plugins";
 import type { PrismaClient } from "@/generated/prisma/client";
@@ -13,7 +17,6 @@ import {
   MAX_PASSWORD_LENGTH,
   MIN_PASSWORD_LENGTH,
   SESSION_EXPIRES_IN_SECONDS,
-  SESSION_UPDATE_AGE_SECONDS,
   SIGN_IN_RATE_LIMIT,
   TWO_FACTOR_CHALLENGE_SECONDS,
   TWO_FACTOR_PATHS,
@@ -29,15 +32,30 @@ export type AuthConfig = {
 /**
  * Endpoints that Better Auth serves by default but staff sign-in must not
  * offer: open sign-up, editing one's own profile (staff are managed in the
- * admin), turning the mandatory second factor off, and reading the TOTP
- * secret again after setup.
+ * admin), turning the mandatory second factor off, reading the TOTP secret
+ * again, and minting backup codes with just a session and the password
+ * (they would then pass for the second factor).
  */
 const DISABLED_PATHS = [
   "/sign-up/email",
   "/update-user",
   "/two-factor/disable",
   "/two-factor/get-totp-uri",
+  "/two-factor/generate-backup-codes",
 ];
+
+/**
+ * What a session that hasn't passed the second factor may still do for a
+ * user who has TOTP: sign in properly, finish the code step, sign out.
+ */
+const OPEN_WITHOUT_SECOND_FACTOR: ReadonlySet<string> = new Set([
+  "/sign-in/email",
+  "/sign-out",
+  "/get-session",
+  "/ok",
+  "/error",
+  ...TWO_FACTOR_PATHS,
+]);
 
 export function createAuth(db: PrismaClient, { secret, baseURL }: AuthConfig) {
   return betterAuth({
@@ -73,7 +91,10 @@ export function createAuth(db: PrismaClient, { secret, baseURL }: AuthConfig) {
 
     session: {
       expiresIn: SESSION_EXPIRES_IN_SECONDS,
-      updateAge: SESSION_UPDATE_AGE_SECONDS,
+      // Server Components read the session but can't rewrite its cookie, so
+      // a refresh would extend only the database row. A session simply lasts
+      // a week from sign-in.
+      disableSessionRefresh: true,
       additionalFields: {
         twoFactorVerified: {
           type: "boolean",
@@ -103,16 +124,30 @@ export function createAuth(db: PrismaClient, { secret, baseURL }: AuthConfig) {
     },
 
     hooks: {
-      // «Trust this device» would skip TOTP on later sign-ins; staff enter it
-      // every time.
-      before: createAuthMiddleware((ctx) => {
+      before: createAuthMiddleware(async (ctx) => {
+        // «Trust this device» would skip TOTP on later sign-ins; staff enter
+        // it every time.
         const body = ctx.body as { trustDevice?: unknown } | undefined;
         if (TWO_FACTOR_PATHS.has(ctx.path) && body?.trustDevice) {
           throw new APIError("BAD_REQUEST", {
             message: "Trusted devices are not allowed",
           });
         }
-        return Promise.resolve();
+
+        // A user with TOTP whose session skipped it (another device signed in
+        // before TOTP was set up, a donor sign-in method later) gets nothing
+        // from it: no password change, no session management.
+        if (OPEN_WITHOUT_SECOND_FACTOR.has(ctx.path)) return;
+        const current = await getSessionFromCtx(ctx, { disableRefresh: true });
+        if (
+          current?.user.twoFactorEnabled &&
+          current.session.twoFactorVerified !== true
+        ) {
+          throw new APIError("FORBIDDEN", {
+            code: "TWO_FACTOR_REQUIRED",
+            message: "Sign in with the second factor first",
+          });
+        }
       }),
     },
 
@@ -129,15 +164,30 @@ export function createAuth(db: PrismaClient, { secret, baseURL }: AuthConfig) {
 
             // Marks sessions that passed the second factor. The admin trusts
             // only those, so a sign-in method added later (donor email codes)
-            // can't open it for staff. Re-issued sessions keep the mark.
+            // can't open it for staff. A session re-issued for the same user
+            // (password change) keeps the mark.
             const current = ctx?.context.session?.session as
-              { twoFactorVerified?: boolean } | undefined;
+              { userId: string; twoFactorVerified?: boolean } | undefined;
             const twoFactorVerified =
               (ctx !== undefined &&
                 ctx !== null &&
                 TWO_FACTOR_PATHS.has(ctx.path)) ||
-              current?.twoFactorVerified === true;
+              (current?.userId === session.userId &&
+                current.twoFactorVerified === true);
             return { data: { ...session, twoFactorVerified } };
+          },
+          after: async (session) => {
+            // Once the user has passed the second factor, their sessions that
+            // haven't (signed in on another device before TOTP was set up)
+            // are only a risk: end them.
+            const created = session as {
+              userId: string;
+              twoFactorVerified?: boolean;
+            };
+            if (created.twoFactorVerified !== true) return;
+            await db.session.deleteMany({
+              where: { userId: created.userId, twoFactorVerified: false },
+            });
           },
         },
       },

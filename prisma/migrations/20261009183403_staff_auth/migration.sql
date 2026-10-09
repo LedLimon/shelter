@@ -57,6 +57,8 @@ CREATE TABLE "TwoFactor" (
     "failedVerificationCount" INTEGER NOT NULL DEFAULT 0,
     "lockedUntil" TIMESTAMPTZ(3),
     "userId" TEXT NOT NULL,
+    "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ(3) NOT NULL,
 
     CONSTRAINT "TwoFactor_pkey" PRIMARY KEY ("id")
 );
@@ -67,6 +69,8 @@ CREATE TABLE "RateLimit" (
     "key" TEXT NOT NULL,
     "count" INTEGER NOT NULL,
     "lastRequest" BIGINT NOT NULL,
+    "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ(3) NOT NULL,
 
     CONSTRAINT "RateLimit_pkey" PRIMARY KEY ("id")
 );

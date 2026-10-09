@@ -5,9 +5,8 @@
 export const MIN_PASSWORD_LENGTH = 12;
 export const MAX_PASSWORD_LENGTH = 128;
 
-/** A session lives a week and is extended at most once a day of activity. */
+/** A session lasts a week from sign-in; then staff sign in again. */
 export const SESSION_EXPIRES_IN_SECONDS = 7 * 24 * 60 * 60;
-export const SESSION_UPDATE_AGE_SECONDS = 24 * 60 * 60;
 
 /** Password attempts per client IP; TOTP has its own limits in Better Auth. */
 export const SIGN_IN_RATE_LIMIT = { window: 60, max: 5 } as const;

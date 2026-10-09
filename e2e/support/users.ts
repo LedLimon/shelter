@@ -12,9 +12,17 @@ export const E2E_USERS = {
   donor: "e2e-donor@shelter.localhost",
 } as const;
 
-/** Staff on their first sign-in, one per Playwright project (they run in parallel). */
-export function newStaffEmail(project: string): string {
-  return `e2e-new-staff-${project}@shelter.localhost`;
+/**
+ * Staff on their first sign-in: one per Playwright project (they run in
+ * parallel) and per attempt (a retry finds the previous attempt's TOTP set).
+ */
+export function newStaffEmail(project: string, retry: number): string {
+  return `e2e-new-staff-${project}-${retry}@shelter.localhost`;
 }
 
 export const E2E_PROJECTS = ["desktop", "mobile"] as const;
+/** CI retries a failed test once (playwright.config.ts); one spare attempt. */
+export const E2E_ATTEMPTS = 3;
+
+/** Dev and test databases: the seed's owner is at this domain (.env.example). */
+export const LOCAL_EMAIL_DOMAIN = "@shelter.localhost";

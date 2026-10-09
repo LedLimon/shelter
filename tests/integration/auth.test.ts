@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getAuth } from "@/server/auth";
 import { adminAccessOf } from "@/server/auth/access";
+import { ensureTotp } from "@/server/auth/credentials";
 import { getDb } from "@/server/db";
 import { secretFromOtpauth, totp, wrongTotp } from "../support/totp";
 import { Browser, createUser, nextIp, PASSWORD } from "./support/auth";
@@ -217,6 +218,60 @@ describe("re-issued sessions", () => {
 });
 
 describe("sessions that skipped the second factor", () => {
+  it("can't mint backup codes, change the password or manage sessions", async () => {
+    // Signed in before TOTP existed; TOTP was then set up elsewhere.
+    const editor = await createUser({ role: "EDITOR" });
+    const browser = new Browser();
+    await signIn(browser, editor.email);
+    await ensureTotp(getAuth(), getDb(), editor.id, TOTP_SECRET);
+
+    expect(
+      (
+        await browser.post("/two-factor/generate-backup-codes", {
+          password: PASSWORD,
+        })
+      ).status,
+    ).toBe(404);
+    for (const [path, body] of [
+      [
+        "/change-password",
+        { currentPassword: PASSWORD, newPassword: "taken over!!!" },
+      ],
+      ["/revoke-other-sessions", {}],
+      ["/two-factor/enable", { password: PASSWORD }],
+    ] as const) {
+      const response = await browser.post(path, body);
+      expect(response.status, path).toBe(403);
+      expect(response.json.code, path).toBe("TWO_FACTOR_REQUIRED");
+    }
+    expect(adminAccessOf(await browser.session()).status).toBe(
+      "needs-two-factor",
+    );
+    expect((await browser.post("/sign-out", {})).status).toBe(200);
+  });
+
+  it("end once the user passes TOTP on another device", async () => {
+    const editor = await createUser({ role: "EDITOR" });
+    const laptop = new Browser();
+    const phone = new Browser();
+    await signIn(laptop, editor.email);
+    await signIn(phone, editor.email);
+
+    const { json } = await phone.post("/two-factor/enable", {
+      password: PASSWORD,
+    });
+    await phone.post("/two-factor/verify-totp", {
+      code: totp(secretFromOtpauth(String(json.totpURI))),
+    });
+
+    expect(adminAccessOf(await phone.session()).status).toBe("granted");
+    expect(await laptop.session()).toBeNull();
+    const sessions = await sessionsOf(editor.id);
+    expect(sessions.map((session) => session.twoFactorVerified)).toEqual([
+      true,
+    ]);
+  });
+
   it("don't open the admin for staff who have TOTP", async () => {
     // As if a later sign-in method (donor email codes) created the session.
     const owner = await createUser({ role: "OWNER", totpSecret: TOTP_SECRET });

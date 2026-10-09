@@ -89,7 +89,10 @@ test("new staff set up TOTP before the admin opens", async ({
   page,
 }, testInfo) => {
   await page.goto("/admin/login");
-  await enterPassword(page, newStaffEmail(testInfo.project.name));
+  await enterPassword(
+    page,
+    newStaffEmail(testInfo.project.name, testInfo.retry),
+  );
 
   await expect(page).toHaveURL("/admin/two-factor");
   await page.getByLabel("Пароль").fill(E2E_PASSWORD);
