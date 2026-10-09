@@ -44,6 +44,10 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "coverage/**",
+    // Playwright output (ESLint does not read .gitignore).
+    "playwright-report/**",
+    "test-results/**",
+    "blob-report/**",
     // Claude Code worktrees of this repo (other sessions' checkouts).
     ".claude/worktrees/**",
   ]),
