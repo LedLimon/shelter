@@ -14,7 +14,7 @@
 | **chrome-devtools MCP**         | Performance trace, Core Web Vitals, сеть, консоль                                                                       | `.mcp.json` → `chrome-devtools`                                                                      | [ChromeDevTools/chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp) | Apache-2.0 |
 | **Playwright MCP**              | Сценарии в браузере, скриншоты                                                                                          | `.mcp.json` → `playwright`                                                                           | [microsoft/playwright-mcp](https://github.com/microsoft/playwright-mcp)                     | Apache-2.0 |
 | **context7**                    | Актуальная документация библиотек по версиям                                                                            | `.claude/settings.json`: `enabledPlugins` (`claude-plugins-official`)                                | [upstash/context7](https://github.com/upstash/context7)                                     | MIT        |
-| **playground**                  | Интерактивные HTML-«песочницы» для сравнения вариантов (нужен в DS-0)                                                   | `.claude/settings.json`: `enabledPlugins` (`claude-plugins-official`)                                | [anthropics/claude-plugins-official](https://github.com/anthropics/claude-plugins-official) | Apache-2.0 |
+| **playground**                  | Интерактивные HTML-«песочницы» для сравнения вариантов (использован в DS-0)                                             | `.claude/settings.json`: `enabledPlugins` (`claude-plugins-official`)                                | [anthropics/claude-plugins-official](https://github.com/anthropics/claude-plugins-official) | Apache-2.0 |
 
 Сознательно **не** подключены: UI UX Pro Max и Taste Skill (конфликтующие эстетики), frontend-design от Anthropic (Impeccable — его наследник: два скилла дали бы противоречивые указания), Figma MCP (макетов в Figma нет, концепция делается в коде в DS-0).
 
@@ -32,7 +32,7 @@
 
 - **`/work-on-issue`** (UI-задачи): перед реализацией читаем `docs/design.md`, компоненты берём через shadcn MCP, React-код пишем по `vercel-react-best-practices`. Перед PR — `/impeccable polish` и `/impeccable harden`.
 - **`ui-reviewer`**: `/impeccable critique` и `/impeccable audit`, скилл `web-design-guidelines`; для главной, нужд и доната — performance trace через chrome-devtools MCP (production-сборка, Slow 4G, CPU ×4, LCP < 2.5 с, INP — отдельным трейсом).
-- **DS-0 «Визуальная концепция»**: `/impeccable init` и `shape` плюс скилл `playground` — 2–3 контрастных направления, выбор за человеком.
+- **DS-0 «Визуальная концепция»** (пройдена, [ADR-0006](adr/0006-visual-direction.md)): `/impeccable init` и `shape` плюс скилл `playground` — два контрастных направления, выбор за человеком.
 
 ## Impeccable: что важно знать
 
