@@ -126,10 +126,11 @@ export function ChoicesSection() {
               />
               <FieldContent>
                 <FieldLabel htmlFor="cb-consent" variant="option">
-                  Принимаю оферту и&nbsp;политику обработки персональных данных
+                  Даю согласие на&nbsp;обработку персональных данных
                 </FieldLabel>
                 <FieldError id="cb-consent-error">
-                  Без согласия мы&nbsp;не&nbsp;сможем принять пожертвование.
+                  Без согласия на&nbsp;обработку персональных данных
+                  мы&nbsp;не&nbsp;сможем принять пожертвование.
                 </FieldError>
               </FieldContent>
             </Field>

@@ -121,7 +121,7 @@ function DropdownMenuSubTrigger({
       data-slot="dropdown-menu-sub-trigger"
       data-inset={inset}
       className={cn(
-        "relative flex min-h-11 cursor-default items-center gap-2.5 px-3 py-2 font-body text-body outline-none select-none data-inset:pl-9 data-popup-open:bg-accent",
+        "relative flex min-h-11 cursor-default items-center gap-2.5 px-3 py-2 font-body text-body outline-none select-none data-inset:pl-9 data-popup-open:not-data-highlighted:bg-accent",
         "data-highlighted:bg-foreground data-highlighted:text-background forced-colors:data-highlighted:bg-[Highlight] forced-colors:data-highlighted:text-[HighlightText] forced-colors:data-highlighted:forced-color-adjust-none",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className,

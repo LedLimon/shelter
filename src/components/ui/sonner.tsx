@@ -42,6 +42,9 @@ const Toaster = ({ toastOptions, ...props }: ToasterProps) => {
           toast: cn(
             "flex w-(--width) items-start gap-3 border border-foreground bg-popover p-4 font-body text-popover-foreground shadow-sheet",
             "focus-visible:outline-3! focus-visible:outline-offset-2! focus-visible:outline-ring! focus-visible:outline-solid!",
+            // Like sonner's own look: a collapsed stack shows only the front
+            // toast's content, the ones behind are bare sheets.
+            "[&>*]:transition-opacity [&[data-expanded=false][data-front=false]>*]:opacity-0",
           ),
           icon: "mt-0.5 flex shrink-0",
           content: "flex min-w-0 flex-1 flex-col gap-1",

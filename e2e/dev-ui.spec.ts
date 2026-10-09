@@ -41,6 +41,125 @@ for (const colorScheme of ["light", "dark"] as const) {
   });
 }
 
+/** Opens a layer, returns the selector axe should scan, closes it afterwards. */
+const LAYERS: {
+  name: string;
+  open: (page: Page) => Promise<void>;
+  scope: string;
+}[] = [
+  {
+    name: "Dialog",
+    open: (page) => overlayButton(page, "Удалить черновик").click(),
+    scope: "[data-slot=dialog-content]",
+  },
+  {
+    name: "bottom Sheet",
+    open: (page) => overlayButton(page, "Помочь Бурану").click(),
+    scope: "[data-slot=sheet-content]",
+  },
+  {
+    name: "Select list",
+    open: (page) => page.locator("#select-value").click(),
+    scope: "[data-slot=select-content]",
+  },
+  {
+    name: "DropdownMenu with a submenu",
+    open: async (page) => {
+      await overlayButton(page, "Действия с нуждой").click();
+      await page.getByRole("menuitem", { name: "Статус" }).hover();
+      await expect(
+        page.getByRole("menuitemradio", { name: "Идёт сбор" }),
+      ).toBeVisible();
+    },
+    scope: "[data-slot=dropdown-menu-content]",
+  },
+  {
+    name: "Popover",
+    open: (page) => overlayButton(page, "Как считается остаток").click(),
+    scope: "[data-slot=popover-content]",
+  },
+  {
+    name: "Tooltip",
+    open: async (page) => {
+      await overlayButton(page, "Скопировать ссылку").focus();
+      await page.keyboard.press("Shift+Tab");
+      await page.keyboard.press("Tab");
+    },
+    scope: "[data-slot=tooltip-content]",
+  },
+  {
+    name: "toasts",
+    open: async (page) => {
+      for (const name of ["Ошибка", "Предупреждение", "С действием"]) {
+        await page
+          .locator("section[aria-labelledby=feedback]")
+          .getByRole("button", { name, exact: true })
+          .click();
+      }
+    },
+    scope: "[data-sonner-toast]",
+  },
+];
+
+/** Waits for finite animations and transitions (fades mix colours for axe). */
+async function settleAnimations(page: Page) {
+  await page.evaluate(async () => {
+    const nextFrame = () =>
+      new Promise((resolve) => requestAnimationFrame(resolve));
+    // Transitions start a frame or two after the open state is set.
+    for (let round = 0; round < 10; round += 1) {
+      await nextFrame();
+      await nextFrame();
+      const running = document
+        .getAnimations()
+        .filter(
+          (animation) =>
+            animation.playState === "running" &&
+            animation.effect?.getComputedTiming().iterations !== Infinity,
+        );
+      if (running.length === 0) return;
+      await Promise.all(
+        running.map((animation) => animation.finished.catch(() => undefined)),
+      );
+    }
+  });
+}
+
+function overlayButton(page: Page, name: string) {
+  return page
+    .locator("section[aria-labelledby=overlays]")
+    .getByRole("button", { name, exact: true });
+}
+
+for (const colorScheme of ["light", "dark"] as const) {
+  test(`open layers have no WCAG 2.1 AA violations in the ${colorScheme} theme`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme });
+    await openShowcase(page);
+
+    const summary: string[] = [];
+    for (const { name, open, scope } of LAYERS) {
+      await open(page);
+      await expect(page.locator(scope).first()).toBeVisible();
+      await settleAnimations(page);
+      const { violations } = await new AxeBuilder({ page })
+        .include(scope)
+        .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+        .analyze();
+      summary.push(
+        ...violations.map(
+          ({ id, nodes }) =>
+            `${name} · ${id}: ${nodes.map(({ target }) => target.join(" ")).join(", ")}`,
+        ),
+      );
+      await page.keyboard.press("Escape");
+      await page.keyboard.press("Escape");
+    }
+    expect(summary).toEqual([]);
+  });
+}
+
 test("has no horizontal scroll on a 375 px phone", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await openShowcase(page);
@@ -91,7 +210,9 @@ test("form shows errors at the fields and focuses the first one", async ({
   await expect(amount).toHaveAttribute("aria-invalid", "true");
   await expect(form.getByText("Введите сумму, например 500.")).toBeVisible();
   await expect(
-    form.getByText("Без согласия мы не сможем принять пожертвование."),
+    form.getByText(
+      "Без согласия на обработку персональных данных мы не сможем принять пожертвование.",
+    ),
   ).toBeVisible();
 
   // What was typed survives a failed submit.

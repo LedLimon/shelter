@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { formatRub } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
 import { Paper, Section, SpecLabel } from "../showcase";
@@ -17,8 +18,6 @@ import { ContrastTable } from "../tokens/contrast-table";
 import { PaletteSpecimen } from "../tokens/palette-specimen";
 
 // Design tokens of DS-1 (src/app/globals.css), moved here from /dev/tokens.
-
-const NBSP = "\u00a0";
 
 const TYPE_SCALE: { token: string; size: string; sample: ReactNode }[] = [
   {
@@ -50,8 +49,8 @@ const TYPE_SCALE: { token: string; size: string; sample: ReactNode }[] = [
     size: "36 и 28 px, tabular-nums",
     sample: (
       <p className="flex flex-wrap items-baseline gap-x-4 font-display tabular-nums">
-        <span className="text-sum-lg">{`24${NBSP}650${NBSP}₽`}</span>
-        <span className="text-sum">{`2${NBSP}500${NBSP}₽`}</span>
+        <span className="text-sum-lg">{formatRub(24_650_00)}</span>
+        <span className="text-sum">{formatRub(2_500_00)}</span>
       </p>
     ),
   },
@@ -73,7 +72,7 @@ const TYPE_SCALE: { token: string; size: string; sample: ReactNode }[] = [
     sample: (
       <p className="max-w-prose text-body">
         Буран три недели ходит на трёх лапах: перелом сросся неправильно. Хирург
-        готов оперировать 21&nbsp;октября. Каждые 1&nbsp;000&nbsp;₽ — сутки
+        готов оперировать 21&nbsp;октября. Каждые {formatRub(1_000_00)} — сутки
         в&nbsp;стационаре после операции. Ёлочки «»&nbsp;и&nbsp;№&nbsp;17
         на&nbsp;месте.
       </p>
@@ -84,7 +83,7 @@ const TYPE_SCALE: { token: string; size: string; sample: ReactNode }[] = [
     size: "14 px",
     sample: (
       <p className="text-caption text-toner-muted">
-        из 38&nbsp;000&nbsp;₽ · осталось 13&nbsp;350&nbsp;₽
+        из {formatRub(38_000_00)} · осталось {formatRub(13_350_00)}
       </p>
     ),
   },
@@ -93,7 +92,7 @@ const TYPE_SCALE: { token: string; size: string; sample: ReactNode }[] = [
     size: "12,5 и 11 px",
     sample: (
       <p className="flex flex-wrap gap-x-4 font-mono">
-        <span className="text-mono">13&nbsp;350&nbsp;₽ весь остаток</span>
+        <span className="text-mono">{formatRub(13_350_00)} весь остаток</span>
         <span className="text-mono-sm text-toner-muted">
           Лекарства и ветеринария · до 20 октября
         </span>
@@ -368,17 +367,19 @@ export function TokenSections() {
           <div className="grid content-start gap-3 rounded-sheet surface-notice p-sheet shadow-sheet">
             <h3 className="text-title">Сегодня помогли</h3>
             <ul className="grid gap-2">
-              {[
-                ["Анна", "1 000", "12 минут назад"],
-                ["Аноним", "500", "40 минут назад"],
-                ["Сергей", "3 000", "2 часа назад"],
-              ].map(([name, sum, when]) => (
+              {(
+                [
+                  ["Анна", 1_000_00, "12 минут назад"],
+                  ["Аноним", 500_00, "40 минут назад"],
+                  ["Сергей", 3_000_00, "2 часа назад"],
+                ] as const
+              ).map(([name, kop, when]) => (
                 <li
                   key={name}
                   className="flex justify-between gap-3 border-b border-dotted pb-1.5"
                 >
                   <b className="tabular-nums">
-                    {name}&nbsp;— {sum?.replace(" ", NBSP)}&nbsp;₽
+                    {name}&nbsp;— {formatRub(kop)}
                   </b>
                   <span className="text-caption text-muted-foreground">
                     {when}

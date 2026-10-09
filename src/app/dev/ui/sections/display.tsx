@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { formatRub } from "@/lib/money";
 
 import {
   Paper,
@@ -55,7 +56,7 @@ export function CardsSection() {
           </CardHeader>
           <CardContent>
             <p>
-              Собрали 182&nbsp;400&nbsp;₽, потратили 167&nbsp;950&nbsp;₽
+              Собрали {formatRub(182_400_00)}, потратили {formatRub(167_950_00)}
               на&nbsp;корм, прививки и&nbsp;ремонт вольеров. Все чеки
               в&nbsp;отчёте.
             </p>
@@ -73,7 +74,7 @@ export function CardsSection() {
           </CardHeader>
           <CardContent>
             <p className="font-display text-sum-lg tabular-nums">
-              48&nbsp;210&nbsp;₽
+              {formatRub(48_210_00)}
             </p>
           </CardContent>
         </Card>
