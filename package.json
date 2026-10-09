@@ -15,8 +15,8 @@
     "start": "next start",
     "lint": "eslint --max-warnings=0",
     "typecheck": "next typegen && tsc --noEmit",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "format": "prettier --write . \"!**/.data/**\"",
+    "format:check": "prettier --check . \"!**/.data/**\"",
     "test": "vitest run",
     "e2e": "playwright test"
   },

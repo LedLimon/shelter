@@ -58,7 +58,7 @@ export const serverEnvSchema = z
     SMTP_PASSWORD: z.string().optional(),
     SMTP_FROM: required(),
 
-    // Empty in dev: payments go through the fake provider until PAY-1.
+    // Empty in dev; PAY-1 adds the fake provider and the provider switch.
     CLOUDPAYMENTS_PUBLIC_ID: z.string().optional(),
     CLOUDPAYMENTS_API_SECRET: z.string().optional(),
   })

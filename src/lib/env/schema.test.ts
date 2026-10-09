@@ -38,12 +38,6 @@ describe("server env", () => {
     expect(env.SMTP_FROM).toBe("Приют <no-reply@shelter.localhost>");
   });
 
-  it("is documented in .env.example: every variable, nothing extra", () => {
-    expect(Object.keys(example).sort()).toEqual(
-      Object.keys(serverEnvSchema.shape).sort(),
-    );
-  });
-
   it("reports a missing required variable by name", () => {
     const error = errorOf(() => parseServer({ DATABASE_URL: undefined }));
 
@@ -134,6 +128,15 @@ describe("server env", () => {
 });
 
 describe("server and public schemas", () => {
+  it("are documented in .env.example: every variable, nothing extra", () => {
+    const declared = [
+      ...Object.keys(serverEnvSchema.shape),
+      ...Object.keys(publicEnvSchema.shape),
+    ];
+
+    expect(Object.keys(example).sort()).toEqual(declared.sort());
+  });
+
   it("keep NEXT_PUBLIC_* variables apart", () => {
     for (const key of Object.keys(serverEnvSchema.shape)) {
       expect(key).not.toMatch(/^NEXT_PUBLIC_/);

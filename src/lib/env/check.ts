@@ -1,13 +1,15 @@
+import { getEnv } from "./index";
+import { getPublicEnv } from "./public";
 import { EnvValidationError } from "./schema";
 
 /**
  * Start-up check for server processes: print what's wrong with the
  * environment and exit, instead of starting and failing on some request.
  */
-export async function checkEnvOrExit(): Promise<void> {
+export function checkEnvOrExit(): void {
   try {
-    await import("./index");
-    await import("./public");
+    getEnv();
+    getPublicEnv();
   } catch (error) {
     if (!(error instanceof EnvValidationError)) throw error;
     console.error(`\n${error.message}\n`);
