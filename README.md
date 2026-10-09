@@ -32,12 +32,16 @@ brew install mise
 mise install
 ```
 
-Дальше:
+Дальше (нужен Docker: Docker Desktop, OrbStack или Colima):
 
 ```bash
 pnpm install
+cp .env.example .env
+pnpm dev:up      # Postgres, MinIO, Mailpit в Docker
 pnpm dev         # http://localhost:3000
 ```
+
+После задачи FND-4 (БД) перед `pnpm dev` понадобится ещё `pnpm db:migrate && pnpm db:seed`.
 
 Проверки перед PR:
 
@@ -45,12 +49,28 @@ pnpm dev         # http://localhost:3000
 pnpm format:check && pnpm typecheck && pnpm lint && pnpm test && pnpm build
 ```
 
-После задач FND-2 и FND-4 (dev-окружение и БД) перед `pnpm dev` понадобится ещё:
+## Dev-окружение
+
+Зависимости приложения поднимаются в Docker из [`docker-compose.yml`](docker-compose.yml). Пароли — только для локальной разработки, они совпадают с [`.env.example`](.env.example).
+
+| Сервис                   | Адрес                                    | Доступ                           |
+| ------------------------ | ---------------------------------------- | -------------------------------- |
+| PostgreSQL 16            | `localhost:5432`, база `shelter`         | `shelter` / `shelter`            |
+| MinIO, S3 API            | `http://localhost:9000`, бакет `shelter` | `shelter` / `shelter-dev-secret` |
+| MinIO, веб-консоль       | [localhost:9001](http://localhost:9001)  | `shelter` / `shelter-dev-secret` |
+| Mailpit, SMTP            | `localhost:1025`                         | без авторизации                  |
+| Mailpit, входящие письма | [localhost:8025](http://localhost:8025)  | —                                |
 
 ```bash
-pnpm dev:up      # Postgres, MinIO, Mailpit в Docker
-pnpm db:migrate && pnpm db:seed
+pnpm dev:up      # поднять и дождаться зелёных healthchecks, создать бакет
+pnpm dev:down    # остановить; данные остаются в .data/
+pnpm dev:reset   # стереть .data/ (база, файлы) и поднять заново
 ```
+
+- **Данные** — в `.data/pg` и `.data/minio` (в `.gitignore`). Письма Mailpit не сохраняются между перезапусками.
+- **Порт занят** — задайте в `.env` `POSTGRES_PORT`, `MINIO_PORT`, `MINIO_CONSOLE_PORT`, `MAILPIT_SMTP_PORT` или `MAILPIT_UI_PORT` и поправьте адрес сервиса там же (`DATABASE_URL`, `S3_ENDPOINT`, `SMTP_PORT`).
+- **Переменные окружения** проверяются при старте `pnpm dev` и `next start` (схема — [`src/lib/env/schema.ts`](src/lib/env/schema.ts)). Если чего-то не хватает, сервер не запустится и перечислит, какие переменные не заданы или неверны. Новую переменную добавляйте в схему и в `.env.example` — тест сверяет их.
+- **MinIO** — официальные образы `minio/minio` больше не публикуются, поэтому используется [`pgsty/minio`](https://github.com/pgsty/minio) — поддерживаемая сообществом сборка того же сервера. Регион — `ru-central1`, как у Yandex Object Storage.
 
 ## Разработка с ИИ-агентами
 
