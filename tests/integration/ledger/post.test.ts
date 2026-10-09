@@ -198,6 +198,18 @@ describe("post", () => {
     expect(await transactionsWithKey(input.idempotencyKey)).toEqual([]);
   });
 
+  it("must run in READ COMMITTED, so it sees a month closed meanwhile", async () => {
+    const need = await newNeedAccount();
+    const input = donation(need, 10_000);
+
+    await expect(
+      getDb().$transaction((tx) => post(tx, input), {
+        isolationLevel: "RepeatableRead",
+      }),
+    ).rejects.toThrow(/ledger: post in a READ COMMITTED transaction/);
+    expect(await transactionsWithKey(input.idempotencyKey)).toEqual([]);
+  });
+
   it("refuses an unknown account and writes nothing", async () => {
     const input = donation("no-such-account", 10_000);
 
@@ -352,6 +364,12 @@ describe("createNeedAccount", () => {
       await getDb().ledgerAccount.findUniqueOrThrow({ where: { needId } }),
     ).toMatchObject({ id: again, kind: "NEED", code: `need:${needId}` });
     expect(await balance(getDb(), again)).toBe(0);
+  });
+
+  it("must run inside a transaction", async () => {
+    await expect(
+      createNeedAccount(getDb(), `need-${uniqueKey()}`),
+    ).rejects.toMatchObject(ledgerError("NOT_IN_TRANSACTION"));
   });
 
   it("rolls back with the transaction that creates the need", async () => {
