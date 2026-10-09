@@ -13,6 +13,7 @@
 
 - Лежат в `tests/integration/**/*.test.ts` (проект Vitest `integration`). Нужен запущенный Docker — тот же, что для `pnpm dev:up`.
 - На прогон [Testcontainers](https://node.testcontainers.org/) поднимает один контейнер `postgres:16.15-alpine` (образ как в `docker-compose.yml`, данные в памяти) и применяет миграции `prisma migrate deploy` к шаблонной базе. Так каждый прогон заодно проверяет, что миграции встают на чистую БД.
+- Postgres в контейнере работает в поясе `Europe/Moscow`, а не в UTC — как сервер, где `initdb` взял системный пояс. Клиент, который не закрепил UTC на соединении, сдвигает времена, и тесты это ловят ([architecture.md](architecture.md#соглашения-схемы), [`timezone.test.ts`](../tests/integration/timezone.test.ts)).
 - **Каждый тест-файл получает свою чистую базу** — копию шаблона (`CREATE DATABASE … TEMPLATE`, десятки миллисекунд); после файла она удаляется. Файлы идут параллельно и друг другу не мешают. Тесты внутри файла делят одну базу: берите разные ключи и email или учитывайте данные предыдущих тестов.
 - БД в тестах — как в приложении: `getDb()` из `@/server/db`. Setup ([`tests/integration/setup/`](../tests/integration/setup/)) направляет `DATABASE_URL` на базу файла, остальные переменные берёт из `.env.example`; локальный `.env` тесты не читают.
 - Команды: `pnpm test` — unit и интеграционные; `pnpm test:unit` — без Docker; `pnpm test:integration` — только интеграционные.
