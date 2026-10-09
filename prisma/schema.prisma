@@ -90,11 +90,15 @@ model Outbox {
   id          String       @id @default(cuid(2))
   /// Event type, e.g. "donation.thanks".
   type        String
+  /// Ids only, no personal data: the handler loads the rest.
   payload     Json
+  /// One event per key, e.g. "donation.thanks:{donationId}"; insert with skipDuplicates.
+  dedupeKey   String?      @unique
   status      OutboxStatus @default(PENDING)
   attempts    Int          @default(0)
   /// Not to be picked up before this time (retry backoff).
   availableAt DateTime     @default(now()) @db.Timestamptz(3)
+  /// No personal data here either (no raw SMTP replies with addresses).
   lastError   String?
   processedAt DateTime?    @db.Timestamptz(3)
   createdAt   DateTime     @default(now()) @db.Timestamptz(3)

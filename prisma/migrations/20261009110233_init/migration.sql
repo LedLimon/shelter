@@ -54,6 +54,7 @@ CREATE TABLE "Outbox" (
     "id" TEXT NOT NULL,
     "type" TEXT NOT NULL,
     "payload" JSONB NOT NULL,
+    "dedupeKey" TEXT,
     "status" "OutboxStatus" NOT NULL DEFAULT 'PENDING',
     "attempts" INTEGER NOT NULL DEFAULT 0,
     "availableAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -73,6 +74,9 @@ CREATE UNIQUE INDEX "Media_storageKey_key" ON "Media"("storageKey");
 
 -- CreateIndex
 CREATE INDEX "Media_uploadedById_idx" ON "Media"("uploadedById");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Outbox_dedupeKey_key" ON "Outbox"("dedupeKey");
 
 -- CreateIndex
 CREATE INDEX "Outbox_status_availableAt_idx" ON "Outbox"("status", "availableAt");
