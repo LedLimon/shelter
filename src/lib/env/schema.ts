@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MIN_PASSWORD_LENGTH } from "@/server/auth/policy";
 
 type EnvSource = Record<string, string | undefined>;
 
@@ -14,6 +15,8 @@ export function isTimeZone(value: string): boolean {
 const httpUrl = () =>
   z.url({ protocol: /^https?$/, error: "must be an http(s):// URL" });
 
+const appUrl = () => httpUrl().transform((url) => url.replace(/\/+$/, ""));
+
 const required = () => z.string().min(1);
 
 const flag = () => z.stringbool({ error: "must be true or false" });
@@ -27,6 +30,10 @@ const timeZone = () =>
     .refine(isTimeZone, "must be an IANA time zone, e.g. Europe/Moscow")
     .default("Europe/Moscow");
 
+// Better Auth signs cookies and encrypts TOTP secrets with it.
+const authSecret = () =>
+  z.string().min(32, "must be at least 32 characters: openssl rand -base64 32");
+
 const portError = "must be a port number (1-65535)";
 const port = () =>
   z.coerce
@@ -38,13 +45,16 @@ const port = () =>
 /** Server-only variables. Never import their values into client code. */
 export const serverEnvSchema = z
   .object({
-    // Public origin of the site: links in emails, redirects, OG tags.
-    APP_URL: httpUrl().transform((url) => url.replace(/\/+$/, "")),
+    // Public origin of the site: links in emails, redirects, OG tags. Sign-in
+    // requests from any other origin are rejected (CSRF check).
+    APP_URL: appUrl(),
     // Fallback until the shelter.timezone setting exists (the seed copies
     // this value there). Times are stored in UTC.
     SHELTER_TIMEZONE: timeZone(),
 
     DATABASE_URL: databaseUrl(),
+
+    BETTER_AUTH_SECRET: authSecret(),
 
     S3_ENDPOINT: httpUrl(),
     S3_REGION: required(),
@@ -79,13 +89,29 @@ export const serverEnvSchema = z
 /** Variables of `pnpm db:seed` (prisma/seed.ts); the app doesn't read them. */
 export const seedEnvSchema = z.object({
   DATABASE_URL: databaseUrl(),
+  APP_URL: appUrl(),
   // Written to the shelter.timezone setting.
   SHELTER_TIMEZONE: timeZone(),
-  // Becomes the OWNER while the database has none. Its password and TOTP come
-  // with FND-6 (Better Auth).
+  // The owner's password hash and TOTP secret are made with Better Auth.
+  BETTER_AUTH_SECRET: authSecret(),
+  // Becomes the OWNER while the database has none.
   SEED_OWNER_EMAIL: z
     .email({ error: "must be an email address" })
     .transform((email) => email.toLowerCase()),
+  // Given to the owner only if they have no password yet; never overwritten.
+  SEED_OWNER_PASSWORD: z
+    .string()
+    .min(
+      MIN_PASSWORD_LENGTH,
+      `must be at least ${MIN_PASSWORD_LENGTH} characters`,
+    )
+    .optional(),
+  // Dev and tests only: a known TOTP secret instead of the setup screen, so
+  // e2e can compute codes. The seed refuses it under NODE_ENV=production.
+  SEED_OWNER_TOTP_SECRET: z
+    .string()
+    .min(16, "must be at least 16 characters")
+    .optional(),
 });
 
 /**

@@ -1,8 +1,15 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { getAuth } from "@/server/auth";
+import { adminAccessOf } from "@/server/auth/access";
 import { getDb } from "@/server/db";
 import { seedDatabase } from "@/server/db/seed";
 import { getSetting, setSetting } from "@/server/settings";
 import { defaultSettings } from "@/server/settings/schema";
+import { totp } from "../support/totp";
+import { Browser } from "./support/auth";
+
+const OWNER_PASSWORD = "seed owner password";
+const TOTP_SECRET = "seed-totp-secret-0123456789abcdef";
 
 // Tests in a file share the database: start each one without an owner.
 beforeEach(async () => {
@@ -19,6 +26,8 @@ describe("seedDatabase", () => {
 
     expect(await seedDatabase(db, options)).toEqual({
       owner: "created",
+      ownerPassword: "none",
+      ownerTotp: "none",
       settingsCreated: Object.keys(defaultSettings("UTC")).length,
     });
     expect(
@@ -31,6 +40,8 @@ describe("seedDatabase", () => {
 
     expect(await seedDatabase(db, options)).toEqual({
       owner: "unchanged",
+      ownerPassword: "none",
+      ownerTotp: "none",
       settingsCreated: 0,
     });
     expect(await db.user.count({ where: { email: "owner@example.ru" } })).toBe(
@@ -100,5 +111,109 @@ describe("seedDatabase", () => {
     expect(
       await db.user.findUniqueOrThrow({ where: { email: "gone@example.ru" } }),
     ).toMatchObject({ role: "DONOR" });
+  });
+
+  it("gives the owner a password and a dev TOTP they can sign in with", async () => {
+    const db = getDb();
+    const ownerCredentials = {
+      auth: getAuth(),
+      password: OWNER_PASSWORD,
+      totpSecret: TOTP_SECRET,
+    };
+
+    const result = await seedDatabase(db, {
+      ownerEmail: "signin@example.ru",
+      timeZone: "Europe/Moscow",
+      ownerCredentials,
+    });
+
+    expect(result).toMatchObject({
+      owner: "created",
+      ownerPassword: "set",
+      ownerTotp: "set",
+    });
+    const browser = new Browser();
+    const signedIn = await browser.post("/sign-in/email", {
+      email: "signin@example.ru",
+      password: OWNER_PASSWORD,
+    });
+    expect(signedIn.json.twoFactorRedirect).toBe(true);
+    await browser.post("/two-factor/verify-totp", { code: totp(TOTP_SECRET) });
+    expect(adminAccessOf(await browser.session()).status).toBe("granted");
+  });
+
+  it("never overwrites the owner's password or authenticator", async () => {
+    const db = getDb();
+    await seedDatabase(db, {
+      ownerEmail: "keeps@example.ru",
+      timeZone: "Europe/Moscow",
+      ownerCredentials: {
+        auth: getAuth(),
+        password: OWNER_PASSWORD,
+        totpSecret: TOTP_SECRET,
+      },
+    });
+    const before = await db.account.findFirstOrThrow({
+      where: { user: { email: "keeps@example.ru" } },
+    });
+    const twoFactorBefore = await db.twoFactor.findFirstOrThrow({
+      where: { user: { email: "keeps@example.ru" } },
+    });
+
+    const result = await seedDatabase(db, {
+      ownerEmail: "keeps@example.ru",
+      timeZone: "Europe/Moscow",
+      ownerCredentials: {
+        auth: getAuth(),
+        password: "another password!",
+        totpSecret: "another-totp-secret-0123456789",
+      },
+    });
+
+    expect(result).toMatchObject({
+      owner: "unchanged",
+      ownerPassword: "kept",
+      ownerTotp: "kept",
+    });
+    expect(
+      await db.account.findFirstOrThrow({
+        where: { user: { email: "keeps@example.ru" } },
+      }),
+    ).toMatchObject({ password: before.password });
+    expect(
+      await db.twoFactor.findFirstOrThrow({
+        where: { user: { email: "keeps@example.ru" } },
+      }),
+    ).toMatchObject({ secret: twoFactorBefore.secret });
+  });
+
+  it("doesn't touch the sign-in of a demoted SEED_OWNER_EMAIL", async () => {
+    const db = getDb();
+    await db.user.create({
+      data: { email: "boss@example.ru", name: "Анна", role: "OWNER" },
+    });
+    const former = await db.user.create({
+      data: { email: "was-owner@example.ru", name: "Олег", role: "ADMIN" },
+    });
+
+    const result = await seedDatabase(db, {
+      ownerEmail: "was-owner@example.ru",
+      timeZone: "Europe/Moscow",
+      ownerCredentials: {
+        auth: getAuth(),
+        password: OWNER_PASSWORD,
+        totpSecret: TOTP_SECRET,
+      },
+    });
+
+    expect(result).toMatchObject({
+      owner: "unchanged",
+      ownerPassword: "skipped",
+      ownerTotp: "skipped",
+    });
+    expect(await db.account.count({ where: { userId: former.id } })).toBe(0);
+    expect(
+      await db.user.findUniqueOrThrow({ where: { id: former.id } }),
+    ).toMatchObject({ twoFactorEnabled: false });
   });
 });

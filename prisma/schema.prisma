@@ -20,21 +20,111 @@ enum UserRole {
   OWNER
 }
 
-/// Staff and donors. Better Auth tables (sessions, accounts) come with FND-6.
+/// Staff and donors. Sign-in goes through Better Auth (src/server/auth), which
+/// also owns Session, Account, Verification, TwoFactor and RateLimit below.
 model User {
-  id            String    @id @default(cuid(2))
+  id               String    @id @default(cuid(2))
   /// Stored lowercased.
-  email         String    @unique
-  emailVerified Boolean   @default(false)
-  name          String
-  phone         String?
-  role          UserRole  @default(DONOR)
+  email            String    @unique
+  emailVerified    Boolean   @default(false)
+  name             String
+  /// Better Auth's avatar field; unused for now.
+  image            String?
+  phone            String?
+  role             UserRole  @default(DONOR)
+  /// A verified TOTP authenticator; staff can't reach the admin without it.
+  twoFactorEnabled Boolean   @default(false)
   /// Soft delete: donations and audit records keep pointing at the user.
-  deletedAt     DateTime? @db.Timestamptz(3)
-  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
-  updatedAt     DateTime  @updatedAt @db.Timestamptz(3)
+  deletedAt        DateTime? @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @db.Timestamptz(3)
 
+  sessions      Session[]
+  accounts      Account[]
+  twoFactor     TwoFactor?
   uploadedMedia Media[]
+}
+
+// --- Auth (Better Auth) -------------------------------------------------------
+// Field names are Better Auth's; it checks them against this schema on start.
+
+model Session {
+  id                String   @id @default(cuid(2))
+  /// Random; the cookie carries it with an HMAC signature.
+  token             String   @unique
+  expiresAt         DateTime @db.Timestamptz(3)
+  ipAddress         String?
+  userAgent         String?
+  /// Created by a TOTP or backup-code check (or carried over from such a
+  /// session). The admin requires it, whatever sign-in methods appear later.
+  twoFactorVerified Boolean  @default(false)
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt         DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([userId])
+}
+
+/// A way to sign in. Staff: providerId "credential" with a password hash.
+model Account {
+  id                    String    @id @default(cuid(2))
+  /// For "credential" — the user id.
+  accountId             String
+  providerId            String
+  /// Hash in Better Auth's format (scrypt); written only through Better Auth.
+  password              String?
+  // OAuth fields (VK ID, Yandex ID later); unused for now.
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime? @db.Timestamptz(3)
+  refreshTokenExpiresAt DateTime? @db.Timestamptz(3)
+  scope                 String?
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt             DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+}
+
+/// Short-lived values: two-factor challenges and their attempt counters.
+model Verification {
+  id         String   @id @default(cuid(2))
+  identifier String
+  value      String
+  expiresAt  DateTime @db.Timestamptz(3)
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([identifier])
+}
+
+/// TOTP authenticator of a user.
+model TwoFactor {
+  id                      String    @id @default(cuid(2))
+  /// Encrypted with BETTER_AUTH_SECRET.
+  secret                  String
+  /// Encrypted JSON list of unused backup codes.
+  backupCodes             String
+  /// false until the user enters the first code from the app.
+  verified                Boolean   @default(true)
+  /// Wrong codes in a row; at 10 sign-in is locked until lockedUntil.
+  failedVerificationCount Int       @default(0)
+  lockedUntil             DateTime? @db.Timestamptz(3)
+  userId                  String    @unique
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Sign-in rate limit buckets, one per client IP and auth path.
+model RateLimit {
+  id          String @id @default(cuid(2))
+  key         String @unique
+  count       Int
+  /// Unix time in milliseconds.
+  lastRequest BigInt
 }
 
 // --- Settings -----------------------------------------------------------------

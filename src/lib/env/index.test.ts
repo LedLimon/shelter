@@ -3,9 +3,13 @@ import { parseEnv as parseDotenv } from "node:util";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { serverEnvSchema } from "./schema";
 
-const example = parseDotenv(
-  readFileSync(new URL("../../../.env.example", import.meta.url), "utf8"),
-);
+// .env.example with its empty secrets filled in.
+const example = {
+  ...parseDotenv(
+    readFileSync(new URL("../../../.env.example", import.meta.url), "utf8"),
+  ),
+  BETTER_AUTH_SECRET: "x".repeat(32),
+};
 
 beforeEach(() => {
   vi.resetModules();
