@@ -26,7 +26,7 @@ function Switch({
         "data-[size=default]:h-6 data-[size=default]:w-11 data-[size=sm]:h-5 data-[size=sm]:w-9",
         "hover:bg-accent data-checked:bg-foreground data-checked:hover:bg-foreground",
         "aria-invalid:border-2 aria-invalid:border-destructive",
-        "data-disabled:cursor-not-allowed data-disabled:border-dashed data-disabled:border-input data-disabled:bg-transparent data-disabled:hover:bg-transparent",
+        "data-disabled:cursor-not-allowed data-disabled:border-input data-disabled:bg-transparent data-disabled:hover:bg-transparent",
         className,
       )}
       {...props}

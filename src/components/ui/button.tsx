@@ -8,7 +8,8 @@ import { cn } from "@/lib/utils";
  * Buttons of the «Объявление» direction (docs/design.md#формы-и-материал):
  * square, display font in caps, toner for actions and yellow paper only for
  * «Помочь». Focus is the global 3 px pen outline from globals.css. A disabled
- * button loses its fill and gets a dashed frame; a loading one keeps its look.
+ * button loses its fill and keeps a thin solid perforation frame (dashes belong
+ * to tear-off tabs and low urgency); a loading one keeps its look.
  */
 const buttonVariants = cva(
   [
@@ -16,7 +17,7 @@ const buttonVariants = cva(
     "transition-[translate,box-shadow,background-color,border-color,color] duration-150 ease-out",
     "active:not-aria-[haspopup]:not-data-disabled:translate-y-px",
     "aria-busy:cursor-progress data-disabled:cursor-not-allowed",
-    "data-disabled:not-aria-busy:border-dashed data-disabled:not-aria-busy:border-perforation data-disabled:not-aria-busy:bg-transparent data-disabled:not-aria-busy:text-toner-muted data-disabled:not-aria-busy:shadow-none",
+    "data-disabled:not-aria-busy:border-line data-disabled:not-aria-busy:border-perforation data-disabled:not-aria-busy:bg-transparent data-disabled:not-aria-busy:text-toner-muted data-disabled:not-aria-busy:shadow-none",
     "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   ],
   {
@@ -33,7 +34,7 @@ const buttonVariants = cva(
         ghost: "text-foreground hover:bg-accent aria-expanded:bg-accent",
         destructive:
           "border-destructive bg-background text-destructive hover:bg-[color-mix(in_oklab,var(--destructive),var(--background)_88%)]",
-        link: "border-0 font-body text-body text-pen normal-case underline decoration-[1.5px] underline-offset-[3px] hover:decoration-[3px] data-disabled:not-aria-busy:no-underline",
+        link: "border-0 font-body text-body text-pen normal-case underline decoration-[1.5px] underline-offset-[3px] hover:decoration-[3px] data-disabled:not-aria-busy:border-0 data-disabled:not-aria-busy:no-underline",
       },
       size: {
         default: "min-h-11 px-4 py-2",
