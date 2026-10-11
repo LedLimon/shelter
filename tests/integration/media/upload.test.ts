@@ -325,6 +325,21 @@ describe("POST /api/upload/complete", () => {
     expect(await mediaRow(id)).toMatchObject({ status: "PENDING" });
   });
 
+  it("refuses an upload that was discarded while it was being completed", async () => {
+    const { id } = await uploadedFile();
+
+    // The uploader cancels at the very moment the file is confirmed.
+    const [completed, discarded] = await Promise.all([
+      completeUpload(id),
+      discard(jsonRequest("/api/upload/discard", { id })),
+    ]);
+
+    expect(discarded.status).toBe(200);
+    // Either order is fine; a server error is not.
+    expect([200, 404]).toContain(completed.status);
+    expect(await mediaRow(id)).toBeNull();
+  });
+
   it("needs the session and the role", async () => {
     const { id } = await uploadedFile();
 
@@ -423,6 +438,18 @@ describe("POST /api/upload/discard", () => {
 
     // Again, or for a file that never was: nothing to do.
     expect(await discardUpload(id)).toBe(false);
+  });
+
+  it("removes a file once when two requests ask at the same time", async () => {
+    const { id } = await uploadedFile();
+
+    const answers = await Promise.all([discardUpload(id), discardUpload(id)]);
+
+    expect(answers.sort()).toEqual([false, true]);
+    expect(await mediaRow(id)).toBeNull();
+    expect(await getDb().outbox.count({ where: { type: "media.purge" } })).toBe(
+      1,
+    );
   });
 
   it("leaves someone else's file alone", async () => {

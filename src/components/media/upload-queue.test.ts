@@ -254,6 +254,26 @@ describe("UploadQueue", () => {
     expect(pending).toHaveLength(1);
   });
 
+  it("starts nothing that was picked before it was disposed", async () => {
+    let inspected!: () => void;
+    const { queue, pending, phases, settle } = setup({
+      inspect: () =>
+        new Promise((resolve) => {
+          inspected = () => resolve("image/jpeg");
+        }),
+    });
+
+    const adding = queue.add("PHOTO", [file("a.jpg")]);
+    // The page is left while the file is still being looked at.
+    queue.dispose();
+    inspected();
+
+    expect(await adding).toEqual([]);
+    await settle();
+    expect(phases()).toEqual([]);
+    expect(pending).toEqual([]);
+  });
+
   it("tells its subscribers about every change", async () => {
     const { queue, settle } = setup();
     const listener = vi.fn();

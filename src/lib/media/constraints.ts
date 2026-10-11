@@ -31,6 +31,9 @@ export type VariantWidth = (typeof VARIANT_WIDTHS)[number];
 export const VARIANT_FORMATS = ["avif", "webp"] as const;
 export type VariantFormat = (typeof VARIANT_FORMATS)[number];
 
+/** How many files one GET /api/upload/status may ask about. */
+export const MAX_STATUS_IDS = 50;
+
 /** The smallest processed width that covers `width`, or the largest there is. */
 export function variantWidthFor(width: number): VariantWidth {
   return (

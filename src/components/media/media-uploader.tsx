@@ -20,6 +20,7 @@ import {
   type ReactNode,
   type Ref,
 } from "react";
+import { toast } from "sonner";
 import type { MediaKind } from "@/generated/prisma/enums";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -41,6 +42,7 @@ import { formatCount, type PluralForms } from "@/lib/plural";
 import { cn } from "@/lib/utils";
 import { MediaImage } from "./media-image";
 import {
+  inOrder,
   mergeStates,
   moveTo,
   setCover,
@@ -93,6 +95,8 @@ export type MediaUploaderProps = {
 type Wording = {
   /** «Фото 2»: a file by its place. */
   one: string;
+  /** The toast after a removal; the noun's gender differs. */
+  removed: string;
   /** For counts: «3 фото», «2 чека». */
   forms: PluralForms;
   pick: string;
@@ -103,6 +107,7 @@ type Wording = {
 const WORDING: Record<MediaKind, Wording> = {
   PHOTO: {
     one: "Фото",
+    removed: "Фото убрано",
     forms: ["фото", "фото", "фото"],
     pick: "Выбрать фото",
     drop: "Перетащите фото сюда или выберите на устройстве",
@@ -110,6 +115,7 @@ const WORDING: Record<MediaKind, Wording> = {
   },
   RECEIPT: {
     one: "Чек",
+    removed: "Чек убран",
     forms: ["чек", "чека", "чеков"],
     pick: "Выбрать фото чека",
     drop: "Перетащите фото чека сюда или выберите на устройстве",
@@ -117,6 +123,7 @@ const WORDING: Record<MediaKind, Wording> = {
   },
   INVOICE: {
     one: "Счёт",
+    removed: "Счёт убран",
     forms: ["счёт", "счёта", "счетов"],
     pick: "Выбрать фото счёта",
     drop: "Перетащите фото счёта сюда или выберите на устройстве",
@@ -124,6 +131,7 @@ const WORDING: Record<MediaKind, Wording> = {
   },
   DOCUMENT: {
     one: "Документ",
+    removed: "Документ убран",
     forms: ["документ", "документа", "документов"],
     pick: "Выбрать фото документа",
     drop: "Перетащите фото документа сюда или выберите на устройстве",
@@ -145,6 +153,12 @@ const SLOW_POLL_MS = 5_000;
 const SLOW_AFTER_MS = 30_000;
 
 const LARGEST_WIDTH = VARIANT_WIDTHS[VARIANT_WIDTHS.length - 1]!;
+
+/** How long a removed file can be brought back; then it is deleted. */
+const UNDO_MS = 10_000;
+
+/** A reorder drag carries this type, so dropping a tile into a text field pastes nothing. */
+const TILE_DRAG_TYPE = "application/x-shelter-media";
 
 /** How wide a tile is shown, for the browser's choice of image width. */
 const TILE_SIZES = "(min-width: 48rem) 12rem, 45vw";
@@ -184,6 +198,33 @@ export function MediaUploader({
   const ownUploads = useRef(new Set<string>());
   const [rejected, setRejected] = useState<RejectedFile[]>([]);
   const [announcement, setAnnouncement] = useState("");
+  const announce = (text: string) => setAnnouncement(repeatable(text));
+
+  // --- Focus: an action that removes the focused control says where the
+  // focus goes next, or it would fall back to the top of the page.
+  const root = useRef<HTMLDivElement>(null);
+  const focusNext = useRef<{ target: FocusTarget; renders: number } | null>(
+    null,
+  );
+  /** The same for «Убрать» in a tile's menu: the menu hands the focus on. */
+  const focusAfterMenu = useRef<FocusTarget | null>(null);
+  const moveFocusTo = (target: FocusTarget) => {
+    focusNext.current = { target, renders: FOCUS_PATIENCE };
+  };
+  useEffect(() => {
+    const next = focusNext.current;
+    if (!next) return;
+    const active = document.activeElement;
+    // The control that had the focus is still there: its removal is a
+    // render or two away. An intent nobody collects is dropped.
+    if (active && active !== document.body && active.isConnected) {
+      next.renders -= 1;
+      if (next.renders <= 0) focusNext.current = null;
+      return;
+    }
+    focusNext.current = null;
+    focusTargetIn(root.current, next.target)?.focus();
+  });
 
   const current = useRef({ emit, words });
   useEffect(() => {
@@ -192,15 +233,25 @@ export function MediaUploader({
   const [queue] = useState(() => new UploadQueue());
   useEffect(
     () =>
-      queue.onUploaded((media, previewUrl) => {
+      queue.onUploaded((media, previewUrl, key) => {
         ownUploads.current.add(media.id);
         if (previewUrl) {
           setPreviews((urls) => ({ ...urls, [media.id]: previewUrl }));
         }
+        // The upload's tile gives way to the file's: «Отменить» is gone.
+        const tile = root.current?.querySelector(`[data-upload-key="${key}"]`);
+        if (tile?.contains(document.activeElement)) {
+          focusNext.current = {
+            target: { tile: media.id },
+            renders: FOCUS_PATIENCE,
+          };
+        }
         const { emit: add, words: wording } = current.current;
         add([...latest.current, { ...media, isCover: false }]);
         setAnnouncement(
-          `${wording.one} ${latest.current.length} загружено и обрабатывается.`,
+          repeatable(
+            `Загружено: ${wording.one.toLowerCase()} ${latest.current.length}. Идёт обработка.`,
+          ),
         );
       }),
     [queue],
@@ -215,10 +266,32 @@ export function MediaUploader({
   useEffect(() => {
     shown.current = previews;
   });
+  const releasePreview = (id: string) => {
+    const url = shown.current[id];
+    if (!url) return;
+    URL.revokeObjectURL(url);
+    setPreviews((urls) => {
+      const rest = { ...urls };
+      delete rest[id];
+      return rest;
+    });
+  };
+
+  // --- Removal can be undone for a while: the file is deleted only after.
+  const removals = useRef(new Map<string, Removal>());
+  /** Places held for removed files that may still come back. */
+  const [held, setHeld] = useState(0);
+
   useEffect(
     () => () => {
       queue.dispose();
       for (const url of Object.values(shown.current)) URL.revokeObjectURL(url);
+      // Nobody is left to bring the removed files back.
+      for (const [id, { timer }] of removals.current) {
+        window.clearTimeout(timer);
+        if (ownUploads.current.delete(id)) discardUpload(id);
+      }
+      removals.current.clear();
     },
     [queue],
   );
@@ -240,7 +313,28 @@ export function MediaUploader({
       try {
         const states = await fetchMediaStates(ids, controller.signal);
         const merged = mergeStates(latest.current, ids, states);
-        if (merged) current.current.emit(merged);
+        if (merged) {
+          current.current.emit(merged);
+          const done = (status: MediaItem["status"]) =>
+            merged.filter(
+              (item) => ids.includes(item.id) && item.status === status,
+            ).length;
+          const ready = done("READY");
+          const failed = done("FAILED");
+          if (ready + failed > 0) {
+            setAnnouncement(
+              repeatable(
+                [
+                  ready > 0 && `Обработано: ${formatCount(ready, FILE_FORMS)}.`,
+                  failed > 0 &&
+                    `Не обработано: ${formatCount(failed, FILE_FORMS)}.`,
+                ]
+                  .filter(Boolean)
+                  .join(" "),
+              ),
+            );
+          }
+        }
       } catch {
         // Offline, or the session ended: the next round asks again.
       }
@@ -264,6 +358,8 @@ export function MediaUploader({
   });
   useEffect(() => {
     reportBusy.current?.(busy);
+    // A field that left the page holds the form no longer.
+    return () => reportBusy.current?.(false);
   }, [busy]);
 
   // A file still on its way is lost with the page: closing the tab asks first.
@@ -282,22 +378,26 @@ export function MediaUploader({
     () => (isIos() ? ACCEPT : ACCEPT_HEIC),
     () => ACCEPT_HEIC,
   );
-  const room = max - value.length - uploads.length;
+  const room = max - value.length - uploads.length - held;
 
   async function addFiles(files: File[]) {
     if (disabled || files.length === 0) return;
+    // «Выбрать фото» of the empty field gives way to the grid's «Добавить»:
+    // the focus follows, if it was there.
+    if (
+      value.length + uploads.length === 0 &&
+      root.current?.contains(document.activeElement)
+    ) {
+      moveFocusTo("add");
+    }
     const taken = files.slice(0, Math.max(room, 0));
     const refused = await queue.add(kind, taken);
     const overflow = files.slice(taken.length).map((file) => ({
       name: file.name,
-      reason: `В это поле помещается не больше ${formatCount(max, FILE_FORMS)}.`,
+      reason: `В это поле помещается не больше ${formatCount(max, FILE_FORMS_GENITIVE)}.`,
     }));
+    // The list is an alert: it announces itself.
     setRejected([...refused, ...overflow]);
-    if (refused.length + overflow.length > 0) {
-      setAnnouncement(
-        `Не добавлено: ${formatCount(refused.length + overflow.length, FILE_FORMS)}.`,
-      );
-    }
   }
 
   // A file dropped next to the field would open in the tab, in place of the
@@ -345,32 +445,68 @@ export function MediaUploader({
     () => false,
   );
   const [draggedId, setDraggedId] = useState<string | null>(null);
-  /** The order to go back to if the drag is cancelled. */
-  const dragStart = useRef<MediaItem[] | null>(null);
+  /** The order (of ids) to go back to if the drag is cancelled. */
+  const dragStart = useRef<string[] | null>(null);
 
   function move(id: string, to: Move) {
     const target = targetIndex(value, id, to);
     emit(moveTo(value, id, target));
-    setAnnouncement(
-      `${words.one} теперь на месте ${target + 1} из ${value.length}.`,
-    );
+    announce(`${words.one} теперь на месте ${target + 1} из ${value.length}.`);
+  }
+
+  /** The tile that takes the place of a removed file's, or «Добавить». */
+  const afterFile = (item: MediaItem): FocusTarget => {
+    const index = value.indexOf(item);
+    const neighbour = value[index + 1] ?? value[index - 1];
+    if (neighbour) return { tile: neighbour.id };
+    return uploads[0] ? { upload: uploads[0].key } : "add";
+  };
+  const afterUpload = (key: string): FocusTarget => {
+    const index = uploads.findIndex((upload) => upload.key === key);
+    const neighbour = uploads[index + 1] ?? uploads[index - 1];
+    if (neighbour) return { upload: neighbour.key };
+    const last = value[value.length - 1];
+    return last ? { tile: last.id } : "add";
+  };
+
+  /** Deletes for good what remove() took off the list. */
+  function forget(id: string) {
+    if (!removals.current.delete(id)) return;
+    setHeld((count) => count - 1);
+    if (ownUploads.current.delete(id)) discardUpload(id);
+    releasePreview(id);
   }
 
   function remove(item: MediaItem) {
+    const index = value.indexOf(item);
     emit(value.filter(({ id }) => id !== item.id));
-    if (ownUploads.current.delete(item.id)) discardUpload(item.id);
-    const url = previews[item.id];
-    if (url) {
-      URL.revokeObjectURL(url);
-      setPreviews((urls) => {
-        const rest = { ...urls };
-        delete rest[item.id];
-        return rest;
-      });
-    }
-    setAnnouncement(
-      `Убрано. Осталось: ${formatCount(value.length - 1, words.forms)}.`,
+    announce(
+      `${words.removed}. Осталось: ${formatCount(value.length - 1, words.forms)}.`,
     );
+    setHeld((count) => count + 1);
+    removals.current.set(item.id, {
+      item,
+      index,
+      timer: window.setTimeout(() => forget(item.id), UNDO_MS),
+    });
+    // A file that failed is of no use to anyone: nothing to bring back.
+    if (item.status === "FAILED") return forget(item.id);
+    toast(words.removed, {
+      duration: UNDO_MS,
+      action: { label: "Вернуть", onClick: () => restore(item.id) },
+    });
+  }
+
+  function restore(id: string) {
+    const removal = removals.current.get(id);
+    if (!removal) return;
+    window.clearTimeout(removal.timer);
+    removals.current.delete(id);
+    setHeld((count) => count - 1);
+    const next = [...latest.current];
+    next.splice(Math.min(removal.index, next.length), 0, removal.item);
+    // The toast gives the focus back to where it was before «Вернуть».
+    emit(next);
   }
 
   // Dragging a tile with the mouse: the others make room as it passes over
@@ -378,10 +514,10 @@ export function MediaUploader({
   const reorder = (item: MediaItem) => ({
     draggable: finePointer && !disabled && value.length > 1,
     onDragStart(event: DragEvent) {
-      dragStart.current = value;
+      dragStart.current = value.map(({ id }) => id);
       setDraggedId(item.id);
       event.dataTransfer.effectAllowed = "move";
-      event.dataTransfer.setData("text/plain", item.id);
+      event.dataTransfer.setData(TILE_DRAG_TYPE, item.id);
     },
     onDragEnter() {
       if (!draggedId || draggedId === item.id) return;
@@ -389,8 +525,9 @@ export function MediaUploader({
       emit(moveTo(latest.current, draggedId, to));
     },
     onDragEnd() {
-      // Dropped outside the list or cancelled with Esc: as it was.
-      if (dragStart.current) emit(dragStart.current);
+      // Dropped outside the list or cancelled with Esc: the order as it
+      // was. Only the order: a file that finished uploading meanwhile stays.
+      if (dragStart.current) emit(inOrder(latest.current, dragStart.current));
       dragStart.current = null;
       setDraggedId(null);
     },
@@ -410,7 +547,10 @@ export function MediaUploader({
 
   const pickButton = {
     type: "button" as const,
-    ref,
+    "data-add-files": "",
+    // With the field full there is no such button: the form then focuses
+    // the first file instead (below).
+    ref: room > 0 || value.length === 0 ? ref : undefined,
     disabled,
     onClick: () => input.current?.click(),
   };
@@ -419,7 +559,7 @@ export function MediaUploader({
 
   const tiles = (
     <ul
-      className="grid grid-cols-1 items-start gap-3 min-[20rem]:grid-cols-2 sm:grid-cols-3 md:grid-cols-4"
+      className="grid grid-cols-1 items-start gap-3 min-[22.5rem]:grid-cols-2 sm:grid-cols-3 md:grid-cols-4"
       {...reorderTarget}
     >
       {value.map((item, index) => (
@@ -444,6 +584,7 @@ export function MediaUploader({
                 item={item}
                 previewUrl={previews[item.id]}
                 contain={documents}
+                onProcessedShown={() => releasePreview(item.id)}
               />
               {item.status === "UPLOADED" && (
                 <Plate>
@@ -463,9 +604,13 @@ export function MediaUploader({
                 <DropdownMenuTrigger
                   render={
                     <Button
+                      // Where a form puts the focus when the field is full
+                      // and has no «Добавить».
+                      ref={room <= 0 && index === 0 ? ref : undefined}
                       variant="outline"
-                      // A paper corner of the picture; the tap area is 44 px.
-                      className="absolute top-0 right-0 size-8 min-h-0 border p-0 after:absolute after:-inset-1.5"
+                      // A paper corner of the picture, 32 px; the tap area
+                      // around it is 44 px.
+                      className="absolute top-0 right-0 size-8 min-h-0 border p-0 after:absolute after:-inset-[7px]"
                       disabled={disabled}
                       aria-label={`${words.one} ${index + 1}: действия`}
                     />
@@ -473,7 +618,19 @@ export function MediaUploader({
                 >
                   <EllipsisVertical aria-hidden />
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-auto min-w-56">
+                <DropdownMenuContent
+                  align="end"
+                  // On a phone held sideways the menu scrolls: the shade
+                  // says there is more below.
+                  className="w-auto min-w-56 scroll-shade-y"
+                  finalFocus={() => {
+                    const target = focusAfterMenu.current;
+                    focusAfterMenu.current = null;
+                    // Back to the button that opened it, unless the file
+                    // (and the button) is gone.
+                    return target ? focusTargetIn(root.current, target) : true;
+                  }}
+                >
                   {item.status === "READY" && (
                     <>
                       <DropdownMenuLinkItem
@@ -507,7 +664,10 @@ export function MediaUploader({
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     variant="destructive"
-                    onClick={() => remove(item)}
+                    onClick={() => {
+                      focusAfterMenu.current = afterFile(item);
+                      remove(item);
+                    }}
                   >
                     Убрать
                   </DropdownMenuItem>
@@ -520,12 +680,18 @@ export function MediaUploader({
             <Failure
               message={mediaFailureMessage(item.failure)}
               disabled={disabled}
-              onRemove={() => remove(item)}
+              onRemove={() => {
+                moveFocusTo(afterFile(item));
+                remove(item);
+              }}
             />
           ) : cover ? (
             <label className="flex min-h-11 items-center gap-2 text-caption sm:min-h-9">
               <RadioGroupItem value={item.id} disabled={disabled} />
               Обложка
+              <span className="sr-only">
+                : {words.one.toLowerCase()} {index + 1}
+              </span>
             </label>
           ) : (
             documents && (
@@ -542,7 +708,12 @@ export function MediaUploader({
                     )
                   }
                 />
-                Личные данные закрашены
+                <span>
+                  Личные данные закрашены
+                  <span className="sr-only">
+                    : {words.one.toLowerCase()} {index + 1}
+                  </span>
+                </span>
               </label>
             )
           )}
@@ -552,6 +723,7 @@ export function MediaUploader({
       {uploads.map((upload) => (
         <li
           key={upload.key}
+          data-upload-key={upload.key}
           aria-label={`${upload.name}: ${PHASE_LABELS[upload.phase]}`}
           className="grid min-w-0 content-start gap-2"
         >
@@ -578,8 +750,8 @@ export function MediaUploader({
                 className="absolute inset-x-0 bottom-0 h-2 border-t border-foreground bg-background"
               >
                 <span
-                  className="block h-full bg-pen transition-[width] duration-150 ease-out forced-colors:bg-[Highlight]"
-                  style={{ width: `${upload.progress * 100}%` }}
+                  className="block h-full origin-left bg-pen transition-transform duration-150 ease-out forced-colors:bg-[Highlight]"
+                  style={{ transform: `scaleX(${upload.progress})` }}
                 />
               </span>
             )}
@@ -606,16 +778,28 @@ export function MediaUploader({
               message={upload.error}
               disabled={disabled}
               onRetry={
-                upload.retryable ? () => queue.retry(upload.key) : undefined
+                upload.retryable
+                  ? () => {
+                      // «Повторить» gives way to «Отменить» of the same tile.
+                      moveFocusTo({ upload: upload.key });
+                      queue.retry(upload.key);
+                    }
+                  : undefined
               }
-              onRemove={() => queue.remove(upload.key)}
+              onRemove={() => {
+                moveFocusTo(afterUpload(upload.key));
+                queue.remove(upload.key);
+              }}
             />
           ) : (
             <Button
               variant="ghost"
               size="sm"
               className="-ml-3 min-h-11 justify-self-start sm:min-h-9"
-              onClick={() => queue.remove(upload.key)}
+              onClick={() => {
+                moveFocusTo(afterUpload(upload.key));
+                queue.remove(upload.key);
+              }}
             >
               <X aria-hidden />
               Отменить
@@ -646,6 +830,7 @@ export function MediaUploader({
 
   return (
     <div
+      ref={root}
       role="group"
       data-slot="media-uploader"
       aria-labelledby={labelledBy}
@@ -742,8 +927,11 @@ export function MediaUploader({
           <Button
             variant="outline"
             size="sm"
-            className="justify-self-start"
-            onClick={() => setRejected([])}
+            className="min-h-11 justify-self-start sm:min-h-9"
+            onClick={() => {
+              moveFocusTo("add");
+              setRejected([]);
+            }}
           >
             Понятно
           </Button>
@@ -753,8 +941,8 @@ export function MediaUploader({
       {!!pendingKey && slowKey === pendingKey && (
         <p role="status" className="flex items-start gap-2 text-caption">
           <Clock aria-hidden className="mt-0.5 size-4 shrink-0" />
-          Обработка идёт дольше обычного. Файлы уже на сервере: можно подождать
-          или вернуться к форме позже.
+          Обработка идёт дольше обычного. Можно подождать или убрать файл и
+          добавить его позже: с ним форму не сохранить.
         </p>
       )}
 
@@ -766,6 +954,55 @@ export function MediaUploader({
 }
 
 const FILE_FORMS: PluralForms = ["файл", "файла", "файлов"];
+/** After «не больше»: «1 файла», «3 файлов», «21 файла». */
+const FILE_FORMS_GENITIVE: PluralForms = ["файла", "файлов", "файлов"];
+
+/** Renders to wait for a focused control to go before giving its focus on. */
+const FOCUS_PATIENCE = 10;
+
+/** A removed file that can still be brought back. */
+type Removal = {
+  item: MediaItem;
+  /** Where it was on the list. */
+  index: number;
+  /** Deletes it for good when the time is out. */
+  timer: number;
+};
+
+/** Where the focus goes when the control that had it is removed. */
+type FocusTarget = { tile: string } | { upload: string } | "add";
+
+/**
+ * The control to focus for a target: the first button of a file's or an
+ * upload's tile, else «Добавить», else whatever button the field has left.
+ */
+function focusTargetIn(
+  root: HTMLElement | null,
+  target: FocusTarget,
+): HTMLElement | null {
+  if (!root) return null;
+  const tile =
+    target === "add"
+      ? null
+      : root.querySelector<HTMLElement>(
+          "tile" in target
+            ? `[data-media-id="${target.tile}"] button`
+            : `[data-upload-key="${target.upload}"] button`,
+        );
+  return (
+    tile ??
+    root.querySelector<HTMLElement>("button[data-add-files]") ??
+    root.querySelector<HTMLElement>("button")
+  );
+}
+
+/**
+ * A text for the live region that is announced even when it repeats the
+ * previous one (two moves «на место 1 из 4» in a row): an invisible
+ * character makes it a change.
+ */
+const repeatable = (text: string) => (previous: string) =>
+  previous === text ? `${text}\u200B` : text;
 
 const PHASE_LABELS: Record<QueuedUpload["phase"], string> = {
   queued: "В очереди",
@@ -824,37 +1061,44 @@ function Picture({
   item,
   previewUrl,
   contain,
+  onProcessedShown,
 }: {
   item: MediaItem;
   previewUrl: string | undefined;
   contain: boolean;
+  /** The processed version has loaded: the local preview is not needed. */
+  onProcessedShown: () => void;
 }) {
   const fit = contain ? "object-contain" : "object-cover";
+  const preview = previewUrl && (
+    <Image
+      src={previewUrl}
+      alt=""
+      fill
+      unoptimized
+      draggable={false}
+      className={fit}
+    />
+  );
   if (item.status === "READY") {
     // What the site will show: the processed version, already without EXIF.
+    // Over the local preview while it loads, so the picture doesn't blink
+    // to the blurred placeholder and back.
     return (
-      <MediaImage
-        media={item}
-        alt=""
-        sizes={TILE_SIZES}
-        draggable={false}
-        className={cn("size-full", fit)}
-      />
+      <>
+        {preview}
+        <MediaImage
+          media={preview ? { ...item, blur: null } : item}
+          alt=""
+          sizes={TILE_SIZES}
+          draggable={false}
+          className={cn("relative size-full", fit)}
+          onLoad={preview ? onProcessedShown : undefined}
+        />
+      </>
     );
   }
-  if (previewUrl) {
-    return (
-      <Image
-        src={previewUrl}
-        alt=""
-        fill
-        unoptimized
-        draggable={false}
-        className={fit}
-      />
-    );
-  }
-  return <NoPicture />;
+  return preview || <NoPicture />;
 }
 
 /** Nothing to show yet: a HEIC before conversion, a file from another visit. */
@@ -887,7 +1131,7 @@ function Failure({
         <Button
           variant="outline"
           size="sm"
-          className="mt-1"
+          className="mt-1 min-h-11 sm:min-h-9"
           disabled={disabled}
           onClick={onRetry}
         >

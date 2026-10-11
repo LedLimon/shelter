@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { MediaState } from "./types";
 import {
+  inOrder,
   isSettled,
   mediaItemsSchema,
   mergeStates,
@@ -55,6 +56,17 @@ describe("cover", () => {
     ]);
   });
 
+  it("is never a file that failed", () => {
+    const failed = { status: "FAILED", failure: "not-an-image" } as const;
+    const list = toMediaItems(
+      [state("a", failed), state("b"), state("c")],
+      "a",
+    );
+
+    expect(coverOf(withCover(list))).toEqual(["b"]);
+    expect(coverOf(withCover(toMediaItems([state("a", failed)])))).toEqual([]);
+  });
+
   it("is one at a time", () => {
     const list = setCover(setCover(items("a", "b", "c"), "b"), "c");
 
@@ -93,6 +105,23 @@ describe("order", () => {
     expect(order(moveTo(list, "zzz", 0))).toBe("abcd");
     expect(order(moveTo(list, "a", 9))).toBe("abcd");
     expect(order(moveTo(list, "a", -1))).toBe("abcd");
+  });
+});
+
+describe("inOrder", () => {
+  it("puts the files back in an earlier order", () => {
+    expect(order(inOrder(items("c", "a", "b"), ["a", "b", "c"]))).toBe("abc");
+  });
+
+  it("keeps a file that arrived since, at the end", () => {
+    // "d" finished uploading while "c" was being dragged.
+    expect(order(inOrder(items("c", "a", "d", "b"), ["a", "b", "c"]))).toBe(
+      "abcd",
+    );
+  });
+
+  it("skips a file that is gone", () => {
+    expect(order(inOrder(items("b", "a"), ["a", "x", "b"]))).toBe("ab");
   });
 });
 

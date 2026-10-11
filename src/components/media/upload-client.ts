@@ -1,4 +1,5 @@
 import type { MediaKind } from "@/generated/prisma/enums";
+import { MAX_STATUS_IDS } from "@/lib/media/constraints";
 import {
   UPLOAD_ERROR_MESSAGES,
   UPLOAD_NETWORK_MESSAGE,
@@ -108,6 +109,9 @@ function put(
 ): Promise<void> {
   // XMLHttpRequest, not fetch(): only it reports upload progress everywhere.
   return new Promise((resolve, reject) => {
+    const cancelled = () => new DOMException("Upload cancelled", "AbortError");
+    // abort() on a request that was never sent fires no event.
+    if (signal.aborted) return reject(cancelled());
     const request = new XMLHttpRequest();
     const onAbort = () => request.abort();
     const settle = (run: () => void) => {
@@ -130,10 +134,8 @@ function put(
     };
     request.onerror = failed;
     request.ontimeout = failed;
-    request.onabort = () =>
-      settle(() => reject(new DOMException("Upload cancelled", "AbortError")));
+    request.onabort = () => settle(() => reject(cancelled()));
     signal.addEventListener("abort", onAbort);
-    if (signal.aborted) return onAbort();
     request.send(blob);
   });
 }
@@ -158,10 +160,17 @@ export async function fetchMediaStates(
   ids: readonly string[],
   signal?: AbortSignal,
 ): Promise<MediaState[]> {
-  const query = ids.map((id) => `id=${encodeURIComponent(id)}`).join("&");
-  const { items } = await call<{ items: MediaState[] }>(
-    `/api/upload/status?${query}`,
-    { signal },
-  );
-  return items;
+  const states: MediaState[] = [];
+  for (let start = 0; start < ids.length; start += MAX_STATUS_IDS) {
+    const query = ids
+      .slice(start, start + MAX_STATUS_IDS)
+      .map((id) => `id=${encodeURIComponent(id)}`)
+      .join("&");
+    const { items } = await call<{ items: MediaState[] }>(
+      `/api/upload/status?${query}`,
+      { signal },
+    );
+    states.push(...items);
+  }
+  return states;
 }

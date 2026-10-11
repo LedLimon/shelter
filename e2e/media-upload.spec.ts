@@ -61,6 +61,10 @@ const ids = (group: Locator) =>
     items.map((item) => item.getAttribute("data-media-id")!),
   );
 
+/** The image of a file as the site serves it: /media/{id}/{width}. */
+const processed = (group: Locator, id: string | undefined) =>
+  group.locator(`li[data-media-id="${id}"] img[src^="/media/${id}/"]`);
+
 /** Picks files in a field and waits until the worker has processed them. */
 async function upload(
   group: Locator,
@@ -73,12 +77,10 @@ async function upload(
   });
   const added = (await ids(group)).filter((id) => !before.includes(id));
   for (const id of added) {
-    // The processed version, served by the site, replaces the local preview.
-    await expect(
-      group.locator(`li[data-media-id="${id}"] img`),
-    ).toHaveAttribute("src", new RegExp(`^/media/${id}/\\d+$`), {
-      timeout: 30_000,
-    });
+    // The processed version, served by the site, takes over from the local
+    // preview — which goes once that version has loaded.
+    await expect(processed(group, id)).toBeVisible({ timeout: 30_000 });
+    await expect(group.locator(`li[data-media-id="${id}"] img`)).toHaveCount(1);
   }
   return added;
 }
@@ -116,9 +118,10 @@ test("uploads a JPEG and a HEIC photo; the site serves them without EXIF", async
   expect((await request.get(`/media/${jpeg}/original`)).status()).toBe(404);
 
   // The page shows them the way a public page would: next/image, ready widths.
-  await expect(
-    photos.locator(`li[data-media-id="${jpeg}"] img`),
-  ).toHaveAttribute("srcset", new RegExp(`/media/${jpeg}/1600 1600w`));
+  await expect(processed(photos, jpeg)).toHaveAttribute(
+    "srcset",
+    new RegExp(`/media/${jpeg}/1600 1600w`),
+  );
 });
 
 test("puts photos in order, picks the cover and takes one back", async ({
@@ -157,21 +160,34 @@ test("puts photos in order, picks the cover and takes one back", async ({
   await expect(photos.getByRole("radio", { checked: true })).toHaveCount(1);
   await expect(tile(second)).toHaveAccessibleName(/обложка$/);
 
-  // Taking a photo back deletes it: the row at once, the files after.
-  await menu(first).click();
+  // A photo taken back by mistake comes back to its place.
+  const before = await ids(photos);
+  await menu(second).click();
   await page.getByRole("menuitem", { name: "Убрать" }).click();
+  await expect(tile(second)).toHaveCount(0);
+  await page.getByRole("button", { name: "Вернуть" }).click();
+  await expect(tile(second)).toHaveCount(1);
+  expect(await ids(photos)).toEqual(before);
+
+  // Taking a photo back for good, from the keyboard: the focus moves to the
+  // photo that took its place, not to the top of the page.
+  const neighbour = before[before.indexOf(first!) + 1];
+  await menu(first).focus();
+  await page.keyboard.press("Enter");
+  await page.getByRole("menuitem", { name: "Убрать" }).press("Enter");
   await expect(tile(first)).toHaveCount(0);
+  await expect(menu(neighbour)).toBeFocused();
+  // The file is deleted once the time to bring it back is out.
   await expect
-    .poll(async () => (await request.get(`/media/${first}/640`)).status())
+    .poll(async () => (await request.get(`/media/${first}/640`)).status(), {
+      timeout: 25_000,
+    })
     .toBe(404);
   expect((await request.get(`/media/${second}/640`)).status()).toBe(200);
 
   // After a reload the form opens with the files that are left.
   await page.reload();
-  await expect(tile(second).locator("img")).toHaveAttribute(
-    "src",
-    new RegExp(`^/media/${second}/`),
-  );
+  await expect(processed(photos, second)).toBeVisible();
   await expect(tile(first)).toHaveCount(0);
 });
 
@@ -227,14 +243,35 @@ test.describe("on a phone", () => {
     await expect(tiles(photos)).toHaveCount(before.length + 1, {
       timeout: 30_000,
     });
-    await expect(tiles(photos).last().locator("img")).toHaveAttribute(
-      "src",
-      /^\/media\//,
-      { timeout: 30_000 },
-    );
+    await expect(
+      tiles(photos).last().locator('img[src^="/media/"]'),
+    ).toBeVisible({ timeout: 30_000 });
 
-    await alert.getByRole("button", { name: "Понятно" }).click();
+    // Controls a finger can hit, also the small ones.
+    for (const control of [
+      alert.getByRole("button", { name: "Понятно" }),
+      tiles(photos)
+        .last()
+        .getByRole("button", { name: /действия$/ }),
+    ]) {
+      const tappable = await control.evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        const around = getComputedStyle(element, "::after");
+        return {
+          width: Math.max(box.width, parseFloat(around.width) || 0),
+          height: Math.max(box.height, parseFloat(around.height) || 0),
+        };
+      });
+      expect(tappable.width).toBeGreaterThanOrEqual(44);
+      expect(tappable.height).toBeGreaterThanOrEqual(44);
+    }
+
+    await alert.getByRole("button", { name: "Понятно" }).focus();
+    await page.keyboard.press("Enter");
     await expect(alert).toHaveCount(0);
+    await expect(
+      photos.getByRole("button", { name: "Добавить" }),
+    ).toBeFocused();
 
     // Nothing sticks out of a 375 px screen.
     expect(

@@ -32,11 +32,13 @@ export type RejectedFile = { name: string; reason: string };
 
 /**
  * The file is in the storage and queued for processing. `previewUrl` now
- * belongs to the listener, to revoke when it is no longer shown.
+ * belongs to the listener, to revoke when it is no longer shown; `key` is
+ * the upload it was on the list.
  */
 export type UploadedListener = (
   media: MediaState,
   previewUrl: string | null,
+  key: string,
 ) => void;
 
 /** The steps of an upload; tests replace them. */
@@ -79,6 +81,8 @@ export class UploadQueue {
   private readonly uploadedListeners = new Set<UploadedListener>();
   private running: { key: string; controller: AbortController } | null = null;
   private counter = 0;
+  /** Grows with every dispose(): what was picked before it is not started. */
+  private generation = 0;
 
   constructor(private readonly steps: UploadSteps = BROWSER_STEPS) {}
 
@@ -101,11 +105,14 @@ export class UploadQueue {
    * when its turn comes.
    */
   async add(kind: MediaKind, picked: readonly File[]): Promise<RejectedFile[]> {
+    const { generation } = this;
     const inspected = await Promise.all(
       picked.map((file) =>
         this.steps.inspect(file).catch((error: unknown) => messageOf(error)),
       ),
     );
+    // The uploader left the page while the files were being looked at.
+    if (generation !== this.generation) return [];
     const rejected: RejectedFile[] = [];
     const accepted: QueuedUpload[] = [];
     picked.forEach((file, index) => {
@@ -149,6 +156,7 @@ export class UploadQueue {
 
   /** Cancels everything: the uploader is leaving the page. */
   dispose(): void {
+    this.generation += 1;
     this.running?.controller.abort();
     for (const url of this.previews) URL.revokeObjectURL(url);
     this.previews.clear();
@@ -192,8 +200,9 @@ export class UploadQueue {
       // The preview is the listener's from here on.
       if (previewUrl) this.previews.delete(previewUrl);
       this.drop(key);
-      for (const listener of this.uploadedListeners)
-        listener(media, previewUrl);
+      for (const listener of this.uploadedListeners) {
+        listener(media, previewUrl, key);
+      }
     } catch (error) {
       // Cancelled by remove() or dispose(), which dropped the upload already.
       if (!controller.signal.aborted) {

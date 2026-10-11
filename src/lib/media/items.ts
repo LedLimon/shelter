@@ -21,11 +21,12 @@ export function toMediaItems(
 }
 
 /**
- * The same files with exactly one cover while there are any: the one already
- * marked, else the first.
+ * The same files with exactly one cover while any of them can be one: the
+ * one already marked, else the first. A file that failed can't be a cover.
  */
 export function withCover(items: readonly MediaItem[]): MediaItem[] {
-  const cover = items.find(({ isCover }) => isCover) ?? items[0];
+  const usable = items.filter(({ status }) => status !== "FAILED");
+  const cover = usable.find(({ isCover }) => isCover) ?? usable[0];
   return items.map((item) => ({ ...item, isCover: item === cover }));
 }
 
@@ -61,6 +62,22 @@ export function moveTo(
   const [moved] = next.splice(from, 1);
   next.splice(to, 0, moved!);
   return next;
+}
+
+/**
+ * The files in the order of `ids`. A file the order doesn't name (it arrived
+ * later) goes to the end; an id that is gone is skipped.
+ */
+export function inOrder(
+  items: readonly MediaItem[],
+  ids: readonly string[],
+): MediaItem[] {
+  const rank = (item: MediaItem) => {
+    const index = ids.indexOf(item.id);
+    return index === -1 ? ids.length : index;
+  };
+  // Stable: files of the same rank keep their order.
+  return [...items].sort((a, b) => rank(a) - rank(b));
 }
 
 /**

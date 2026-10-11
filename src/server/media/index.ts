@@ -109,7 +109,10 @@ export async function completeUpload(
       data: { status: "UPLOADED" },
     });
     if (count === 1) await enqueueJob(tx, "media.process", { mediaId: id });
-    return mediaStateOf(await tx.media.findUniqueOrThrow({ where: { id } }));
+    const current = await tx.media.findUnique({ where: { id } });
+    // Discarded between the check above and here: the uploader cancelled.
+    if (!current) throw new MediaError("not-found");
+    return mediaStateOf(current);
   });
 }
 
@@ -126,23 +129,28 @@ export async function getMediaStates(
 
 /**
  * Removes a media: its row now, its files once the caller's transaction
- * commits. Throws (P2003) if something still references the media — detach
- * it first, in the same transaction.
+ * commits. Returns false if the row was gone already. Throws (P2003) if
+ * something still references the media — detach it first, in the same
+ * transaction.
  */
 export async function deleteMedia(
   tx: Db,
   media: Pick<Media, "id" | "storageKey">,
-): Promise<void> {
-  await tx.media.delete({ where: { id: media.id } });
+): Promise<boolean> {
+  // Not delete(): two removals at once (a discard and the nightly cleanup)
+  // are not an error for the one that comes second.
+  const { count } = await tx.media.deleteMany({ where: { id: media.id } });
+  if (count === 0) return false;
   await outbox.enqueue(tx, "media.purge", {
     mediaId: media.id,
     storageKey: media.storageKey,
   });
+  return true;
 }
 
 /**
  * deleteMedia() for a file that may be attached to something: leaves an
- * attached one alone and returns false. Tables that attach media reference
+ * attached one alone and returns false, as for one that is gone already. Tables that attach media reference
  * it with onDelete: Restrict — that reference is the whole check, so a new
  * table is covered without a change here.
  *
@@ -154,8 +162,7 @@ export async function deleteMediaIfUnused(
   media: Pick<Media, "id" | "storageKey">,
 ): Promise<boolean> {
   try {
-    await db.$transaction((tx) => deleteMedia(tx, media));
-    return true;
+    return await db.$transaction((tx) => deleteMedia(tx, media));
   } catch (error) {
     if (isForeignKeyViolation(error)) return false;
     throw error;
