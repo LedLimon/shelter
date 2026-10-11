@@ -22,13 +22,15 @@ export default defineConfig({
         },
       },
       {
-        // Real Postgres in Docker (Testcontainers): docs/testing.md#интеграционные-тесты
+        // Real Postgres and Mailpit in Docker (Testcontainers):
+        // docs/testing.md#интеграционные-тесты
         extends: true,
         test: {
           name: "integration",
           include: ["tests/integration/**/*.test.ts"],
           globalSetup: [
             "tests/integration/setup/postgres.ts",
+            "tests/integration/setup/mailpit.ts",
             "tests/integration/setup/storage.ts",
           ],
           setupFiles: ["tests/integration/setup/database.ts"],

@@ -11,6 +11,8 @@ import { jobs } from "@/server/jobs/definitions";
 import { jobHandlers } from "@/server/jobs/handlers";
 import { startWorker } from "@/server/jobs/worker";
 import { setSetting } from "@/server/settings";
+import { uniqueAddress, waitForInbox } from "../../helpers/mailpit";
+import { plain } from "../../helpers/text";
 import {
   clearOutbox,
   eventually,
@@ -20,6 +22,9 @@ import {
 } from "./helpers";
 
 const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
+// tsx compiles the worker and everything it imports before the first line
+// runs: a couple of seconds here, tens of them on a busy CI runner.
+const STARTUP_TIMEOUT_MS = 60_000;
 
 type JobRow = { state: string };
 
@@ -109,8 +114,11 @@ describe("startWorker schedules", () => {
 
 describe("pnpm worker", () => {
   // The real entry point in a process of its own, as in production: tsx, the
-  // worker's tsconfig with the `server-only` stub, signals.
-  it("starts, does the work and exits cleanly on SIGTERM", async () => {
+  // worker's tsconfig with the `server-only` stub, signals. The letter is
+  // here because only this process compiles the templates' JSX the way the
+  // worker does and makes its SMTP client from the environment. One process
+  // for everything: tsx takes seconds to start on a CI runner.
+  it("starts, does the work, sends a letter and exits cleanly on SIGTERM", async () => {
     const require = createRequire(import.meta.url);
     const child = spawn(
       process.execPath,
@@ -119,7 +127,8 @@ describe("pnpm worker", () => {
         ...["--tsconfig", "tsconfig.worker.json"],
         "worker/index.ts",
       ],
-      // The setup file has pointed DATABASE_URL at this file's database.
+      // The setup file has pointed DATABASE_URL at this file's database and
+      // SMTP_* at the run's Mailpit.
       { cwd: ROOT, env: process.env, stdio: ["ignore", "pipe", "pipe"] },
     );
     let output = "";
@@ -130,26 +139,48 @@ describe("pnpm worker", () => {
     try {
       await eventually(() => {
         expect(output).toContain("[worker] started");
+      }, STARTUP_TIMEOUT_MS);
+      const address = uniqueAddress("owner");
+      const owner = await getDb().user.create({
+        data: { email: address, name: "Владелец", role: "OWNER" },
       });
-      const { eventId, jobEventId } = await getDb().$transaction(
+      const { eventId, jobEventId, letterEventId } = await getDb().$transaction(
         async (tx) => ({
           eventId: (await outbox.enqueue(tx, "noop", {}))!,
           jobEventId: (await enqueueJob(tx, "noop", { note: "process" }))!,
+          letterEventId: (await outbox.enqueue(tx, "email.test", {
+            template: "donation.thanks",
+            example: "need",
+            userId: owner.id,
+          }))!,
         }),
       );
       await eventually(async () => {
         expect(await outboxRow(eventId)).toMatchObject({ status: "PROCESSED" });
         expect(await jobsOf(jobEventId)).toEqual([{ state: "completed" }]);
+        expect(await outboxRow(letterEventId)).toMatchObject({
+          status: "PROCESSED",
+        });
       });
+      const [letter] = await waitForInbox(address);
+      expect(plain(letter!.subject)).toBe(
+        "Проверка: Спасибо! Мы получили ваше пожертвование — 1 500 ₽",
+      );
+      expect(letter!.html).toContain("Корм на октябрь");
 
       child.kill("SIGTERM");
       const [code] = await exited;
 
       expect(output).toContain("[worker] SIGTERM: finishing running work");
       expect(output).toContain("[worker] stopped");
+      expect(output).toContain(
+        `[outbox] email.test ${letterEventId}: done (attempt 1)`,
+      );
+      // The log names events, never readers.
+      expect(output).not.toContain(address);
       expect(code, output).toBe(0);
     } finally {
       child.kill("SIGKILL");
     }
-  });
+  }, 90_000);
 });

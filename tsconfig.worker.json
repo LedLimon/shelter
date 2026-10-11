@@ -6,5 +6,7 @@
       "server-only": ["./worker/server-only.ts"]
     }
   },
-  "include": ["worker/**/*.ts"]
+  // tsx takes compiler options (the JSX runtime of the email templates) only
+  // for the files listed here, so src is listed too.
+  "include": ["worker/**/*.ts", "src/**/*.ts", "src/**/*.tsx"]
 }

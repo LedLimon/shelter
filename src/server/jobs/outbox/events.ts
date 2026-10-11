@@ -20,6 +20,17 @@ export const outboxEvents = {
    */
   "job.run": z.object({ name: z.string(), payload: z.unknown() }),
   /**
+   * Sends a staff member a sample of a letter (src/server/email): how a real
+   * mailbox shows it, and whether SMTP works at all. `template` is a key of
+   * the email registry and `example` one of its samples — strings here, like
+   * a job's name: a worker one deploy behind retries what it doesn't know yet.
+   */
+  "email.test": z.object({
+    template: z.string(),
+    example: z.string(),
+    userId: z.string(),
+  }),
+  /**
    * Deletes the files of a media whose row was removed in the same
    * transaction (deleteMedia() of src/server/media). The row is gone, so the
    * key of the original travels in the payload.
