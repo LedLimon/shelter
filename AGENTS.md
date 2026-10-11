@@ -68,7 +68,7 @@ pnpm format:check     # prettier --check (для CI)
 2. **Книга операций — append-only.** В таблицы `Ledger*` пишет **только** модуль `src/server/ledger` (проверяет ESLint-правило `shelter/ledger-boundary`). Никаких `UPDATE`/`DELETE`: ошибки исправляются сторнирующей проводкой. Сумма проводок каждой транзакции = 0. Подробно — [docs/ledger.md](docs/ledger.md).
 3. **Любой вебхук и любая денежная операция идемпотентны** (уникальный `dedupeKey` / `idempotencyKey`). Повтор не должен создавать вторую проводку.
 4. **Блокировки в фиксированном порядке:** `Donation → Need → Subscription` (`SELECT … FOR UPDATE`), последней — блокировка периода книги (её берёт `ledger.post`), чтобы не было дедлоков.
-5. **Сначала проверка прав, потом действие.** Каждая server action и route handler вызывают `can(user, permission)` (`getStaffUser()` + `assertCan()` из `src/server/auth`), каждая страница админки — `requireStaff()`; действия сотрудников пишутся в `AuditLog`.
+5. **Сначала проверка прав, потом действие.** Каждая server action и route handler вызывают `can(user, permission)` (`getStaffUser()` + `assertCan()` из `src/server/auth`), каждая страница админки — `requireStaff()`; действия сотрудников пишутся в `AuditLog`. Server actions админки собираются только через `adminAction()` — он делает и то, и другое.
 6. **Персональные данные:** не логировать email/телефоны/карты; на публичных чеках ПДн закрашены (флаг `redacted`); имя донора показывается только с его согласия. Подробно — [docs/legal.md](docs/legal.md).
 7. **Секреты не коммитятся.** Только `.env.example`: боевые секреты (CloudPayments, prod-ключи) в нём пустые, dev-пароли контейнеров из `docker-compose.yml` допустимы. Не читай `.env`.
 8. **Языки:** тексты интерфейса, письма, документация, задачи и PR — **на русском**; код, идентификаторы, имена веток и коммиты — **на английском**.
@@ -81,7 +81,8 @@ pnpm format:check     # prettier --check (для CI)
 - UI-компоненты — shadcn/ui в стиле `base-nova` (Base UI, не Radix): вместо `asChild` — проп `render`. `cn()` импортируй только из `@/lib/utils`; если `shadcn add` принёс импорт из пакета `cn` — замени импорт и удали зависимость `cn` (ESLint это ловит).
 - Next.js 16: сверяйся с документацией установленной версии в `node_modules/next/dist/docs/`, а не с памятью — API между мажорными версиями меняются.
 - Переменные окружения — только через `getEnv()` из `@/lib/env` (сервер) и `getPublicEnv()` из `@/lib/env/public` (`NEXT_PUBLIC_*`), не через `process.env`. Вызывай внутри функций, не на уровне модуля — иначе `next build` потребует переменные. Новая переменная — в схему `src/lib/env/schema.ts` и в `.env.example` (тест сверяет их).
-- Валидация входа — zod-схемы рядом с action. Формы — react-hook-form + zod.
+- Валидация входа — zod-схемы рядом с action. Формы — react-hook-form + zod, поля — из `@/components/form/form-field`.
+- Админка ([docs/architecture.md#админка](docs/architecture.md#админка)): раздел — `src/app/admin/(staff)/<slug>/page.tsx` с `requireStaff(<право раздела>)`, пункт меню и право уже есть в `src/components/admin/nav-config.ts`; изменение — `adminAction(schema, permission, handler)`; форма — `useActionForm()`; список — `DataTable` с состоянием в адресе (`parseTableQuery()`). Эталон — «Настройки».
 - Публичные страницы — Server Components + ISR, инвалидация через `revalidateTag`.
 - Время хранится в UTC, показывается в часовом поясе приюта (настройка).
 - Русские склонения — через общий хелпер `plural()`, а не тернарниками.
