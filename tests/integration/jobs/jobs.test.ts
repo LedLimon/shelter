@@ -15,7 +15,7 @@ import {
   type PgBoss,
   type RegisterOptions,
 } from "@/server/jobs/boss";
-import { outboxHandlers } from "@/server/jobs/handlers";
+import { jobHandlers, outboxHandlers } from "@/server/jobs/handlers";
 import { drainOutbox } from "@/server/jobs/outbox/dispatcher";
 import {
   clearOutbox,
@@ -81,7 +81,7 @@ describe("enqueueJob", () => {
   it("starts the job once the transaction commits, exactly once", async () => {
     const handler = vi.fn<Handler>(() => Promise.resolve());
     const boss = await startBoss();
-    await register(boss, { handlers: { noop: handler } });
+    await register(boss, { handlers: { ...jobHandlers, noop: handler } });
     // A spy records nothing from before it was asked for.
     const spy = boss.getSpy("noop");
 
@@ -121,7 +121,7 @@ describe("enqueueJob", () => {
 
   it("starts nothing when the transaction rolls back", async () => {
     const boss = await startBoss();
-    await register(boss, { handlers: { noop: () => Promise.resolve() } });
+    await register(boss, { handlers: jobHandlers });
 
     await expect(
       getDb().$transaction(async (tx) => {

@@ -5,11 +5,20 @@
 // A handler may run more than once for the same job or event (a retry, a
 // worker killed mid-run): make it idempotent. It gets ids and loads the rest
 // itself; what it throws is logged and stored, so no personal data in errors.
+import {
+  cleanupMedia,
+  processMedia,
+  purgeMediaFiles,
+} from "@/server/media/jobs";
 import { jobIdOf, type JobHandlers } from "./boss";
 import type { OutboxHandlers } from "./outbox/dispatcher";
 
 export const jobHandlers: JobHandlers = {
   noop: () => Promise.resolve(),
+  "media.process": ({ mediaId }, { signal }) => processMedia(mediaId, signal),
+  "media.cleanup": async () => {
+    await cleanupMedia();
+  },
 };
 
 export type OutboxDependencies = {
@@ -29,5 +38,7 @@ export function outboxHandlers({
     "job.run": async ({ name, payload }, { eventId }) => {
       await sendJob(name, payload, { id: jobIdOf(eventId) });
     },
+    "media.purge": ({ mediaId, storageKey }, { signal }) =>
+      purgeMediaFiles(mediaId, storageKey, signal),
   };
 }

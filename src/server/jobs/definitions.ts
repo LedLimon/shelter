@@ -70,6 +70,22 @@ export const jobs = {
   noop: defineJob({
     payload: z.object({ note: z.string().max(200).optional() }),
   }),
+  /**
+   * Makes the public versions of an uploaded image (src/server/media/jobs.ts).
+   * Two at a time: an AVIF encode keeps every core busy as it is. A run is a
+   * few seconds; one that takes five minutes is stuck.
+   */
+  "media.process": defineJob({
+    payload: z.object({ mediaId: z.string().min(1) }),
+    concurrency: 2,
+    queue: { expireInSeconds: 300 },
+  }),
+  /** Removes abandoned uploads and restarts processing that got stuck. */
+  "media.cleanup": defineJob({
+    payload: z.object({}),
+    schedule: { cron: "30 3 * * *" },
+    queue: { policy: "singleton" },
+  }),
 };
 
 export type JobName = keyof typeof jobs;

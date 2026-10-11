@@ -39,6 +39,10 @@ const example = parseEnv(
 Object.assign(process.env, example, {
   DATABASE_URL: urlOf(database),
   BETTER_AUTH_SECRET: "integration-tests-only-0123456789abcdef",
+  // The run's MinIO (./storage.ts) and a bucket for this file alone. Nothing
+  // creates it here: tests that store files do (media/helpers.ts).
+  S3_ENDPOINT: inject("s3Endpoint"),
+  S3_BUCKET: database.replace("_", "-"),
 });
 
 // The payment emulator posts its notifications to APP_URL — into a dev

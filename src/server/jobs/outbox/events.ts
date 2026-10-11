@@ -19,6 +19,15 @@ export const outboxEvents = {
    * deploy behind retries a job it doesn't know yet instead of rejecting it.
    */
   "job.run": z.object({ name: z.string(), payload: z.unknown() }),
+  /**
+   * Deletes the files of a media whose row was removed in the same
+   * transaction (deleteMedia() of src/server/media). The row is gone, so the
+   * key of the original travels in the payload.
+   */
+  "media.purge": z.object({
+    mediaId: z.string().min(1),
+    storageKey: z.string().min(1),
+  }),
 } satisfies Record<string, z.ZodType>;
 
 export type OutboxEventType = keyof typeof outboxEvents;

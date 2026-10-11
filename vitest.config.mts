@@ -27,7 +27,10 @@ export default defineConfig({
         test: {
           name: "integration",
           include: ["tests/integration/**/*.test.ts"],
-          globalSetup: ["tests/integration/setup/postgres.ts"],
+          globalSetup: [
+            "tests/integration/setup/postgres.ts",
+            "tests/integration/setup/storage.ts",
+          ],
           setupFiles: ["tests/integration/setup/database.ts"],
           // A fresh process per file: the setup points DATABASE_URL at the
           // file's database, and getEnv()/getDb() cache it per process.
