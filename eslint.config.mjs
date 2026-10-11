@@ -44,6 +44,11 @@ const eslintConfig = defineConfig([
               message:
                 "Make Prisma clients with createPrismaClient() from @/server/db/client: it pins sessions to UTC.",
             },
+            {
+              name: "pg-boss",
+              message:
+                "Only src/server/jobs/boss.ts (the worker) talks to pg-boss. The app starts jobs through the outbox: enqueueJob() from @/server/jobs.",
+            },
           ],
         },
       ],
