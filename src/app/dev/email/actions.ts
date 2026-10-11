@@ -18,13 +18,13 @@ export async function sendSample(
   formData: FormData,
 ): Promise<SendSampleState> {
   assertDevelopment();
-  const email = formData.get("email");
+  const template = formData.get("template");
   const example = formData.get("example");
   if (
-    typeof email !== "string" ||
+    typeof template !== "string" ||
     typeof example !== "string" ||
-    !isEmailType(email) ||
-    !Object.hasOwn(emails[email].examples, example)
+    !isEmailType(template) ||
+    !Object.hasOwn(emails[template].examples, example)
   ) {
     return { ok: false, message: "Такого письма или примера нет." };
   }
@@ -42,7 +42,11 @@ export async function sendSample(
     };
   }
 
-  await outbox.enqueue(db, "email.test", { email, example, userId: owner.id });
+  await outbox.enqueue(db, "email.test", {
+    template,
+    example,
+    userId: owner.id,
+  });
   return {
     ok: true,
     message:

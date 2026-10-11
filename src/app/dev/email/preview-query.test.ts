@@ -5,7 +5,7 @@ import { forceTheme, parsePreviewQuery, previewHref } from "./preview-query";
 describe("parsePreviewQuery", () => {
   it("starts with the first letter, its first example, light and a phone", () => {
     expect(parsePreviewQuery({})).toEqual({
-      email: "donation.thanks",
+      template: "donation.thanks",
       example: "need",
       theme: "light",
       width: "phone",
@@ -15,13 +15,13 @@ describe("parsePreviewQuery", () => {
   it("takes what the address names", () => {
     expect(
       parsePreviewQuery({
-        email: "donation.thanks",
+        template: "donation.thanks",
         example: "split",
         theme: "dark",
         width: "desktop",
       }),
     ).toEqual({
-      email: "donation.thanks",
+      template: "donation.thanks",
       example: "split",
       theme: "dark",
       width: "desktop",
@@ -31,7 +31,7 @@ describe("parsePreviewQuery", () => {
   it("replaces anything unknown with the default", () => {
     expect(
       parsePreviewQuery({
-        email: "toString",
+        template: "toString",
         example: ["constructor", "split"],
         theme: "sepia",
         width: "9000",
@@ -45,7 +45,7 @@ describe("previewHref", () => {
 
   it("changes one choice and keeps the rest", () => {
     expect(previewHref(query, { width: "desktop" })).toBe(
-      "/dev/email?email=donation.thanks&example=split&theme=dark&width=desktop",
+      "/dev/email?template=donation.thanks&example=split&theme=dark&width=desktop",
     );
   });
 });

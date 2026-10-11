@@ -1,3 +1,4 @@
+import { domainToUnicode } from "node:url";
 import type { ReactNode } from "react";
 import { Block, Caption, Link, Preheader } from "./components";
 import type { EmailContext } from "./context";
@@ -167,7 +168,10 @@ function withClass<T extends { className: string }>(props: T, name: string): T {
   return { ...props, className: `${props.className} ${name}` };
 }
 
-/** The site as people type it: `priyut.example`, no scheme. */
+/** The site as people type it: `priyut.example` or `приют.рф`, no scheme. */
 function hostOf(url: string): string {
-  return new URL(url).host;
+  const { hostname, port } = new URL(url);
+  // URL keeps a Cyrillic domain as punycode (xn--…).
+  const name = domainToUnicode(hostname) || hostname;
+  return port ? `${name}:${port}` : name;
 }

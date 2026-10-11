@@ -1,3 +1,4 @@
+import { connect, type Socket } from "node:net";
 // eslint-disable-next-line no-restricted-imports -- the one module that talks SMTP
 import { createTransport } from "nodemailer";
 import { isLocalHost, type ServerEnv } from "@/lib/env/schema";
@@ -5,8 +6,9 @@ import { isEmailAddress, parseMailbox } from "@/lib/mailbox";
 import { maskPii } from "@/lib/pii";
 import { SHELTER_NAME } from "@/lib/shelter";
 
-// A slow or silent server fails the attempt long before the outbox takes the
-// event away from its handler (2 minutes); the outbox retries it later.
+// A server that doesn't answer fails the attempt at once, and the outbox
+// retries it later. One that answers, but slowly, is cut off by the handler's
+// signal when its two minutes are up (see send() below).
 const CONNECT_TIMEOUT_MS = 10_000;
 const IDLE_TIMEOUT_MS = 30_000;
 
@@ -41,6 +43,8 @@ export type Mailer = {
   /**
    * Resolves once the SMTP server has accepted the message and returns its
    * Message-ID. Rejects with an EmailSendError, never with nodemailer's own.
+   * Aborting `signal` closes the connection wherever the dialog is: nothing
+   * goes on in the background once the send has rejected.
    */
   send(email: OutgoingEmail, signal?: AbortSignal): Promise<string>;
 };
@@ -89,7 +93,7 @@ export function createMailer(config: SmtpConfig): Mailer {
   }
   const sender = { name: from.name ?? SHELTER_NAME, address: from.address };
   const domain = from.address.slice(from.address.lastIndexOf("@") + 1);
-  const transport = createTransport(transportOptions(config));
+  const options = transportOptions(config);
 
   return {
     domain,
@@ -99,6 +103,16 @@ export function createMailer(config: SmtpConfig): Mailer {
       }
       signal?.throwIfAborted();
       const messageId = `<${email.id}@${domain}>`;
+      // A transport per letter: it opens one connection, and that connection
+      // is ours to close when the signal says so. nodemailer has no way to
+      // stop a send it has started.
+      const transport = createTransport(options);
+      transport.getSocket = (_options, callback) => {
+        openSocket(config, signal).then(
+          (socket) => callback(null, { connection: socket }),
+          (error: Error) => callback(error),
+        );
+      };
       try {
         await transport.sendMail({
           from: sender,
@@ -121,11 +135,44 @@ export function createMailer(config: SmtpConfig): Mailer {
           },
         });
       } catch (error) {
+        if (signal?.aborted) {
+          throw new EmailSendError("cut off: the handler ran out of time");
+        }
         throw sendError(error, email.to);
       }
       return messageId;
     },
   };
+}
+
+/**
+ * A connection to the SMTP server that `signal` closes. nodemailer takes it
+ * from here on: the greeting, STARTTLS or TLS, the dialog.
+ */
+function openSocket(config: SmtpConfig, signal?: AbortSignal): Promise<Socket> {
+  return new Promise((resolve, reject) => {
+    const socket = connect({ host: config.SMTP_HOST, port: config.SMTP_PORT });
+    const fail = (code: string, message: string) =>
+      socket.destroy(Object.assign(new Error(message), { code }));
+    const timer = setTimeout(
+      () => fail("ETIMEDOUT", "the connection timed out"),
+      CONNECT_TIMEOUT_MS,
+    );
+    const abort = () => fail("ECONNECTION", "the send was aborted");
+    signal?.addEventListener("abort", abort, { once: true });
+
+    socket.once("connect", () => {
+      clearTimeout(timer);
+      socket.off("error", reject);
+      resolve(socket);
+    });
+    // Before the connection is up; after that nodemailer listens itself.
+    socket.once("error", reject);
+    socket.once("close", () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+    });
+  });
 }
 
 type SmtpFailure = {
@@ -151,13 +198,29 @@ function sendError(error: unknown, recipient: string): EmailSendError {
     typeof failure.command === "string" ? `at ${failure.command}` : "",
     typeof failure.responseCode === "number" ? `(${failure.responseCode})` : "",
   ].filter(Boolean);
-  // The recipient first, whatever form the server quoted it in; then
-  // anything else that looks like an address or a phone number.
-  const detail = maskPii(reply.replaceAll(recipient, "[email]"))
+  // The recipient first, in whatever form the server quoted it — whole or
+  // the mailbox name alone («User ivan.petrov unknown») — then anything else
+  // that looks like an address or a phone number.
+  const detail = maskPii(withoutRecipient(reply, recipient))
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 300);
   return new EmailSendError(
     detail ? `${parts.join(" ")}: ${detail}` : parts.join(" "),
   );
+}
+
+function withoutRecipient(reply: string, recipient: string): string {
+  const mailbox = recipient.slice(0, recipient.lastIndexOf("@"));
+  // A one- or two-letter name would blank out half the reply's words.
+  const names = mailbox.length >= 3 ? [recipient, mailbox] : [recipient];
+  return names.reduce(
+    (text, name) =>
+      text.replace(new RegExp(escapeRegExp(name), "giu"), "[email]"),
+    reply,
+  );
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

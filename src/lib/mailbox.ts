@@ -1,8 +1,9 @@
-// An address is checked for shape only: one @, no spaces and none of the
-// characters that would let a value smuggle a second recipient or a header
-// into a message (`a@b, c@d`, `<…>`, quotes). Unicode is allowed: mail on .рф
-// domains exists.
-const ADDRESS = /^[^\s<>@"',;:()[\]\\]+@[^\s<>@"',;:()[\]\\]+$/u;
+// An address is checked for shape only: one @, no spaces or control
+// characters, and none of the characters that would let a value smuggle a
+// second recipient or a header into a message (`a@b, c@d`, `<…>`, quotes).
+// Unicode is allowed — mail on .рф domains exists — and so is an apostrophe
+// (o'brien@…).
+const ADDRESS = /^[^\s\p{Cc}<>@",;:()[\]\\]+@[^\s\p{Cc}<>@",;:()[\]\\]+$/u;
 
 /** Whether `value` is a bare email address, safe to put on an envelope. */
 export function isEmailAddress(value: string): boolean {

@@ -13,9 +13,17 @@ type BlockProps = {
   className?: string;
 };
 
-function classes(...names: (string | undefined)[]): string | undefined {
+function classes(...names: (string | false | undefined)[]): string | undefined {
   return names.filter(Boolean).join(" ") || undefined;
 }
+
+// A word longer than the line — a long name without spaces, a link typed as
+// text — breaks instead of pushing the letter wider than the screen. The
+// second declaration is for clients that don't know the first.
+const BREAK_ANYWHERE: CSSProperties = {
+  overflowWrap: "anywhere",
+  wordBreak: "break-word",
+};
 
 /** The words of a block with their line-breaking fixed (./typography.ts). */
 function set(children: ReactNode): ReactNode {
@@ -107,6 +115,7 @@ export function Text({
     fontFamily: FONT.body,
     fontSize: 16,
     lineHeight: "25px",
+    ...BREAK_ANYWHERE,
     ...style,
   });
   return (
@@ -142,12 +151,33 @@ export function Title({ children }: { children: ReactNode }) {
       fontSize: 40,
       lineHeight: 1,
       fontWeight: 900,
+      ...BREAK_ANYWHERE,
     },
   );
   return (
     <h1 className={classes(heading.className, "title")} style={heading.style}>
       {setDisplay(children)}
     </h1>
+  );
+}
+
+/**
+ * A number to read out or copy — a donation's id — in the service face. It
+ * moves to a line of its own rather than break in the middle, and breaks
+ * only if it is longer than the line.
+ */
+export function Mono({ children }: { children: string }) {
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        fontFamily: FONT.mono,
+        fontSize: 13,
+        wordBreak: "break-all",
+      }}
+    >
+      {children}
+    </span>
   );
 }
 
@@ -262,7 +292,8 @@ export function Form({ rows }: { rows: FormRow[] }) {
               fontFamily: FONT.mono,
               fontSize: 12,
               lineHeight: "18px",
-              // Labels are a word or two; a long value wraps instead.
+              // Labels are a word or two; a long value wraps instead. On a
+              // phone the label may wrap too (the stylesheet's .label).
               whiteSpace: "nowrap",
               verticalAlign: row.primary ? "middle" : "top",
             },
@@ -287,15 +318,22 @@ export function Form({ rows }: { rows: FormRow[] }) {
                     fontFamily: FONT.body,
                     fontSize: 16,
                     lineHeight: "22px",
+                    ...BREAK_ANYWHERE,
                   }),
             },
           );
           return (
             <tr key={row.label}>
-              <td className={label.className} style={label.style}>
+              <td
+                className={classes(label.className, "label")}
+                style={label.style}
+              >
                 {row.label}
               </td>
-              <td className={value.className} style={value.style}>
+              <td
+                className={classes(value.className, row.primary && "sum")}
+                style={value.style}
+              >
                 {row.primary ? setDisplay(row.value) : row.value}
               </td>
             </tr>

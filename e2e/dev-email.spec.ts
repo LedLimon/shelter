@@ -100,14 +100,41 @@ for (const colorScheme of ["light", "dark"] as const) {
   });
 }
 
-for (const example of ["need", "split", "closed", "general"]) {
-  for (const theme of ["light", "dark"] as const) {
-    test(`the «${example}» letter is accessible and fits a phone in a ${theme} mail client`, async ({
-      page,
-    }) => {
-      await openPreview(page, `?example=${example}&theme=${theme}`);
+/** Where the links of one of the page's switches lead. */
+function hrefsOf(page: Page, switchName: string): Promise<string[]> {
+  return page
+    .getByRole("navigation", { name: switchName })
+    .getByRole("link")
+    .evaluateAll((links) => links.map((link) => link.getAttribute("href")!));
+}
+
+/** Every example of every letter of the registry, as the preview links them. */
+async function allPreviews(page: Page): Promise<string[]> {
+  await openPreview(page);
+  // The switch between letters appears with the second letter.
+  const letters = await hrefsOf(page, "Письмо");
+  const previews: string[] = [];
+  for (const href of letters.length > 0 ? letters : ["/dev/email"]) {
+    await page.goto(href);
+    previews.push(...(await hrefsOf(page, "Пример")));
+  }
+  return previews;
+}
+
+for (const theme of ["light", "dark"] as const) {
+  test(`every example of every letter is accessible and fits a phone in a ${theme} mail client`, async ({
+    page,
+    baseURL,
+  }) => {
+    const previews = await allPreviews(page);
+    expect(previews.length).toBeGreaterThanOrEqual(5);
+
+    for (const href of previews) {
+      const url = new URL(href, baseURL);
+      url.searchParams.set("theme", theme);
+      await page.goto(url.toString());
       const html = await frame(page).getAttribute("srcdoc");
-      expect(html).toContain(LETTER);
+      expect(html, href).toContain("<h1");
 
       // The letter on its own, as a mail client shows it: no script of ours
       // runs inside the preview's frame, so axe can't look into it there.
@@ -115,11 +142,12 @@ for (const example of ["need", "split", "closed", "general"]) {
         await page.setViewportSize({ width, height: 800 });
         await page.setContent(html!);
 
-        expect(await violations(page)).toEqual([]);
+        expect(await violations(page), `${href} at ${width} px`).toEqual([]);
         expect(
           await page.evaluate(() => document.documentElement.scrollWidth),
+          `${href} at ${width} px`,
         ).toBeLessThanOrEqual(width);
       }
-    });
-  }
+    }
+  });
 }

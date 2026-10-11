@@ -1,4 +1,6 @@
-import { afterEach, describe, expect, it } from "vitest";
+// eslint-disable-next-line no-restricted-imports -- checks the library's own promise, see «nodemailer» below
+import { createTransport } from "nodemailer";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { startFakeSmtp, type FakeSmtp } from "../../../tests/helpers/fake-smtp";
 import {
   createMailer,
@@ -104,15 +106,6 @@ describe("transportOptions", () => {
       expect(options.requireTLS).toBe(requireTLS);
     },
   );
-
-  it("gives up on a silent server well within the outbox's two minutes", () => {
-    const { connectionTimeout, greetingTimeout, dnsTimeout, socketTimeout } =
-      transportOptions(config());
-
-    expect(
-      connectionTimeout + greetingTimeout + dnsTimeout + socketTimeout,
-    ).toBeLessThan(120_000);
-  });
 
   it("lets a letter read no file and fetch no URL", () => {
     expect(transportOptions(config())).toMatchObject({
@@ -220,6 +213,27 @@ describe("createMailer", () => {
     expect(smtp!.messages).toEqual([]);
   });
 
+  it("closes the connection when the handler's time runs out mid-dialog", async () => {
+    const mailer = await mailerFor({ silent: true });
+    const handler = new AbortController();
+
+    const started = Date.now();
+    const sending = mailer.send(letter(), handler.signal);
+    // The server has greeted us and got our EHLO; it will say nothing more.
+    await vi.waitFor(() => expect(smtp!.commands).toHaveLength(1));
+    handler.abort(new Error("timed out after 120 s"));
+    const error: unknown = await sending.catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(EmailSendError);
+    expect((error as Error).message).toBe(
+      "cut off: the handler ran out of time",
+    );
+    // At once, not after the 30 s of silence nodemailer would wait.
+    expect(Date.now() - started).toBeLessThan(5_000);
+    await vi.waitFor(() => expect(smtp!.connections()).toBe(0));
+    expect(smtp!.messages).toEqual([]);
+  });
+
   it("does not start a send that is already aborted", async () => {
     const mailer = await mailerFor();
     const aborted = AbortSignal.abort(new Error("timed out after 120 s"));
@@ -252,6 +266,20 @@ describe("createMailer", () => {
       expect(JSON.stringify(error)).not.toContain("donor");
     });
 
+    it("masks the mailbox name quoted without its domain", async () => {
+      const mailer = await mailerFor({
+        rcptReply: "550 5.1.1 User Ivan.Petrov unknown",
+      });
+
+      const error: unknown = await mailer
+        .send(letter({ to: "ivan.petrov@example.ru" }))
+        .catch((e: unknown) => e);
+
+      expect((error as Error).message).toBe(
+        "EENVELOPE at RCPT TO (550): 550 5.1.1 User [email] unknown",
+      );
+    });
+
     it("masks the address in any case the server echoes it", async () => {
       const mailer = await mailerFor({
         rcptReply: "550 mailbox DONOR@EXAMPLE.RU unavailable",
@@ -275,8 +303,44 @@ describe("createMailer", () => {
         .catch((e: unknown) => e);
 
       expect(error).toBeInstanceOf(EmailSendError);
-      expect((error as Error).message).toMatch(/^(ESOCKET|ECONNECTION)/);
+      expect((error as Error).message).toMatch(/^ECONNREFUSED/);
       expect((error as Error).message).not.toContain("donor");
     });
+  });
+});
+
+describe("nodemailer", () => {
+  // transportOptions() only asks for it; that the library obeys is what
+  // keeps a password and the donors' addresses off an unencrypted wire.
+  it("sends nothing to a server without STARTTLS when TLS is required", async () => {
+    smtp = await startFakeSmtp();
+    const transport = createTransport({
+      ...transportOptions(
+        config({
+          SMTP_PORT: smtp.port,
+          SMTP_USER: "shelter",
+          SMTP_PASSWORD: "secret",
+        }),
+      ),
+      requireTLS: true,
+    });
+
+    const error = await transport
+      .sendMail({
+        from: "no-reply@mys.example",
+        to: "donor@example.ru",
+        subject: "s",
+        text: "t",
+      })
+      .then(
+        () => null,
+        (e: Error & { code?: string }) => e,
+      );
+
+    expect(error?.code).toBe("ETLS");
+    const sent = smtp.commands.map((line) => line.slice(0, 4).toUpperCase());
+    expect(sent).not.toContain("AUTH");
+    expect(sent).not.toContain("MAIL");
+    expect(smtp.messages).toEqual([]);
   });
 });

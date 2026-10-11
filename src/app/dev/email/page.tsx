@@ -52,7 +52,7 @@ export default async function EmailPreviewPage({
 }: PageProps<"/dev/email">) {
   assertDevelopment();
   const query = parsePreviewQuery(await searchParams);
-  const { examples } = emails[query.email];
+  const { examples } = emails[query.template];
   const env = getEnv();
   const context: EmailContext = {
     siteUrl: env.APP_URL,
@@ -60,7 +60,7 @@ export default async function EmailPreviewPage({
     shelter: { name: SHELTER_NAME, email: "priyut@shelter.localhost" },
   };
   const letter = await renderEmail(
-    query.email,
+    query.template,
     examples[query.example]!.props,
     context,
   );
@@ -81,13 +81,13 @@ export default async function EmailPreviewPage({
         <div className="grid gap-4 border-t border-input pt-4 md:grid-cols-2">
           {Object.keys(emails).length > 1 ? (
             <Options label="Письмо" className="md:col-span-2">
-              {(Object.keys(emails) as EmailType[]).map((email) => (
+              {(Object.keys(emails) as EmailType[]).map((template) => (
                 <Option
-                  key={email}
-                  href={previewHref(query, { email })}
-                  current={email === query.email}
+                  key={template}
+                  href={previewHref(query, { template })}
+                  current={template === query.template}
                 >
-                  {email}
+                  {template}
                 </Option>
               ))}
             </Options>
@@ -133,8 +133,8 @@ export default async function EmailPreviewPage({
         title="Письмо"
         description={
           <>
-            <code className="font-mono text-mono">{query.email}</code>, пример «
-            {examples[query.example]!.label}».
+            <code className="font-mono text-mono">{query.template}</code>,
+            пример «{examples[query.example]!.label}».
           </>
         }
       >
@@ -173,7 +173,7 @@ export default async function EmailPreviewPage({
         description="Образец уходит тем же путём, что и настоящие письма: событие в outbox, воркер, SMTP. Нужны pnpm dev:up, pnpm db:seed и запущенный pnpm worker; письмо появится в Mailpit — localhost:8025."
       >
         <Paper>
-          <SendSampleForm email={query.email} example={query.example} />
+          <SendSampleForm template={query.template} example={query.example} />
         </Paper>
       </Section>
     </main>

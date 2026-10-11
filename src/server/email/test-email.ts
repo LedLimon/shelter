@@ -14,7 +14,11 @@ import { sendEmail, type SendEmailOptions } from "./send";
  * not staff gets nothing, and the event is done: retrying won't change that.
  */
 export async function sendTestEmail(
-  { email: type, example, userId }: Parameters<OutboxHandler<"email.test">>[0],
+  {
+    template: type,
+    example,
+    userId,
+  }: Parameters<OutboxHandler<"email.test">>[0],
   context: Pick<OutboxContext, "eventId" | "signal">,
   options: Pick<SendEmailOptions, "mailer"> = {},
 ): Promise<void> {

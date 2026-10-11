@@ -40,7 +40,7 @@ it("pnpm worker sends the letter of an outbox event", async () => {
       data: { email: address, name: "Владелец", role: "OWNER" },
     });
     const eventId = (await outbox.enqueue(getDb(), "email.test", {
-      email: "donation.thanks",
+      template: "donation.thanks",
       example: "need",
       userId: user.id,
     }))!;

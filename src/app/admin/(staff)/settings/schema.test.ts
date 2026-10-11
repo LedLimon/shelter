@@ -95,18 +95,23 @@ describe("settings form", () => {
     },
   );
 
-  it.each(["info@", "@priyut.ru", "info@priyut", "in fo@priyut.ru"])(
-    "rejects the email %j",
-    (email) => {
-      expect(
-        errorsOf(
-          form((values) => {
-            values.contacts.email = email;
-          }),
-        ),
-      ).toHaveProperty(["contacts.email"]);
-    },
-  );
+  it.each([
+    "info@",
+    "@priyut.ru",
+    "info@priyut",
+    "in fo@priyut.ru",
+    // Letters put this address on an envelope: one mailbox, nothing else.
+    "info@priyut.ru,x@priyut.ru",
+    "<info@priyut.ru>",
+  ])("rejects the email %j", (email) => {
+    expect(
+      errorsOf(
+        form((values) => {
+          values.contacts.email = email;
+        }),
+      ),
+    ).toHaveProperty(["contacts.email"]);
+  });
 
   it("normalises what was typed", () => {
     const settings = settingsFormSchema.parse(

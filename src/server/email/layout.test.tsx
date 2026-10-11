@@ -12,11 +12,11 @@ const context: EmailContext = {
 };
 
 /** With plain spaces for the non-breaking ones: see plain(). */
-const letter = async (links?: EmailLinks) =>
+const letter = async (links?: EmailLinks, siteUrl = context.siteUrl) =>
   plain(
     await render(
       <EmailLayout
-        context={context}
+        context={{ ...context, siteUrl }}
         title="Отчёт за октябрь"
         preview="Что купили и сколько осталось."
         reason="Вы получили это письмо, потому что подписались на отчёты приюта."
@@ -58,6 +58,19 @@ describe("EmailLayout", () => {
     expect(text).toContain("Отписаться от рассылки");
     expect(text).not.toContain("Управлять подпиской");
     expect(text).not.toMatch(/·\s*Отписаться|Отписаться[^\n]*·/);
+  });
+
+  it("writes a Cyrillic domain as people read it, and a port when there is one", async () => {
+    // However APP_URL spells it: URL turns a Cyrillic host into punycode.
+    for (const url of [
+      "https://приют-мыс.рф",
+      "https://xn----otbnjfje8exa.xn--p1ai",
+    ]) {
+      expect(await letter(undefined, url)).toContain(">приют-мыс.рф</a>");
+    }
+    expect(await letter(undefined, "http://localhost:3000")).toContain(
+      ">localhost:3000</a>",
+    );
   });
 
   it("says why the reader got the letter and whose it is", async () => {

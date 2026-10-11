@@ -1,7 +1,7 @@
-// A scripted SMTP server on a local port: takes any message and keeps it, or
-// refuses the recipient with the reply a test gives it. For what Mailpit
-// can't play — a server that says no — and for unit tests, which run without
-// Docker.
+// A scripted SMTP server on a local port: takes any message and keeps it,
+// refuses the recipient with the reply a test gives it, or stops answering.
+// It offers no STARTTLS. For what Mailpit can't play — a server that says no
+// or hangs — and for unit tests, which run without Docker.
 import { createServer, type Socket } from "node:net";
 import type { AddressInfo } from "node:net";
 
@@ -9,18 +9,25 @@ export type FakeSmtp = {
   port: number;
   /** Accepted messages as they came over the wire: headers and body. */
   messages: string[];
+  /** Every command line the clients sent, in order: `EHLO …`, `MAIL FROM:…`. */
+  commands: string[];
+  /** Connections open right now. */
+  connections(): number;
   close(): Promise<void>;
 };
 
 export type FakeSmtpOptions = {
   /** The reply to RCPT TO instead of «250», e.g. `550 5.1.1 <a@b>: no such user`. */
   rcptReply?: string;
+  /** Greets and then answers nothing: a server that hangs mid-dialog. */
+  silent?: boolean;
 };
 
 export async function startFakeSmtp(
   options: FakeSmtpOptions = {},
 ): Promise<FakeSmtp> {
   const messages: string[] = [];
+  const commands: string[] = [];
   const sockets = new Set<Socket>();
 
   const server = createServer((socket) => {
@@ -49,6 +56,8 @@ export async function startFakeSmtp(
         if (end === -1) return;
         const line = buffer.slice(0, end);
         buffer = buffer.slice(end + 2);
+        commands.push(line);
+        if (options.silent) continue;
         const command = line.slice(0, 4).toUpperCase();
         if (command === "EHLO") {
           socket.write(
@@ -62,8 +71,11 @@ export async function startFakeSmtp(
         } else if (command === "QUIT") {
           reply("221 2.0.0 bye");
           socket.end();
-        } else {
+        } else if (["HELO", "MAIL", "RSET", "NOOP"].includes(command)) {
           reply("250 2.0.0 ok");
+        } else {
+          // STARTTLS and AUTH among them: the server offers neither.
+          reply("502 5.5.1 command not implemented");
         }
       }
     });
@@ -77,6 +89,8 @@ export async function startFakeSmtp(
   return {
     port: (server.address() as AddressInfo).port,
     messages,
+    commands,
+    connections: () => sockets.size,
     close: () =>
       new Promise((resolve) => {
         for (const socket of sockets) socket.destroy();

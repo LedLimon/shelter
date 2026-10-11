@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { SHELTER_NAME } from "@/lib/shelter";
 import type { UserRole } from "@/generated/prisma/enums";
 import { getDb } from "@/server/db";
+import { emails } from "@/server/email/registry";
+import { sendEmail } from "@/server/email/send";
 import { createMailer } from "@/server/email/transport";
 import { outbox } from "@/server/jobs";
 import { outboxHandlers } from "@/server/jobs/handlers";
@@ -49,11 +51,11 @@ async function userWith(address: string, role: UserRole = "OWNER") {
 /** Queues a sample of the thanks letter for a new staff member. */
 async function queueSample(
   address = uniqueAddress(),
-  payload: { email?: string; example?: string } = {},
+  payload: { template?: string; example?: string } = {},
 ) {
   const user = await userWith(address);
   const eventId = await outbox.enqueue(getDb(), "email.test", {
-    email: "donation.thanks",
+    template: "donation.thanks",
     example: "split",
     userId: user.id,
     ...payload,
@@ -144,7 +146,7 @@ describe("a letter sent by an outbox event", () => {
     const address = uniqueAddress();
     const user = await userWith(address);
     const payload = {
-      email: "donation.thanks",
+      template: "donation.thanks",
       example: "need",
       userId: user.id,
     };
@@ -170,7 +172,7 @@ describe("a letter sent by an outbox event", () => {
     const user = await userWith(address);
     for (const example of ["need", "general"]) {
       await outbox.enqueue(getDb(), "email.test", {
-        email: "donation.thanks",
+        template: "donation.thanks",
         example,
         userId: user.id,
       });
@@ -220,6 +222,30 @@ describe("a letter sent by an outbox event", () => {
       /^\[outbox\] email\.test \w+: done \(attempt 1\)$/,
     );
     expect(lines.join("\n")).not.toContain("@");
+  });
+});
+
+describe("sendEmail", () => {
+  it("fails a second, different letter of one event instead of skipping it", async () => {
+    const address = uniqueAddress();
+    const event = {
+      eventId: "event-with-two-letters",
+      signal: AbortSignal.timeout(60_000),
+    };
+    await getDb().emailDelivery.create({
+      data: { key: event.eventId, type: "need.report", messageId: "<x@y>" },
+    });
+
+    await expect(
+      sendEmail(
+        "donation.thanks",
+        { to: address, props: emails["donation.thanks"].examples.need!.props },
+        event,
+      ),
+    ).rejects.toThrow(
+      'this event has already sent "need.report": one event sends one letter, write another event for "donation.thanks"',
+    );
+    expect(await inboxOf(address)).toEqual([]);
   });
 });
 
@@ -289,7 +315,7 @@ describe("the «email.test» event", () => {
       },
     });
     const eventId = (await outbox.enqueue(getDb(), "email.test", {
-      email: "donation.thanks",
+      template: "donation.thanks",
       example: "need",
       userId: user.id,
     }))!;
@@ -304,7 +330,7 @@ describe("the «email.test» event", () => {
   });
 
   it.each([
-    [{ email: "no.such.letter" }, 'unknown email type "no.such.letter"'],
+    [{ template: "no.such.letter" }, 'unknown email type "no.such.letter"'],
     [{ example: "toString" }, '"donation.thanks" has no example "toString"'],
   ])("fails on %j without sending", async (payload, reason) => {
     const { address, eventId } = await queueSample(uniqueAddress(), payload);

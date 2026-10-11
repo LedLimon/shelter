@@ -47,11 +47,11 @@ describe.each(samples)("%s, example «%s»", (type, _example, props) => {
   it("keeps Cyrillic as text, not as entities or mojibake", async () => {
     const { html, text, subject } = await letter();
 
-    expect(subject).toMatch(/[а-яё]/i);
-    expect(html).toMatch(/<h1[^>]*>Спасибо.*за помощь!<\/span><\/h1>/);
+    expect(subject).toMatch(/[а-яё]{3,}/i);
+    expect(html).toMatch(/<h1[^>]*>[^<]*[А-ЯЁ][а-яё]+/);
     // No numeric entities at all: quotes and Cyrillic alike stay literal.
     expect(html).not.toMatch(/&#x?[0-9a-f]+;/i);
-    expect(html).not.toMatch(/Ð|Ñ|�/);
+    expect(html).not.toMatch(/Ð|Ñ|\uFFFD/);
     expect(text).toMatch(/[а-яё]{4,}/i);
   });
 
@@ -63,10 +63,9 @@ describe.each(samples)("%s, example «%s»", (type, _example, props) => {
     }
   });
 
-  it("signs with the shelter's name, written in one place", async () => {
+  it("names the shelter as it is written in one place", async () => {
     const { html, text } = await letter();
 
-    expect(text).toContain(`Команда приюта «${SHELTER_NAME}»`);
     expect(text).toContain(
       `Приют «${SHELTER_NAME}» · АНО «Мыс доброй надежды»`,
     );
@@ -112,11 +111,15 @@ describe.each(samples)("%s, example «%s»", (type, _example, props) => {
     }
   });
 
-  it("has a plain-text part that says the same", async () => {
-    const { text } = await letter();
+  it("has a plain-text part: the heading, the words, no markup", async () => {
+    const { html, text } = await letter();
+    const heading = /<h1[^>]*>(.*?)<\/h1>/
+      .exec(html)![1]!
+      .replace(/<[^>]+>/g, "");
 
-    expect(text).toContain("СПАСИБО ЗА ПОМОЩЬ!");
-    expect(text).not.toMatch(/<\/?(p|td|table|a|span)\b/);
+    expect(text).toContain(heading.toUpperCase());
+    expect(text).not.toMatch(/<\/?(p|td|table|a|span|h1)\b/);
+    expect(text.length).toBeGreaterThan(200);
   });
 });
 

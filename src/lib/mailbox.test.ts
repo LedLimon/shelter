@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import { isEmailAddress, parseMailbox } from "./mailbox";
 
 describe("isEmailAddress", () => {
-  it.each(["donor@example.ru", "a.b+tag@sub.example.com", "иван@почта.рф"])(
-    "accepts %s",
-    (address) => {
-      expect(isEmailAddress(address)).toBe(true);
-    },
-  );
+  it.each([
+    "donor@example.ru",
+    "a.b+tag@sub.example.com",
+    "иван@почта.рф",
+    "o'brien@example.com",
+  ])("accepts %s", (address) => {
+    expect(isEmailAddress(address)).toBe(true);
+  });
 
   it.each([
     "",
@@ -21,6 +23,8 @@ describe("isEmailAddress", () => {
     "a@x.ru;b@y.ru",
     "Имя <a@x.ru>",
     '"a"@x.ru',
+    "a\u0000b@x.ru",
+    "a\u007Fb@x.ru",
     "a@x.ru\r\nBcc: b@y.ru",
     `${"a".repeat(320)}@x.ru`,
   ])("rejects %j", (value) => {

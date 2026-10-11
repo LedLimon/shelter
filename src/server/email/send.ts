@@ -64,7 +64,16 @@ export async function sendEmail<T extends EmailType>(
 ): Promise<"sent" | "already-sent"> {
   const db = getDb();
   const sent = await db.emailDelivery.findUnique({ where: { key: eventId } });
-  if (sent) return "already-sent";
+  if (sent) {
+    if (sent.type !== type) {
+      // A second sendEmail() in one handler would be skipped as «sent» on
+      // every run: fail it instead, loudly.
+      throw new Error(
+        `this event has already sent "${sent.type}": one event sends one letter, write another event for "${type}"`,
+      );
+    }
+    return "already-sent";
+  }
 
   const context = await loadEmailContext(db);
   const letter = await renderEmail(type, message.props, context);

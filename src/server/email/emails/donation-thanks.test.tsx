@@ -128,6 +128,16 @@ describe("donation.thanks", () => {
     expect(text).not.toContain("сбор «");
   });
 
+  it("opens with thanks and is signed by the shelter's team", async () => {
+    for (const props of [toNeed(), toGeneral]) {
+      const { html, text } = await render(props);
+
+      expect(html).toMatch(/<h1[^>]*>Спасибо.*за помощь!<\/span><\/h1>/);
+      expect(text).toContain("СПАСИБО ЗА ПОМОЩЬ!");
+      expect(text).toContain("Команда приюта «Мыс доброй надежды»");
+    }
+  });
+
   it("says it is not a fiscal receipt and gives the donation's number", async () => {
     for (const props of [toNeed(), toNeed({ overflowKop: 1 }), toGeneral]) {
       const { text } = await render(props);
@@ -142,7 +152,9 @@ describe("donation.thanks", () => {
   it("tells that the donation completed the goal", async () => {
     const { text } = await render(toNeed({ goalReached: true }));
 
-    expect(text).toContain("Оно закрыло сбор: нужная сумма собрана.");
+    expect(text).toContain(
+      "Вся сумма пошла на сбор «Корм на октябрь» <https://mys.example/needs/korm-na-oktyabr>. Ваше пожертвование закрыло сбор: нужная сумма собрана.",
+    );
   });
 
   it.each([
@@ -271,6 +283,7 @@ describe("donation.thanks", () => {
       "need",
       "split",
       "closed",
+      "long",
       "general",
     ]);
   });

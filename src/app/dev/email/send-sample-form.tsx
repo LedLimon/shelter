@@ -8,10 +8,10 @@ import { sendSample, type SendSampleState } from "./actions";
 
 /** Queues the shown example for the worker to send to Mailpit. */
 export function SendSampleForm({
-  email,
+  template,
   example,
 }: {
-  email: string;
+  template: string;
   example: string;
 }) {
   const [state, action, pending] = useActionState<SendSampleState, FormData>(
@@ -21,7 +21,7 @@ export function SendSampleForm({
 
   return (
     <form action={action} className="grid justify-items-start gap-3">
-      <input type="hidden" name="email" value={email} />
+      <input type="hidden" name="template" value={template} />
       <input type="hidden" name="example" value={example} />
       <Button type="submit" loading={pending}>
         Отправить образец

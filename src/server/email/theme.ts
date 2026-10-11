@@ -71,8 +71,9 @@ export function stylesheet(): string {
     ":root{color-scheme:light dark;supported-color-schemes:light dark}",
     "body{margin:0;padding:0;-webkit-text-size-adjust:100%;text-size-adjust:100%}",
     "a{text-underline-offset:3px}",
-    // A phone gets the board's margin back as reading width.
-    "@media (max-width:480px){.board{padding:12px 8px 24px!important}.inset{padding:20px 16px 24px!important}.title{font-size:34px!important}}",
+    // A phone gets the board's margin back as reading width, a smaller
+    // heading and sum, and labels of the form that may wrap.
+    "@media (max-width:480px){.board{padding:12px 8px 24px!important}.inset{padding:20px 16px 24px!important}.title{font-size:34px!important}.sum{font-size:30px!important;line-height:32px!important}.label{white-space:normal!important}}",
     `${DARK_MEDIA}{${dark}}`,
   ].join("");
 }

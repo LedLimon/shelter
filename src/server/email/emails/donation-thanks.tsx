@@ -7,13 +7,13 @@ import {
   Caption,
   Form,
   Link,
+  Mono,
   Text,
   Title,
   type FormRow,
 } from "../components";
 import { defineEmail, type EmailTemplateProps } from "../definition";
 import { EmailLayout } from "../layout";
-import { FONT } from "../theme";
 import { NBSP } from "../typography";
 
 const DONATIONS: PluralForms = [
@@ -163,7 +163,9 @@ function DonationThanks({ props, context, links }: EmailTemplateProps<Props>) {
         <Text>
           Мы получили ваше пожертвование. Вся сумма пошла на сбор{" "}
           <Link href={story.url}>«{story.title}»</Link>.
-          {story.goal ? " Оно закрыло сбор: нужная сумма собрана." : null}
+          {story.goal
+            ? " Ваше пожертвование закрыло сбор: нужная сумма собрана."
+            : null}
         </Text>
       ) : null}
       {story.kind === "split" ? (
@@ -210,19 +212,8 @@ function DonationThanks({ props, context, links }: EmailTemplateProps<Props>) {
 
       <Caption>
         Это письмо — подтверждение пожертвования, а не кассовый чек. Номер
-        пожертвования:{" "}
-        <span
-          style={{
-            // Moves to a line of its own rather than break in the middle.
-            display: "inline-block",
-            fontFamily: FONT.mono,
-            fontSize: 13,
-            wordBreak: "break-all",
-          }}
-        >
-          {props.donationId}
-        </span>{" "}
-        — назовите его, если будете писать нам об этом платеже.
+        пожертвования: <Mono>{props.donationId}</Mono> — назовите его, если
+        будете писать нам об этом платеже.
       </Caption>
       <Text style={{ margin: 0 }}>Команда приюта «{shelter.name}»</Text>
     </EmailLayout>
@@ -278,6 +269,22 @@ export const donationThanks = defineEmail({
           title: "Ремонт забора у вольеров",
           slug: "remont-zabora",
           overflowKop: 50_000,
+        },
+      },
+    },
+    long: {
+      label: "Длинное название, крупная сумма",
+      props: {
+        donationId: "cm2a8k3xw0005qz0h2b6k8y3m",
+        amountKop: 12_500_050,
+        paidAt,
+        purpose: {
+          kind: "need",
+          title:
+            "Электрокардиографическое обследование и противопаразитарная обработка всех собак приюта перед зимой",
+          slug: "obsledovanie-i-obrabotka-pered-zimoy",
+          overflowKop: 2_750_025,
+          goalReached: true,
         },
       },
     },
