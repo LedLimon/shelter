@@ -200,7 +200,8 @@ model Outbox {
   /// of the worker running the event. The database's clock, like the
   /// dispatcher's now(): the app's may differ.
   availableAt DateTime     @default(dbgenerated("transaction_timestamp()")) @db.Timestamptz(3)
-  /// No personal data here either (no raw SMTP replies with addresses).
+  /// Why the last failed attempt failed; stays after a later success. No
+  /// personal data here either (no raw SMTP replies with addresses).
   lastError   String?
   processedAt DateTime?    @db.Timestamptz(3)
   createdAt   DateTime     @default(now()) @db.Timestamptz(3)
