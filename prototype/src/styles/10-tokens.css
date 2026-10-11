@@ -1,0 +1,163 @@
+/*
+ * Tokens of the «Объявление» direction, copied from src/app/globals.css
+ * (docs/design.md#визуальный-стиль). The prototype must not invent colours:
+ * when a token changes in the app, change it here too.
+ * Layout: grey board, paper sheets on it, tear-off tabs along the bottom edge.
+ */
+
+/*
+ * Sofia Sans Extra Condensed has no ₽: the app takes it from a one-glyph cut
+ * of Fira Sans Extra Condensed Black. Here the glyph joins the same family as
+ * extra faces limited to U+20BD. Their weights repeat the Google Fonts faces
+ * (800, 900, 1000): the browser composes a family only from faces whose
+ * weight descriptors match.
+ */
+@font-face {
+  font-family: "Sofia Sans Extra Condensed";
+  src: url("__ROUBLE_FONT__") format("woff2");
+  font-weight: 800;
+  font-display: swap;
+  unicode-range: U+20BD;
+}
+
+@font-face {
+  font-family: "Sofia Sans Extra Condensed";
+  src: url("__ROUBLE_FONT__") format("woff2");
+  font-weight: 900;
+  font-display: swap;
+  unicode-range: U+20BD;
+}
+
+@font-face {
+  font-family: "Sofia Sans Extra Condensed";
+  src: url("__ROUBLE_FONT__") format("woff2");
+  font-weight: 1000;
+  font-display: swap;
+  unicode-range: U+20BD;
+}
+
+:root {
+  color-scheme: light;
+
+  --color-board: #d1d5d6;
+  --color-paper: #fbfbf7;
+  --color-toner: #161617;
+  --color-toner-muted: #55575b;
+  --color-pen: #2244b0;
+  --color-notice: #ffe04a;
+  --color-notice-foreground: #161617;
+  --color-notice-muted: #504824;
+  --color-perforation: #8a8d90;
+  --color-footer: #161617;
+  --color-footer-foreground: #fbfbf7;
+  --color-footer-muted: #bbbbb8;
+
+  --color-success: #205e2e;
+  --color-danger: #9a2925;
+  --color-warning: #7b4606;
+  --color-info: var(--color-pen);
+  --color-scrim: var(--color-toner);
+
+  --radius-sheet: 1px;
+  --radius-stamp: 4px;
+  --shadow-sheet:
+    0 1px 1px rgb(15 16 20 / 0.1), 0 14px 24px -16px rgb(15 16 20 / 0.55);
+  --line: 1.5px;
+
+  --font-display: "Sofia Sans Extra Condensed", "Arial Narrow", sans-serif;
+  --font-body: "Literata", Georgia, "Times New Roman", serif;
+  --font-mono: "Martian Mono", ui-monospace, Menlo, monospace;
+  /* Admin text (Operate mode): Sofia Sans of normal width; ₽ falls back to Literata. */
+  --font-admin: "Sofia Sans", "Literata", "Helvetica Neue", Arial, sans-serif;
+
+  --text-hero: clamp(2.875rem, 1.891rem + 4.199vw, 5.25rem);
+  --text-section: clamp(1.875rem, 1.512rem + 1.547vw, 2.75rem);
+  --text-title: 1.875rem;
+  --text-name: 2.5rem;
+  --text-sum: 1.75rem;
+  --text-sum-lg: 2.25rem;
+  --text-button: 1.375rem;
+  --text-label: 0.875rem;
+  --text-body: 1rem;
+  --text-caption: 0.875rem;
+  --text-mono: 0.78125rem;
+  --text-mono-sm: 0.6875rem;
+
+  --gutter: 1rem;
+  --grid: 1.125rem;
+  --sheet: 1rem;
+  --card: 0.75rem;
+  --section: 2.25rem;
+  --tab: 3.5rem;
+  --cta: 3.25rem;
+}
+
+@media (min-width: 48rem) {
+  :root {
+    --gutter: 3rem;
+    --grid: 1.75rem;
+    --sheet: 1.5rem;
+    --section: 3.5rem;
+  }
+}
+
+/* «Доска ночью»: separately picked values, not an inversion. */
+html.dark {
+  color-scheme: dark;
+
+  --color-board: #121315;
+  --color-paper: #212224;
+  --color-toner: #ecebe6;
+  --color-toner-muted: #a7a7a1;
+  --color-pen: #9db2ff;
+  --color-notice: #f3d23c;
+  --color-notice-foreground: #161617;
+  --color-notice-muted: #4d4520;
+  --color-perforation: #6b6d70;
+  --color-footer: #2b2c2e;
+  --color-footer-foreground: #ecebe6;
+  --color-footer-muted: #b6b5b2;
+
+  --color-success: #95c69b;
+  --color-danger: #fb988d;
+  --color-warning: #ddac82;
+
+  --color-scrim: var(--color-board);
+}
+
+/*
+ * The yellow sheet and the footer re-map the palette roles inside them:
+ * pen and pale toner fail AA there, so links, marks and the focus ring take
+ * the surface's text colour, and secondary text takes its muted token.
+ */
+.surface-notice {
+  color-scheme: light;
+  background-color: var(--color-notice);
+  color: var(--color-notice-foreground);
+  --color-board: var(--color-notice);
+  --color-paper: var(--color-notice);
+  --color-toner: var(--color-notice-foreground);
+  --color-toner-muted: var(--color-notice-muted);
+  --color-pen: var(--color-notice-foreground);
+  --color-perforation: var(--color-notice-muted);
+  --color-success: var(--color-notice-foreground);
+  --color-danger: var(--color-notice-foreground);
+  --color-warning: var(--color-notice-foreground);
+  --color-info: var(--color-notice-foreground);
+}
+
+.surface-footer {
+  color-scheme: dark;
+  background-color: var(--color-footer);
+  color: var(--color-footer-foreground);
+  --color-board: var(--color-footer);
+  --color-paper: var(--color-footer);
+  --color-toner: var(--color-footer-foreground);
+  --color-toner-muted: var(--color-footer-muted);
+  --color-pen: var(--color-footer-foreground);
+  --color-perforation: var(--color-footer-muted);
+  --color-success: var(--color-footer-foreground);
+  --color-danger: var(--color-footer-foreground);
+  --color-warning: var(--color-footer-foreground);
+  --color-info: var(--color-footer-foreground);
+}

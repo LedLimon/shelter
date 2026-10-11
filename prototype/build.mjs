@@ -1,0 +1,92 @@
+// Assembles the single-file prototype: styles, scripts, photos and the ₽ glyph
+// are inlined, because a published artifact can load nothing but Google Fonts.
+//
+//   node prototype/build.mjs
+//
+// dist/ostrovok-nadezhdy.html — the page to publish (the artifact host adds
+// <html>, <head> and <body> itself); dist/preview.html — the same page as a
+// full document, for checking locally.
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { basename, extname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = fileURLToPath(new URL(".", import.meta.url));
+const repo = join(root, "..");
+
+const MIME = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".png": "image/png",
+};
+
+async function concat(dir, ext) {
+  const names = (await readdir(dir))
+    .filter((name) => name.endsWith(ext))
+    .sort();
+  const parts = await Promise.all(
+    names.map((name) => readFile(join(dir, name), "utf8")),
+  );
+  return parts.join("\n");
+}
+
+async function dataUri(file, mime) {
+  return `data:${mime};base64,${(await readFile(file)).toString("base64")}`;
+}
+
+async function photos() {
+  const dir = join(root, "assets/photos");
+  const entries = {};
+  for (const name of (await readdir(dir)).sort()) {
+    const mime = MIME[extname(name).toLowerCase()];
+    if (mime)
+      entries[basename(name, extname(name))] = await dataUri(
+        join(dir, name),
+        mime,
+      );
+  }
+  return entries;
+}
+
+// The same one-glyph file the app uses: Sofia Sans Extra Condensed has no ₽.
+const rouble = await dataUri(
+  join(repo, "src/app/fonts/rouble-fira-sans-extra-condensed-black.woff2"),
+  "font/woff2",
+);
+
+const css = (await concat(join(root, "src/styles"), ".css")).replaceAll(
+  "__ROUBLE_FONT__",
+  rouble,
+);
+const js = [
+  `const PHOTOS = ${JSON.stringify(await photos())};`,
+  await concat(join(root, "src/js"), ".js"),
+].join("\n");
+
+const template = await readFile(join(root, "src/index.html"), "utf8");
+const page = template
+  .replace("/*__CSS__*/", () => css)
+  .replace(
+    "/*__JS__*/",
+    () =>
+      `(() => {\n"use strict";\n${js.replaceAll("</script", "<\\/script")}\n})();`,
+  );
+
+const preview = `<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+</head>
+<body>
+${page}
+</body>
+</html>
+`;
+
+await mkdir(join(root, "dist"), { recursive: true });
+await writeFile(join(root, "dist/ostrovok-nadezhdy.html"), page);
+await writeFile(join(root, "dist/preview.html"), preview);
+console.log(
+  `dist/ostrovok-nadezhdy.html — ${(Buffer.byteLength(page) / 1024).toFixed(0)} KB`,
+);

@@ -1,0 +1,775 @@
+/* Base components, as styled in DS-2 (src/components/ui, docs/assets/base-components). */
+
+.icon {
+  flex: none;
+  width: 1em;
+  height: 1em;
+  font-size: 1.125rem;
+}
+
+/* Sheet of paper on the board: one shadow, no frame, never nested. */
+.sheet {
+  position: relative;
+  background: var(--color-paper);
+  color: var(--color-toner);
+  border-radius: var(--radius-sheet);
+  box-shadow: var(--shadow-sheet);
+}
+
+.sheet-pad {
+  padding: var(--sheet);
+}
+
+.sheet-body {
+  display: grid;
+  gap: 0.875rem;
+  align-content: start;
+  padding: var(--sheet);
+}
+
+/* Section title: a slip of paper with a short caps heading. */
+.slip {
+  justify-self: start;
+  background: var(--color-paper);
+  padding: 0.5rem 0.875rem 0.375rem;
+  box-shadow:
+    0 1px 1px rgb(15 16 20 / 0.1),
+    0 10px 18px -14px rgb(15 16 20 / 0.5);
+}
+
+.slip > * {
+  font-family: var(--font-display);
+  font-size: var(--text-section);
+  font-weight: 900;
+  line-height: 0.92;
+  text-transform: uppercase;
+}
+
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+}
+
+/* Buttons: rectangular, condensed caps. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0.375rem 1rem;
+  border: var(--line) solid var(--color-toner);
+  background: var(--color-toner);
+  color: var(--color-paper);
+  font-family: var(--font-display);
+  font-size: var(--text-label);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition:
+    background-color 0.12s ease-out,
+    transform 0.12s ease-out,
+    box-shadow 0.12s ease-out;
+}
+
+.btn:hover {
+  background: color-mix(in srgb, var(--color-toner) 84%, var(--color-paper));
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--color-toner);
+}
+
+.btn-outline:hover,
+.btn-ghost:hover {
+  background: color-mix(in srgb, var(--color-toner) 12%, transparent);
+}
+
+.btn-secondary {
+  border-color: var(--color-board);
+  background: var(--color-board);
+  color: var(--color-toner);
+}
+
+.btn-secondary:hover {
+  border-color: color-mix(in srgb, var(--color-board) 80%, var(--color-toner));
+  background: color-mix(in srgb, var(--color-board) 80%, var(--color-toner));
+}
+
+.btn-ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-toner);
+}
+
+.btn-danger {
+  border-color: var(--color-danger);
+  background: transparent;
+  color: var(--color-danger);
+}
+
+.btn-danger:hover {
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+}
+
+/* «Помочь»: the only yellow control, always framed, once per screen. */
+.btn-help {
+  min-height: var(--cta);
+  padding-inline: 1.5rem;
+  border: 2px solid var(--color-notice-foreground);
+  background: var(--color-notice);
+  color: var(--color-notice-foreground);
+  font-size: var(--text-button);
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  line-height: 1;
+}
+
+.btn-help:hover {
+  background: var(--color-notice);
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 1px rgb(15 16 20 / 0.12),
+    0 10px 18px -10px rgb(15 16 20 / 0.55);
+}
+
+.btn-help:active {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+
+.btn-lg {
+  min-height: var(--cta);
+  padding-inline: 1.5rem;
+  font-size: var(--text-button);
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  line-height: 1;
+}
+
+.btn-sm {
+  min-height: 2.25rem;
+  padding: 0.25rem 0.75rem;
+}
+
+.btn-icon {
+  width: 2.75rem;
+  padding: 0;
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.btn[disabled],
+.btn[aria-disabled="true"] {
+  border: 1px solid var(--color-perforation);
+  background: transparent;
+  color: var(--color-toner-muted);
+  box-shadow: none;
+  transform: none;
+  cursor: not-allowed;
+}
+
+.btn-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-pen);
+  font: inherit;
+  text-align: left;
+  text-decoration-line: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
+
+.btn-link:hover {
+  text-decoration-thickness: 2.5px;
+}
+
+.spinner {
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentcolor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Fields: boxes of a form. Paper, perforation frame, Literata 16 px. */
+.field {
+  display: grid;
+  gap: 0.375rem;
+  align-content: start;
+}
+
+.label {
+  font-family: var(--font-display);
+  font-size: var(--text-label);
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.input,
+.textarea,
+.select {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-perforation);
+  background: var(--color-paper);
+  color: var(--color-toner);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.textarea {
+  min-height: 6.5rem;
+  resize: vertical;
+}
+
+.input:hover,
+.textarea:hover,
+.select:hover {
+  border-color: var(--color-toner);
+}
+
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--color-toner-muted);
+  opacity: 1;
+}
+
+.input[aria-invalid="true"],
+.textarea[aria-invalid="true"],
+.select[aria-invalid="true"] {
+  border: 2px solid var(--color-danger);
+  padding: calc(0.5rem - 1px) calc(0.75rem - 1px);
+}
+
+.input:disabled,
+.textarea:disabled,
+.select:disabled {
+  border-color: var(--color-perforation);
+  background: var(--color-board);
+  color: var(--color-toner-muted);
+  cursor: not-allowed;
+}
+
+.select-wrap {
+  position: relative;
+  display: grid;
+}
+
+.select {
+  appearance: none;
+  padding-right: 2.5rem;
+}
+
+.select-wrap > .icon {
+  position: absolute;
+  top: 50%;
+  right: 0.75rem;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.hint {
+  color: var(--color-toner-muted);
+  font-size: var(--text-caption);
+  line-height: 1.45;
+}
+
+.error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  color: var(--color-danger);
+  font-size: var(--text-caption);
+  line-height: 1.45;
+}
+
+.icon-line {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: start;
+}
+
+.icon-line > .icon,
+.icon-line > .spinner,
+.icon-line > .stage {
+  margin-top: 0.2em;
+}
+
+.error .icon,
+.ok .icon {
+  margin-top: 0.15em;
+  font-size: 1rem;
+}
+
+.ok {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  color: var(--color-success);
+  font-size: var(--text-caption);
+  line-height: 1.45;
+}
+
+/* Marks are made with the pen: the box is never filled. */
+.check {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.125rem 0.625rem;
+  align-items: start;
+  padding-block: 0.375rem;
+  cursor: pointer;
+}
+
+.check > .hint,
+.check > .error {
+  grid-column: 2;
+}
+
+.check input {
+  appearance: none;
+  display: grid;
+  place-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0.15rem 0 0;
+  border: var(--line) solid var(--color-toner);
+  background: transparent;
+  cursor: pointer;
+}
+
+.check input:hover {
+  background: var(--color-board);
+}
+
+.check input[type="checkbox"]:checked::after {
+  content: "";
+  width: 0.7rem;
+  height: 0.4rem;
+  border-bottom: 2px solid var(--color-pen);
+  border-left: 2px solid var(--color-pen);
+  transform: translateY(-1px) rotate(-45deg);
+}
+
+.check input[type="radio"] {
+  border-radius: 50%;
+}
+
+.check input[type="radio"]:checked::after {
+  content: "";
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--color-pen);
+}
+
+.check input[aria-invalid="true"] {
+  border: 2px solid var(--color-danger);
+}
+
+.switch {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.125rem 0.75rem;
+  align-items: center;
+  cursor: pointer;
+}
+
+.switch > .hint {
+  grid-column: 2;
+}
+
+.switch input {
+  appearance: none;
+  position: relative;
+  width: 2.75rem;
+  height: 1.5rem;
+  margin: 0;
+  border: var(--line) solid var(--color-toner);
+  background: transparent;
+  cursor: pointer;
+}
+
+.switch input::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: 0.95rem;
+  background: var(--color-toner);
+  transition: transform 0.15s ease-out;
+}
+
+.switch input:checked {
+  background: var(--color-toner);
+}
+
+.switch input:checked::after {
+  background: var(--color-paper);
+  transform: translateX(1.2rem);
+}
+
+/* Tabs strip: toner frame, the active one is filled. */
+.seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  border: var(--line) solid var(--color-toner);
+}
+
+.seg-item {
+  flex: 1 1 auto;
+  min-height: 2.5rem;
+  padding: 0.25rem 0.875rem;
+  border: 0;
+  background: transparent;
+  color: var(--color-toner);
+  font-family: var(--font-display);
+  font-size: var(--text-label);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+}
+
+.seg-item:hover {
+  background: color-mix(in srgb, var(--color-toner) 12%, transparent);
+}
+
+.seg-item[aria-pressed="true"],
+.seg-item[aria-current="page"],
+.seg-item[aria-current="true"] {
+  background: var(--color-toner);
+  color: var(--color-paper);
+}
+
+/* Filter chips: quiet frames; the chosen one gets a toner frame and a pen mark. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  align-items: flex-start;
+  gap: 0.375rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.25rem;
+  padding: 0.125rem 0.625rem;
+  border: 1px solid var(--color-perforation);
+  background: var(--color-paper);
+  color: var(--color-toner);
+  font-family: var(--font-display);
+  font-size: var(--text-label);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.chip:hover {
+  border-color: var(--color-toner);
+}
+
+.chip {
+  text-decoration: none;
+}
+
+.chip[aria-pressed="true"],
+.chip[aria-current="true"] {
+  border: var(--line) solid var(--color-toner);
+}
+
+.chip .icon {
+  color: var(--color-pen);
+  font-size: 1rem;
+}
+
+/* Urgency and status: never by colour alone — a frame, an icon and a word. */
+.urg {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 2px 7px 1px 5px;
+  font-family: var(--font-display);
+  font-size: var(--text-label);
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.urg .icon {
+  font-size: 0.9375rem;
+}
+
+.urg-critical {
+  background: var(--color-toner);
+  color: var(--color-paper);
+}
+
+.urg-high {
+  outline: 2px solid var(--color-toner);
+  outline-offset: -2px;
+}
+
+.urg-normal {
+  outline: 1px solid var(--color-perforation);
+  outline-offset: -1px;
+  color: var(--color-toner-muted);
+}
+
+.urg-low {
+  outline: 1px dashed var(--color-perforation);
+  outline-offset: -1px;
+  color: var(--color-toner-muted);
+}
+
+.status {
+  outline: 1px solid var(--color-toner);
+  outline-offset: -1px;
+}
+
+.status-quiet {
+  outline: 1px solid var(--color-perforation);
+  outline-offset: -1px;
+  color: var(--color-toner-muted);
+}
+
+.status-solid {
+  background: var(--color-toner);
+  color: var(--color-paper);
+}
+
+/* Stamps «Собрано» and «Дома»: the only rounded, tilted things. */
+.stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 4px 10px 2px;
+  border-radius: var(--radius-stamp);
+  box-shadow: inset 0 0 0 2.5px var(--color-pen);
+  color: var(--color-pen);
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transform: rotate(-4deg);
+}
+
+/* Layers: a sheet over the dimmed board, no blur. */
+.layer {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  align-items: end;
+  justify-items: center;
+  background: color-mix(in srgb, var(--color-scrim) 40%, transparent);
+  animation: layer-fade 0.15s ease-out;
+}
+
+.layer-panel {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+  width: 100%;
+  max-width: 34rem;
+  max-height: 92vh;
+  max-height: 92dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--sheet);
+  padding-bottom: calc(var(--sheet) + env(safe-area-inset-bottom, 0px));
+  background: var(--color-paper);
+  box-shadow: var(--shadow-sheet);
+  animation: layer-rise 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html.dark .layer-panel {
+  outline: 1px solid var(--color-perforation);
+}
+
+.layer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.layer-head h2 {
+  font-size: var(--text-title);
+}
+
+.layer-head .btn-icon {
+  margin: -0.375rem -0.375rem 0 0;
+}
+
+.layer-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.layer-side {
+  align-items: stretch;
+  justify-items: end;
+}
+
+.layer-side .layer-panel {
+  width: min(21rem, 88vw);
+  max-height: none;
+  height: 100%;
+  animation-name: layer-slide;
+}
+
+@media (min-width: 48rem) {
+  .layer {
+    align-items: center;
+    padding: 1.5rem;
+  }
+
+  .layer-panel {
+    max-height: calc(100vh - 3rem);
+    max-height: calc(100dvh - 3rem);
+  }
+
+  .layer-side {
+    align-items: stretch;
+    padding: 0;
+  }
+}
+
+@keyframes layer-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes layer-rise {
+  from {
+    transform: translateY(1.5rem);
+    opacity: 0;
+  }
+}
+
+@keyframes layer-slide {
+  from {
+    transform: translateX(1.5rem);
+    opacity: 0;
+  }
+}
+
+/* Toasts sit under the layers and never cover their buttons. */
+#toast-root {
+  position: fixed;
+  right: 1rem;
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  left: 1rem;
+  z-index: 40;
+  display: grid;
+  gap: 0.5rem;
+  justify-items: center;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  max-width: 30rem;
+  padding: 0.625rem 0.875rem;
+  border: var(--line) solid var(--color-toner);
+  background: var(--color-paper);
+  box-shadow: var(--shadow-sheet);
+  font-size: var(--text-caption);
+  line-height: 1.45;
+  pointer-events: auto;
+  animation: layer-rise 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.toast .icon {
+  margin-top: 0.1em;
+  color: var(--color-success);
+}
+
+/* Loading: skeletons shaped like the content. */
+.skeleton {
+  background: var(--color-board);
+  animation: skeleton-pulse 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes skeleton-pulse {
+  to {
+    opacity: 0.55;
+  }
+}
+
+/* Small pieces. */
+.divider {
+  height: 1px;
+  border: 0;
+  margin: 0;
+  background: var(--color-perforation);
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: minmax(7rem, max-content) minmax(0, 1fr);
+  gap: 0.375rem 1rem;
+}
+
+.kv dt {
+  color: var(--color-toner-muted);
+  font-size: var(--text-caption);
+  line-height: 1.6;
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  box-shadow: inset 0 0 0 1px var(--color-toner);
+  font-family: var(--font-display);
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
