@@ -34,6 +34,17 @@ const timeZone = () =>
 const authSecret = () =>
   z.string().min(32, "must be at least 32 characters: openssl rand -base64 32");
 
+/** Whether the URL points at this machine: localhost, *.localhost, loopback. */
+export function isLocalUrl(url: string): boolean {
+  const { hostname } = new URL(url);
+  return (
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    hostname === "127.0.0.1" ||
+    hostname === "[::1]"
+  );
+}
+
 const portError = "must be a port number (1-65535)";
 const port = () =>
   z.coerce
@@ -72,11 +83,41 @@ export const serverEnvSchema = z
     SMTP_PASSWORD: z.string().optional(),
     SMTP_FROM: required(),
 
-    // Empty in dev; PAY-1 adds the fake provider and the provider switch.
+    // Who takes the money (src/server/payments). "fake" is the emulator for
+    // dev and CI: it charges nothing, so it is refused unless APP_URL is
+    // this machine. Staging and production set "cloudpayments".
+    PAYMENT_PROVIDER: z
+      .enum(["cloudpayments", "fake"], {
+        error: 'must be "cloudpayments" or "fake"',
+      })
+      .default("fake"),
+    // The terminal's Public ID and API Secret (CloudPayments account). The
+    // secret also signs webhooks.
     CLOUDPAYMENTS_PUBLIC_ID: z.string().optional(),
     CLOUDPAYMENTS_API_SECRET: z.string().optional(),
   })
   .superRefine((env, ctx) => {
+    if (env.PAYMENT_PROVIDER === "fake" && !isLocalUrl(env.APP_URL)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["PAYMENT_PROVIDER"],
+        message:
+          "the fake provider charges no money and works only with a local APP_URL; set PAYMENT_PROVIDER=cloudpayments",
+      });
+    }
+    if (env.PAYMENT_PROVIDER === "cloudpayments") {
+      for (const key of [
+        "CLOUDPAYMENTS_PUBLIC_ID",
+        "CLOUDPAYMENTS_API_SECRET",
+      ] as const) {
+        if (env[key]) continue;
+        ctx.addIssue({
+          code: "custom",
+          path: [key],
+          message: "is required with PAYMENT_PROVIDER=cloudpayments",
+        });
+      }
+    }
     if (Boolean(env.SMTP_USER) !== Boolean(env.SMTP_PASSWORD)) {
       ctx.addIssue({
         code: "custom",

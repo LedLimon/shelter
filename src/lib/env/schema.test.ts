@@ -127,18 +127,102 @@ describe("server env", () => {
 
   it("applies defaults and normalizes values", () => {
     const env = parseServer({
-      APP_URL: "https://priyut.example/",
+      APP_URL: "http://localhost:3000/",
       SHELTER_TIMEZONE: undefined,
       S3_FORCE_PATH_STYLE: undefined,
       SMTP_SECURE: "true",
       CLOUDPAYMENTS_PUBLIC_ID: "",
     });
 
-    expect(env.APP_URL).toBe("https://priyut.example");
+    expect(env.APP_URL).toBe("http://localhost:3000");
     expect(env.SHELTER_TIMEZONE).toBe("Europe/Moscow");
     expect(env.S3_FORCE_PATH_STYLE).toBe(false);
     expect(env.SMTP_SECURE).toBe(true);
     expect(env.CLOUDPAYMENTS_PUBLIC_ID).toBeUndefined();
+  });
+
+  describe("payment provider", () => {
+    const keys = {
+      CLOUDPAYMENTS_PUBLIC_ID: "pk_test",
+      CLOUDPAYMENTS_API_SECRET: "api-secret-value",
+    };
+
+    it("is the fake on a local APP_URL unless set", () => {
+      expect(example.PAYMENT_PROVIDER).toBe("");
+      expect(parseServer().PAYMENT_PROVIDER).toBe("fake");
+      expect(
+        parseServer({ APP_URL: "http://127.0.0.1:3100" }).PAYMENT_PROVIDER,
+      ).toBe("fake");
+      expect(
+        parseServer({ APP_URL: "http://shelter.localhost:3000" })
+          .PAYMENT_PROVIDER,
+      ).toBe("fake");
+    });
+
+    it.each([
+      "https://priyut.example",
+      "https://staging.priyut.example",
+      "http://192.168.1.10:3000",
+      "http://localhost.example.com",
+      "http://127.0.0.1.example.com",
+    ])("refuses the fake on %s", (APP_URL) => {
+      for (const PAYMENT_PROVIDER of [undefined, "fake"]) {
+        expect(
+          errorOf(() => parseServer({ APP_URL, PAYMENT_PROVIDER })).message,
+        ).toContain(
+          "  - PAYMENT_PROVIDER: the fake provider charges no money and works only with a local APP_URL",
+        );
+      }
+    });
+
+    it("takes CloudPayments with both keys, on any APP_URL", () => {
+      const env = parseServer({
+        APP_URL: "https://priyut.example",
+        PAYMENT_PROVIDER: "cloudpayments",
+        ...keys,
+      });
+
+      expect(env.PAYMENT_PROVIDER).toBe("cloudpayments");
+      expect(env.CLOUDPAYMENTS_PUBLIC_ID).toBe("pk_test");
+      expect(
+        parseServer({ PAYMENT_PROVIDER: "cloudpayments", ...keys })
+          .PAYMENT_PROVIDER,
+      ).toBe("cloudpayments");
+    });
+
+    it("requires both CloudPayments keys, without printing either", () => {
+      const none = errorOf(() =>
+        parseServer({ PAYMENT_PROVIDER: "cloudpayments" }),
+      );
+      expect(none.message).toContain(
+        "  - CLOUDPAYMENTS_PUBLIC_ID: is required with PAYMENT_PROVIDER=cloudpayments",
+      );
+      expect(none.message).toContain(
+        "  - CLOUDPAYMENTS_API_SECRET: is required with PAYMENT_PROVIDER=cloudpayments",
+      );
+
+      const one = errorOf(() =>
+        parseServer({
+          PAYMENT_PROVIDER: "cloudpayments",
+          CLOUDPAYMENTS_PUBLIC_ID: keys.CLOUDPAYMENTS_PUBLIC_ID,
+          CLOUDPAYMENTS_API_SECRET: "",
+        }),
+      );
+      expect(one.message).toContain("  - CLOUDPAYMENTS_API_SECRET: ");
+      expect(one.message).not.toContain("CLOUDPAYMENTS_PUBLIC_ID");
+      expect(one.message).not.toContain("pk_test");
+    });
+
+    it("rejects an unknown provider", () => {
+      expect(
+        errorOf(() => parseServer({ PAYMENT_PROVIDER: "yookassa" })).message,
+      ).toContain('  - PAYMENT_PROVIDER: must be "cloudpayments" or "fake"');
+    });
+
+    it("ships no CloudPayments keys in .env.example", () => {
+      expect(example.CLOUDPAYMENTS_PUBLIC_ID).toBe("");
+      expect(example.CLOUDPAYMENTS_API_SECRET).toBe("");
+    });
   });
 
   it("returns only declared variables", () => {
