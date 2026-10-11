@@ -34,7 +34,11 @@ await asAdmin(`CREATE DATABASE "${database}" TEMPLATE "${template}"`);
 const example = parseEnv(
   readFileSync(new URL("../../../.env.example", import.meta.url), "utf8"),
 );
-Object.assign(process.env, example, { DATABASE_URL: urlOf(database) });
+// Secrets are empty there; this one is a fixed value for tests only.
+Object.assign(process.env, example, {
+  DATABASE_URL: urlOf(database),
+  BETTER_AUTH_SECRET: "integration-tests-only-0123456789abcdef",
+});
 
 afterAll(async () => {
   await disconnectDb();

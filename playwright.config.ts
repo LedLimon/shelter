@@ -1,4 +1,10 @@
+import { existsSync } from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
+
+// The e2e users are created in the app's database (e2e/global-setup.ts):
+// locally its URL and BETTER_AUTH_SECRET are in .env, like for `pnpm dev`.
+// Variables already set in the shell (CI) win.
+if (existsSync(".env")) process.loadEnvFile(".env");
 
 const isCI = Boolean(process.env.CI);
 const port = Number(process.env.E2E_PORT ?? 3100);
@@ -18,6 +24,7 @@ const SHOWCASE_SPEC = /dev-ui\.spec\.ts/;
 
 export default defineConfig({
   testDir: "./e2e",
+  globalSetup: "./e2e/global-setup.ts",
   fullyParallel: true,
   forbidOnly: isCI,
   retries: isCI ? 1 : 0,
@@ -56,7 +63,8 @@ export default defineConfig({
             ? "node .next/standalone/server.js"
             : `pnpm dev --port ${port}`,
           url: baseURL,
-          env: { PORT: String(port), HOSTNAME: host },
+          // APP_URL is the only origin Better Auth accepts sign-in from.
+          env: { PORT: String(port), HOSTNAME: host, APP_URL: baseURL },
           // Never reuse: another worktree's server on the same port would be tested instead.
           reuseExistingServer: false,
           timeout: 120_000,

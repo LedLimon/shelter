@@ -13,8 +13,11 @@ const example = parseDotenv(
   readFileSync(new URL("../../../.env.example", import.meta.url), "utf8"),
 );
 
+// .env.example leaves secrets empty; each environment generates its own.
+const secrets = { BETTER_AUTH_SECRET: "x".repeat(32) };
+
 const parseServer = (overrides: Record<string, string | undefined> = {}) =>
-  parseEnv(serverEnvSchema, { ...example, ...overrides }, "server");
+  parseEnv(serverEnvSchema, { ...example, ...secrets, ...overrides }, "server");
 
 function errorOf(fn: () => unknown): EnvValidationError {
   try {
@@ -27,7 +30,7 @@ function errorOf(fn: () => unknown): EnvValidationError {
 }
 
 describe("server env", () => {
-  it("accepts .env.example as is", () => {
+  it("accepts .env.example once the secrets are filled in", () => {
     const env = parseServer();
 
     expect(env.DATABASE_URL).toBe(
@@ -37,6 +40,24 @@ describe("server env", () => {
     expect(env.S3_FORCE_PATH_STYLE).toBe(true);
     expect(env.SMTP_SECURE).toBe(false);
     expect(env.SMTP_FROM).toBe("Приют <no-reply@shelter.localhost>");
+  });
+
+  it("ships no secrets in .env.example", () => {
+    expect(example.BETTER_AUTH_SECRET).toBe("");
+    expect(example.SEED_OWNER_PASSWORD).toBe("");
+    expect(example.SEED_OWNER_TOTP_SECRET).toBe("");
+    expect(
+      errorOf(() => parseEnv(serverEnvSchema, example, "server")).message,
+    ).toContain("  - BETTER_AUTH_SECRET: is not set");
+  });
+
+  it("rejects a short auth secret without printing it", () => {
+    const error = errorOf(() => parseServer({ BETTER_AUTH_SECRET: "hunter2" }));
+
+    expect(error.message).toContain(
+      "  - BETTER_AUTH_SECRET: must be at least 32 characters",
+    );
+    expect(error.message).not.toContain("hunter2");
   });
 
   it("reports a missing required variable by name", () => {
@@ -132,28 +153,55 @@ describe("seed env", () => {
   it("accepts .env.example and lowercases the owner email", () => {
     const env = parseEnv(
       seedEnvSchema,
-      { ...example, SEED_OWNER_EMAIL: "Owner@Shelter.Localhost" },
+      { ...example, ...secrets, SEED_OWNER_EMAIL: "Owner@Shelter.Localhost" },
       "seed",
     );
 
     expect(env).toEqual({
       DATABASE_URL: "postgresql://shelter:shelter@localhost:5432/shelter",
+      APP_URL: "http://localhost:3000",
       SHELTER_TIMEZONE: "Europe/Moscow",
+      BETTER_AUTH_SECRET: secrets.BETTER_AUTH_SECRET,
       SEED_OWNER_EMAIL: "owner@shelter.localhost",
     });
+  });
+
+  it("takes an optional owner password and TOTP secret, with minimum lengths", () => {
+    const parseSeed = (overrides: Record<string, string>) =>
+      parseEnv(seedEnvSchema, { ...example, ...secrets, ...overrides }, "seed");
+
+    expect(
+      parseSeed({
+        SEED_OWNER_PASSWORD: "twelve chars",
+        SEED_OWNER_TOTP_SECRET: "sixteen-chars-ok",
+      }),
+    ).toMatchObject({
+      SEED_OWNER_PASSWORD: "twelve chars",
+      SEED_OWNER_TOTP_SECRET: "sixteen-chars-ok",
+    });
+    expect(
+      errorOf(() => parseSeed({ SEED_OWNER_PASSWORD: "short" })).message,
+    ).toContain("  - SEED_OWNER_PASSWORD: must be at least 12 characters");
+    expect(
+      errorOf(() => parseSeed({ SEED_OWNER_TOTP_SECRET: "short" })).message,
+    ).toContain("  - SEED_OWNER_TOTP_SECRET: must be at least 16 characters");
   });
 
   it("requires a valid owner email", () => {
     expect(
       errorOf(() =>
-        parseEnv(seedEnvSchema, { ...example, SEED_OWNER_EMAIL: "" }, "seed"),
+        parseEnv(
+          seedEnvSchema,
+          { ...example, ...secrets, SEED_OWNER_EMAIL: "" },
+          "seed",
+        ),
       ).message,
     ).toContain("  - SEED_OWNER_EMAIL: is not set");
     expect(
       errorOf(() =>
         parseEnv(
           seedEnvSchema,
-          { ...example, SEED_OWNER_EMAIL: "owner" },
+          { ...example, ...secrets, SEED_OWNER_EMAIL: "owner" },
           "seed",
         ),
       ).message,
