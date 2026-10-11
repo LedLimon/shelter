@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type TestInfo } from "@playwright/test";
+import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import { giveEachTestItsOwnIp, signIn } from "./support/sign-in";
 import { E2E_USERS } from "./support/users";
 
@@ -17,6 +17,13 @@ const DOCUMENTS = {
     title: "Политика обработки персональных данных",
   },
 } as const;
+
+async function expectNoSidewaysScroll(page: Page) {
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - window.innerWidth,
+  );
+  expect(overflow, `${page.url()} scrolls sideways`).toBe(0);
+}
 
 const documentOf = (testInfo: TestInfo) =>
   DOCUMENTS[testInfo.project.name === "mobile" ? "mobile" : "desktop"];
@@ -53,7 +60,12 @@ test("the owner publishes a new version and the document's page shows it", async
   const version = Number(/\d+/.exec(draftHeading ?? "")?.[0]);
   expect(version).toBeGreaterThanOrEqual(1);
 
-  await editor.fill(`## Раздел первый\n1.1. ${marker}.\n- пункт списка`);
+  // An address without a single space: it must wrap, not widen the page.
+  const longUrl = `https://priyut.example/${"ochen-dlinnyy-adres/".repeat(8)}`;
+  await editor.fill(
+    `## Раздел первый\n1.1. ${marker}.\n1.2. Подробнее: ${longUrl}\n- пункт списка`,
+  );
+  await expectNoSidewaysScroll(page);
   // What is published is the saved text: not before it is saved.
   const publish = page.getByRole("button", {
     name: "Опубликовать",
@@ -68,6 +80,7 @@ test("the owner publishes a new version and the document's page shows it", async
   await expect(
     page.getByRole("tabpanel").getByRole("heading", { name: "Раздел первый" }),
   ).toBeVisible();
+  await expectNoSidewaysScroll(page);
 
   await publish.click();
   const dialog = page.getByRole("dialog");
@@ -99,6 +112,8 @@ test("the owner publishes a new version and the document's page shows it", async
   await expect(
     page.getByText(new RegExp(`^Версия ${version} · действует с`)),
   ).toBeVisible();
+  await expect(page.getByRole("link", { name: longUrl })).toBeVisible();
+  await expectNoSidewaysScroll(page);
 
   // The version it replaced stays readable at its own address.
   if (version > 1) {
@@ -164,10 +179,11 @@ test("an unknown document, version or unsubscribe link says so", async ({
 });
 
 for (const colorScheme of ["light", "dark"] as const) {
-  test(`the legal pages pass WCAG 2.1 AA in the ${colorScheme} theme`, async ({
+  test(`the legal pages and the admin section pass WCAG 2.1 AA in the ${colorScheme} theme`, async ({
     page,
   }) => {
     await page.emulateMedia({ colorScheme });
+    await signIn(page, E2E_USERS.owner);
 
     const summary: string[] = [];
     for (const path of [
@@ -175,6 +191,11 @@ for (const colorScheme of ["light", "dark"] as const) {
       "/legal/consent",
       "/legal/marketing/1",
       "/unsubscribe/no-such-consent",
+      "/admin/legal",
+      // Whatever the other tests left there: a draft's editor or the
+      // «Создать черновик» sheet, and the table of versions.
+      "/admin/legal/offer",
+      "/admin/legal/recurring",
     ]) {
       await page.goto(path);
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
@@ -188,10 +209,7 @@ for (const colorScheme of ["light", "dark"] as const) {
             `${path} · ${id}: ${nodes.map(({ target }) => target.join(" ")).join(", ")}`,
         ),
       );
-      const overflow = await page.evaluate(
-        () => document.documentElement.scrollWidth - window.innerWidth,
-      );
-      expect(overflow, `${path} scrolls sideways`).toBe(0);
+      await expectNoSidewaysScroll(page);
     }
     expect(summary).toEqual([]);
   });

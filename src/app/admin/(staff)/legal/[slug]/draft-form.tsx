@@ -74,7 +74,7 @@ export function DraftForm({ draft, title }: { draft: Draft; title: string }) {
           description="На сайте его не видно, пока вы его не опубликуете."
         >
           <Tabs defaultValue="text">
-            <TabsList className="w-full sm:w-fit">
+            <TabsList className="w-full sm:w-80">
               <TabsTrigger value="text">Текст</TabsTrigger>
               <TabsTrigger value="preview">Предпросмотр</TabsTrigger>
             </TabsList>
@@ -87,11 +87,13 @@ export function DraftForm({ draft, title }: { draft: Draft; title: string }) {
                 description="Каждая строка — абзац. Заголовок раздела — строка, которая начинается с «## », подзаголовок — с «### », пункт списка — с «- ». Номера пунктов (1.1, 1.2) сайт показывает как набраны."
                 spellCheck
                 autoComplete="off"
-                inputClassName="max-h-[60dvh] min-h-80 overflow-y-auto font-reading"
+                // On a phone the field grows with the text and the page scrolls;
+                // a tall box scrolling inside itself would catch every swipe.
+                inputClassName="min-h-80 font-reading md:max-h-[60dvh] md:overflow-y-auto"
               />
             </TabsContent>
             <TabsContent value="preview">
-              <div className="max-h-[70dvh] overflow-y-auto border border-perforation p-4">
+              <div className="border border-perforation p-4 md:max-h-[70dvh] md:overflow-y-auto">
                 <p className="mb-6 font-display text-section">{title}</p>
                 {previewBody.trim() === "" ? (
                   <p className="text-toner-muted">
@@ -103,12 +105,29 @@ export function DraftForm({ draft, title }: { draft: Draft; title: string }) {
               </div>
             </TabsContent>
           </Tabs>
+          {/* Away from «Сохранить» and «Опубликовать»: not a tap by mistake. */}
+          <div>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              disabled={isSubmitting}
+              onClick={() => setConfirming("delete")}
+            >
+              Удалить черновик
+            </Button>
+          </div>
         </Panel>
 
         <FormActions>
           <ActionFailureAlert failure={failure} />
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <Button type="submit" variant="outline" loading={isSubmitting}>
+            {/* One filled button at a time: the next step. */}
+            <Button
+              type="submit"
+              variant={isDirty ? "default" : "outline"}
+              loading={isSubmitting}
+            >
               {isSubmitting ? "Сохраняем…" : "Сохранить черновик"}
             </Button>
             <Button
@@ -117,15 +136,6 @@ export function DraftForm({ draft, title }: { draft: Draft; title: string }) {
               onClick={() => setConfirming("publish")}
             >
               Опубликовать
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={isSubmitting}
-              onClick={() => setConfirming("delete")}
-              className="sm:ml-auto"
-            >
-              Удалить черновик
             </Button>
           </div>
           {isDirty && !isSubmitting && (

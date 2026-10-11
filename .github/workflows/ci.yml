@@ -28,6 +28,8 @@ env:
   SEED_OWNER_EMAIL: owner@shelter.localhost
   SEED_OWNER_PASSWORD: ci-owner-password
   SEED_OWNER_TOTP_SECRET: ci-owner-totp-secret
+  # Placeholder legal texts, published: the e2e database has an offer, like a dev one.
+  SEED_PUBLISH_LEGAL_STUBS: "true"
   APP_URL: http://127.0.0.1:3100
   SHELTER_TIMEZONE: Europe/Moscow
   S3_ENDPOINT: http://127.0.0.1:9000
