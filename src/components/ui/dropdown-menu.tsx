@@ -106,6 +106,27 @@ function DropdownMenuItem({
   );
 }
 
+/** A menu item that navigates: an `<a>`, or a Next `Link` through `render`. */
+function DropdownMenuLinkItem({
+  className,
+  closeOnClick = true,
+  ...props
+}: MenuPrimitive.LinkItem.Props) {
+  return (
+    <MenuPrimitive.LinkItem
+      data-slot="dropdown-menu-link-item"
+      closeOnClick={closeOnClick}
+      className={cn(
+        "relative flex min-h-11 cursor-default items-center gap-2.5 px-3 py-2 font-body text-body text-popover-foreground no-underline outline-none select-none",
+        "data-highlighted:bg-foreground data-highlighted:text-background forced-colors:data-highlighted:bg-[Highlight] forced-colors:data-highlighted:text-[HighlightText] forced-colors:data-highlighted:forced-color-adjust-none",
+        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
 function DropdownMenuSub({ ...props }: MenuPrimitive.SubmenuRoot.Props) {
   return <MenuPrimitive.SubmenuRoot data-slot="dropdown-menu-sub" {...props} />;
 }
@@ -270,6 +291,7 @@ export {
   DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuItem,
+  DropdownMenuLinkItem,
   DropdownMenuCheckboxItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
