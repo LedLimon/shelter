@@ -1,6 +1,13 @@
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import type { Auth } from "@/server/auth/config";
 import { ensurePassword, ensureTotp } from "@/server/auth/credentials";
+import { LEGAL_DOCUMENT_TYPES } from "@/server/legal/catalog";
+import {
+  createLegalDraft,
+  publishLegalDraft,
+  sha256Of,
+} from "@/server/legal/documents";
+import { LEGAL_STUBS } from "@/server/legal/stubs";
 import { defaultSettings } from "@/server/settings/schema";
 
 export type SeedOptions = {
@@ -15,6 +22,11 @@ export type SeedOptions = {
     /** Dev and tests: TOTP with this secret, unless the owner already has it. */
     totpSecret?: string;
   };
+  /**
+   * Dev and tests: publish the placeholder legal texts, so the site has an
+   * offer to accept. In production the owner publishes the lawyer's texts.
+   */
+  publishLegalStubs?: boolean;
 };
 
 /**
@@ -33,16 +45,21 @@ export type SeedResult = {
   ownerPassword: CredentialResult;
   ownerTotp: CredentialResult;
   settingsCreated: number;
+  /** Legal documents that got a placeholder draft. */
+  legalDraftsCreated: number;
+  /** Placeholder drafts published (only with `publishLegalStubs`). */
+  legalStubsPublished: number;
 };
 
 /**
- * Base data every environment needs: an owner who can sign in and default
- * settings. Safe to run again: it adds what's missing and never overwrites
- * what admins changed — roles, passwords, authenticators, settings.
+ * Base data every environment needs: an owner who can sign in, default
+ * settings and a draft of every legal document. Safe to run again: it adds
+ * what's missing and never overwrites what admins changed — roles,
+ * passwords, authenticators, settings, legal texts.
  */
 export async function seedDatabase(
   db: PrismaClient,
-  { ownerEmail, timeZone, ownerCredentials }: SeedOptions,
+  { ownerEmail, timeZone, ownerCredentials, publishLegalStubs }: SeedOptions,
 ): Promise<SeedResult> {
   return db.$transaction(async (tx) => {
     const owner = await bootstrapOwner(tx, ownerEmail);
@@ -60,8 +77,45 @@ export async function seedDatabase(
       skipDuplicates: true,
     });
 
-    return { owner, ...credentials, settingsCreated: count };
+    const legal = await seedLegalDocuments(tx, publishLegalStubs ?? false);
+
+    return { owner, ...credentials, settingsCreated: count, ...legal };
   });
+}
+
+/**
+ * A placeholder draft for every legal document that has no version at all.
+ * With `publish`, placeholders nobody has edited become version 1; a draft
+ * the owner has touched and anything already published are left alone.
+ */
+async function seedLegalDocuments(
+  tx: Prisma.TransactionClient,
+  publish: boolean,
+): Promise<Pick<SeedResult, "legalDraftsCreated" | "legalStubsPublished">> {
+  const existing = await tx.legalDocument.findMany({
+    select: { id: true, type: true, sha256: true, effectiveAt: true },
+  });
+  let legalDraftsCreated = 0;
+  let legalStubsPublished = 0;
+
+  for (const type of LEGAL_DOCUMENT_TYPES) {
+    const versions = existing.filter((document) => document.type === type);
+    if (versions.length === 0) {
+      versions.push(await createLegalDraft(tx, type, LEGAL_STUBS[type]));
+      legalDraftsCreated += 1;
+    }
+    const [only] = versions;
+    const untouchedStub =
+      versions.length === 1 &&
+      only !== undefined &&
+      only.effectiveAt === null &&
+      only.sha256 === sha256Of(LEGAL_STUBS[type]);
+    if (publish && untouchedStub) {
+      await publishLegalDraft(tx, only.id, only.sha256);
+      legalStubsPublished += 1;
+    }
+  }
+  return { legalDraftsCreated, legalStubsPublished };
 }
 
 async function seedOwnerCredentials(

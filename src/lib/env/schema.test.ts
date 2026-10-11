@@ -320,7 +320,26 @@ describe("seed env", () => {
       SHELTER_TIMEZONE: "Europe/Moscow",
       BETTER_AUTH_SECRET: secrets.BETTER_AUTH_SECRET,
       SEED_OWNER_EMAIL: "owner@shelter.localhost",
+      // A dev convenience of .env.example; see the next test.
+      SEED_PUBLISH_LEGAL_STUBS: true,
     });
+  });
+
+  it("publishes the placeholder legal texts only when asked to", () => {
+    const parseSeed = (value: string) =>
+      parseEnv(
+        seedEnvSchema,
+        { ...example, ...secrets, SEED_PUBLISH_LEGAL_STUBS: value },
+        "seed",
+      ).SEED_PUBLISH_LEGAL_STUBS;
+
+    // Unset in production: the owner publishes the lawyer's texts.
+    expect(parseSeed("")).toBe(false);
+    expect(parseSeed("false")).toBe(false);
+    expect(parseSeed("true")).toBe(true);
+    expect(errorOf(() => parseSeed("yes please")).message).toContain(
+      "  - SEED_PUBLISH_LEGAL_STUBS: must be true or false",
+    );
   });
 
   it("takes an optional owner password and TOTP secret, with minimum lengths", () => {

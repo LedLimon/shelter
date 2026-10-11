@@ -44,6 +44,7 @@ model User {
   twoFactor          TwoFactor?
   uploadedMedia      Media[]
   ledgerTransactions LedgerTransaction[]
+  consentRecords     ConsentRecord[]
 }
 
 // --- Auth (Better Auth) -------------------------------------------------------
@@ -197,6 +198,77 @@ model Media {
   @@index([uploadedById, createdAt])
   // Cleanup of uploads that never arrived or were never processed.
   @@index([status, createdAt])
+}
+
+// --- Legal --------------------------------------------------------------------
+// Versioned legal texts and the log of consents to them: docs/legal.md.
+// Written only through src/server/legal; the triggers of the migration
+// `legal_documents` guard what must never change.
+
+enum LegalDocumentType {
+  /// The public offer of a donation.
+  OFFER
+  /// The personal data processing policy.
+  PRIVACY
+  /// Consent to personal data processing.
+  PD_CONSENT
+  /// Terms of monthly charges, and the consent to them.
+  RECURRING
+  /// Consent to the newsletter.
+  MARKETING
+}
+
+/// One version of a legal text. A draft (effectiveAt is null) is edited
+/// freely, one per type; publishing sets effectiveAt and freezes the row for
+/// good: a trigger rejects any UPDATE or DELETE of a published version.
+model LegalDocument {
+  id          String            @id @default(cuid(2))
+  type        LegalDocumentType
+  /// 1, 2, 3… within the type, in the order of publication, without gaps.
+  version     Int
+  /// Plain text with light markup: src/components/legal/legal-text.tsx.
+  body        String
+  /// Hex SHA-256 of body in UTF-8; a CHECK keeps the two in step.
+  sha256      String
+  /// The moment of publication, by the database's clock (a trigger rejects
+  /// any other value); the version is in force from then until the next one
+  /// is published. Null for a draft.
+  effectiveAt DateTime?         @db.Timestamptz(3)
+  createdAt   DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime          @updatedAt @db.Timestamptz(3)
+
+  consentRecords ConsentRecord[]
+
+  @@unique([type, version])
+}
+
+/// A box someone ticked: consent to exactly this version of a document. Kept
+/// as evidence (152-ФЗ, ст. 9): a trigger rejects DELETE and keeps
+/// documentId, context and givenAt. Withdrawing sets withdrawnAt, once;
+/// giving consent again is a new record.
+model ConsentRecord {
+  id          String        @id @default(cuid(2))
+  /// Who consented: the address typed into the form (stored lowercased), the
+  /// signed-in user, or both — at least one.
+  email       String?
+  userId      String?
+  user        User?         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  /// A published version, never a draft.
+  documentId  String
+  document    LegalDocument @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  /// Where the box was: "donation:{id}", "account"… No personal data.
+  context     String
+  /// Evidence of the consent. Personal data: never logged.
+  ip          String?
+  userAgent   String?
+  /// Both by the database's clock, like LegalDocument.effectiveAt: a trigger
+  /// rejects any other value.
+  givenAt     DateTime      @default(dbgenerated("transaction_timestamp()")) @db.Timestamptz(3)
+  withdrawnAt DateTime?     @db.Timestamptz(3)
+
+  @@index([userId])
+  @@index([documentId])
+  @@index([email])
 }
 
 // --- Outbox -------------------------------------------------------------------

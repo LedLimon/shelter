@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { maskPii } from "@/lib/pii";
+import { maskEmail, maskPii } from "@/lib/pii";
 
 describe("maskPii", () => {
   it.each([
@@ -41,5 +41,17 @@ describe("maskPii", () => {
     "status 502, attempt 3 of 10",
   ])("keeps text without personal data: %s", (text) => {
     expect(maskPii(text)).toBe(text);
+  });
+});
+
+describe("maskEmail", () => {
+  it("keeps the first letter and the domain", () => {
+    expect(maskEmail("irina.petrova@example.ru")).toBe("i•••@example.ru");
+    expect(maskEmail("a@b.ru")).toBe("a•••@b.ru");
+  });
+
+  it("shows nothing of a string that is not an address", () => {
+    expect(maskEmail("@example.ru")).toBe("•••");
+    expect(maskEmail("irina")).toBe("•••");
   });
 });

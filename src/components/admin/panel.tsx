@@ -19,7 +19,9 @@ export function Panel({
   return (
     <section
       className={cn(
-        "grid min-w-0 content-start gap-4 rounded-sheet bg-paper p-sheet shadow-sheet",
+        // One column that may shrink: a long unbroken word inside (a URL in a
+        // preview) wraps instead of widening the sheet and the page.
+        "grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-4 rounded-sheet bg-paper p-sheet shadow-sheet",
         className,
       )}
     >
