@@ -14,7 +14,7 @@
 
 - **[Организационные и юридические задачи](https://github.com/LedLimon/shelter/issues/1)** — 6 задач
 - **[Фундамент проекта](https://github.com/LedLimon/shelter/issues/2)** — 10 задач
-- **[Дизайн-система и публичный каркас](https://github.com/LedLimon/shelter/issues/3)** — 7 задач
+- **[Дизайн-система и публичный каркас](https://github.com/LedLimon/shelter/issues/3)** — 9 задач
 
 ## [Фаза 1 — MVP: прозрачный сбор](https://github.com/LedLimon/shelter/milestone/2)
 
@@ -31,6 +31,7 @@
 - **[Виртуальная опека](https://github.com/LedLimon/shelter/issues/11)** — 3 задачи
 - **[Помощь вещами](https://github.com/LedLimon/shelter/issues/12)** — 3 задачи
 - **[Отчёты и вовлечение](https://github.com/LedLimon/shelter/issues/13)** — 3 задачи
+- **[Интерактивная карта приюта](https://github.com/LedLimon/shelter/issues/120)** — 5 задач (зависит от DS-8 — языка анимаций, [#121](https://github.com/LedLimon/shelter/issues/121))
 
 ## [Фаза 3 — Сообщество](https://github.com/LedLimon/shelter/milestone/4)
 
