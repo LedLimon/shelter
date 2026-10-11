@@ -9,6 +9,7 @@ export {
   LEGAL_DOCUMENTS,
   legalHref,
   legalTypeOfSlug,
+  MAX_LEGAL_BODY_LENGTH,
   parseLegalVersion,
   type LegalDocumentInfo,
 } from "./catalog";
@@ -37,7 +38,6 @@ export {
   deleteLegalDraft,
   legalDocumentStates,
   legalDraft,
-  MAX_LEGAL_BODY_LENGTH,
   normalizeLegalBody,
   publishedLegalDocument,
   publishedLegalVersions,

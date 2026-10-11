@@ -75,3 +75,15 @@ export function consentsSchema<
 
 /** A document id, or "": ids are cuid2, 24 characters. */
 const consentValue = () => z.string().max(64);
+
+/**
+ * What to tell the person when recordConsents() refuses (ConsentError):
+ * show it at the box of `error.type`, e.g. as the field error
+ * `consents.<TYPE>` of an action's answer.
+ */
+export const CONSENT_ERROR_MESSAGES = {
+  REQUIRED: "Без этого согласия не получится продолжить: отметьте галочку.",
+  OUTDATED:
+    "Документ обновился, пока форма была открыта. Прочитайте новую версию и отметьте согласие ещё раз.",
+  NO_SUBJECT: "Укажите почту, чтобы мы записали ваше согласие.",
+} as const;

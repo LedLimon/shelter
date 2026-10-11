@@ -15,3 +15,14 @@ const LONG_NUMBER = /\+?\d(?:[\s()-]*\d){8,}/g;
 export function maskPii(text: string): string {
   return text.replace(EMAIL, "[email]").replace(LONG_NUMBER, "[number]");
 }
+
+/**
+ * An address a person recognizes as theirs and nobody else can read off the
+ * screen: `i•••@example.ru`. For pages opened by a link from a letter, which
+ * the letter's forwarding makes open to others.
+ */
+export function maskEmail(email: string): string {
+  const at = email.lastIndexOf("@");
+  if (at <= 0) return "•••";
+  return `${email.slice(0, 1)}•••${email.slice(at)}`;
+}

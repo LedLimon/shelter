@@ -1,15 +1,14 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Controller, useForm, useWatch, type Control } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 
+import { ConsentCheckboxes } from "@/components/legal/consent-checkboxes";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Field,
-  FieldContent,
   FieldDescription,
   FieldError,
   FieldGroup,
@@ -21,6 +20,12 @@ import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { formatRub, validateRubInput, type RubInputError } from "@/lib/money";
+import {
+  consentsSchema,
+  noConsents,
+  NOT_GIVEN,
+  type ConsentDocument,
+} from "@/server/legal/consent-input";
 
 const MIN_AMOUNT_KOP = 100_00;
 const COMMENT_MAX = 200;
@@ -37,6 +42,15 @@ const FREQUENCIES = [
   { value: "once", label: "Один раз" },
   { value: "monthly", label: "Каждый месяц" },
 ] as const;
+
+// Stand-ins for consentDocuments(): the real form gets the versions in force
+// from the server.
+const CONSENT_DOCUMENTS: ConsentDocument[] = [
+  { id: "demo-offer-v3", type: "OFFER", version: 3 },
+  { id: "demo-pd-consent-v2", type: "PD_CONSENT", version: 2 },
+  { id: "demo-recurring-v1", type: "RECURRING", version: 1 },
+  { id: "demo-marketing-v1", type: "MARKETING", version: 1 },
+];
 
 const schema = z
   .object({
@@ -71,19 +85,20 @@ const schema = z
       .max(COMMENT_MAX, `Не больше ${COMMENT_MAX} знаков.`)
       .optional(),
     // docs/legal.md: every consent is its own unchecked box.
-    offer: z.boolean().refine(Boolean, {
-      message: "Чтобы помочь, примите условия оферты.",
+    consents: consentsSchema({
+      required: {
+        OFFER: "Чтобы помочь, примите условия оферты.",
+        PD_CONSENT:
+          "Без согласия на обработку персональных данных мы не сможем принять пожертвование.",
+      },
+      optional: ["RECURRING", "MARKETING"],
     }),
-    personalData: z.boolean().refine(Boolean, {
-      message:
-        "Без согласия на обработку персональных данных мы не сможем принять пожертвование.",
-    }),
-    recurring: z.boolean().optional(),
   })
   .refine(
-    (values) => values.frequency !== "monthly" || values.recurring === true,
+    (values) =>
+      values.frequency !== "monthly" || values.consents.RECURRING !== NOT_GIVEN,
     {
-      path: ["recurring"],
+      path: ["consents", "RECURRING"],
       message: "Подтвердите ежемесячное списание или выберите «Один раз».",
       // Report it together with the other errors, not after they are fixed.
       when: () => true,
@@ -97,14 +112,13 @@ const DEFAULT_VALUES: Partial<FormInput> = {
   amount: "",
   email: "",
   comment: "",
-  offer: false,
-  personalData: false,
-  recurring: false,
+  consents: noConsents(["OFFER", "PD_CONSENT", "RECURRING", "MARKETING"]),
 };
 
 /**
- * The mechanics every form follows: react-hook-form + zod + Field. Not the
- * donation form itself — that one (DS-3, DON) also records consent versions.
+ * The mechanics every form follows: react-hook-form + zod + Field, and the
+ * consent boxes of ConsentCheckboxes. Not the donation form itself — that one
+ * (DS-3, DON) sends the consents to recordConsents().
  */
 export function FormDemo() {
   const form = useForm<FormInput, unknown, FormOutput>({
@@ -261,26 +275,14 @@ export function FormDemo() {
           )}
         />
 
-        <FieldSet>
-          <FieldLegend className="sr-only">Согласия</FieldLegend>
-          <ConsentField
-            control={form.control}
-            name="offer"
-            label="Принимаю условия оферты на пожертвование"
-          />
-          <ConsentField
-            control={form.control}
-            name="personalData"
-            label="Даю согласие на обработку персональных данных"
-          />
-          {frequency === "monthly" && (
-            <ConsentField
-              control={form.control}
-              name="recurring"
-              label={`Разрешаю списывать ${monthlySum} каждый месяц, пока не отменю подписку`}
-            />
+        <ConsentCheckboxes
+          control={form.control}
+          name="consents"
+          documents={CONSENT_DOCUMENTS.filter(
+            ({ type }) => type !== "RECURRING" || frequency === "monthly",
           )}
-        </FieldSet>
+          recurringTerms={`${monthlySum} каждый месяц`}
+        />
       </FieldGroup>
 
       <div className="flex flex-wrap gap-3">
@@ -297,46 +299,5 @@ export function FormDemo() {
         </Button>
       </div>
     </form>
-  );
-}
-
-/** One consent: its own unchecked box, label and error. */
-function ConsentField({
-  control,
-  name,
-  label,
-}: {
-  control: Control<FormInput, unknown, FormOutput>;
-  name: "offer" | "personalData" | "recurring";
-  label: string;
-}) {
-  const id = `donate-${name}`;
-  return (
-    <Controller
-      name={name}
-      control={control}
-      render={({ field, fieldState }) => (
-        <Field
-          orientation="horizontal"
-          data-invalid={fieldState.invalid || undefined}
-        >
-          <Checkbox
-            id={id}
-            name={field.name}
-            checked={field.value ?? false}
-            onCheckedChange={field.onChange}
-            inputRef={field.ref}
-            aria-invalid={fieldState.invalid || undefined}
-            aria-describedby={fieldState.invalid ? `${id}-error` : undefined}
-          />
-          <FieldContent>
-            <FieldLabel htmlFor={id} variant="option">
-              {label}
-            </FieldLabel>
-            <FieldError id={`${id}-error`} errors={[fieldState.error]} />
-          </FieldContent>
-        </Field>
-      )}
-    />
   );
 }

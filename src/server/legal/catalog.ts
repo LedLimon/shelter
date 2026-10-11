@@ -1,7 +1,10 @@
 // The legal documents of the site (docs/legal.md): their names and public
 // addresses. Pure and free of server imports, like permissions.ts: forms and
 // the admin read it in the browser too.
-import { LegalDocumentType } from "@/generated/prisma/enums";
+import type { LegalDocumentType } from "@/generated/prisma/enums";
+
+/** Characters of a document's text; an offer with every annex is a tenth of this. */
+export const MAX_LEGAL_BODY_LENGTH = 200_000;
 
 export type LegalDocumentInfo = {
   /** The public address: /legal/<slug>. */

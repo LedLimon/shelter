@@ -4,11 +4,9 @@ import { createHash } from "node:crypto";
 import type { LegalDocument } from "@/generated/prisma/client";
 import type { LegalDocumentType } from "@/generated/prisma/enums";
 import type { Db } from "@/server/db/client";
+import { MAX_LEGAL_BODY_LENGTH } from "./catalog";
 import { LegalError } from "./errors";
 import { LEGAL_STUBS } from "./stubs";
-
-/** Characters; an offer with every annex is a tenth of this. */
-export const MAX_LEGAL_BODY_LENGTH = 200_000;
 
 /** A version in force now or earlier: its text never changes. */
 export type PublishedLegalDocument = LegalDocument & { effectiveAt: Date };

@@ -1,0 +1,220 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useDeferredValue, useState } from "react";
+import { useWatch } from "react-hook-form";
+import { toast } from "sonner";
+import {
+  ActionFailureAlert,
+  useActionForm,
+} from "@/components/admin/action-form";
+import { FormActions } from "@/components/admin/form-actions";
+import { Panel } from "@/components/admin/panel";
+import { useAdminAction } from "@/components/admin/use-admin-action";
+import { TextareaField } from "@/components/form/form-field";
+import { LegalText } from "@/components/legal/legal-text";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { deleteDraft, publishDraft, saveDraft } from "../actions";
+import { draftFormSchema } from "../schema";
+
+type Draft = { id: string; version: number; body: string; sha256: string };
+
+/**
+ * The editor of a document's next version. Saving and publishing are two
+ * steps on purpose: what is published is the saved text, the one the preview
+ * showed — and publishing can't be undone.
+ */
+export function DraftForm({ draft, title }: { draft: Draft; title: string }) {
+  const router = useRouter();
+  // The hash of the text as last saved: publishing names the text by it.
+  const [savedSha256, setSavedSha256] = useState(draft.sha256);
+  const [confirming, setConfirming] = useState<"publish" | "delete" | null>(
+    null,
+  );
+  const { form, submit, failure } = useActionForm({
+    schema: draftFormSchema,
+    defaultValues: { id: draft.id, body: draft.body },
+    action: saveDraft,
+    success: "Черновик сохранён",
+    savedValues: (saved) => ({ id: draft.id, body: saved.body }),
+    onSuccess: (saved) => setSavedSha256(saved.sha256),
+  });
+  const { isDirty, isSubmitting } = form.formState;
+  const body = useWatch({ control: form.control, name: "body" });
+  // Typing stays quick in a long text: the preview catches up.
+  const previewBody = useDeferredValue(body);
+
+  const publishing = useAdminAction();
+  const deleting = useAdminAction();
+  const closeDialog = () => {
+    setConfirming(null);
+    publishing.clearFailure();
+    deleting.clearFailure();
+  };
+
+  return (
+    <>
+      <form
+        noValidate
+        onSubmit={(event) => void submit(event)}
+        className="grid max-w-3xl gap-grid"
+      >
+        <Panel
+          title={`Черновик версии ${draft.version}`}
+          description="На сайте его не видно, пока вы его не опубликуете."
+        >
+          <Tabs defaultValue="text">
+            <TabsList className="w-full sm:w-fit">
+              <TabsTrigger value="text">Текст</TabsTrigger>
+              <TabsTrigger value="preview">Предпросмотр</TabsTrigger>
+            </TabsList>
+            {/* Mounted while hidden: the field keeps its errors and its focus target. */}
+            <TabsContent value="text" keepMounted>
+              <TextareaField
+                control={form.control}
+                name="body"
+                label="Текст документа"
+                description="Каждая строка — абзац. Заголовок раздела — строка, которая начинается с «## », подзаголовок — с «### », пункт списка — с «- ». Номера пунктов (1.1, 1.2) сайт показывает как набраны."
+                spellCheck
+                autoComplete="off"
+                inputClassName="max-h-[60dvh] min-h-80 overflow-y-auto font-reading"
+              />
+            </TabsContent>
+            <TabsContent value="preview">
+              <div className="max-h-[70dvh] overflow-y-auto border border-perforation p-4">
+                <p className="mb-6 font-display text-section">{title}</p>
+                {previewBody.trim() === "" ? (
+                  <p className="text-toner-muted">
+                    Текста пока нет — наберите его на&nbsp;вкладке «Текст».
+                  </p>
+                ) : (
+                  <LegalText body={previewBody} />
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
+        </Panel>
+
+        <FormActions>
+          <ActionFailureAlert failure={failure} />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <Button type="submit" variant="outline" loading={isSubmitting}>
+              {isSubmitting ? "Сохраняем…" : "Сохранить черновик"}
+            </Button>
+            <Button
+              type="button"
+              disabled={isDirty || isSubmitting}
+              onClick={() => setConfirming("publish")}
+            >
+              Опубликовать
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={isSubmitting}
+              onClick={() => setConfirming("delete")}
+              className="sm:ml-auto"
+            >
+              Удалить черновик
+            </Button>
+          </div>
+          {isDirty && !isSubmitting && (
+            <p className="text-caption text-toner-muted">
+              Есть несохранённые изменения. Публикуется сохранённый текст —
+              сначала сохраните черновик.
+            </p>
+          )}
+        </FormActions>
+      </form>
+
+      <Dialog
+        open={confirming === "publish"}
+        onOpenChange={(open) => !open && closeDialog()}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Опубликовать версию {draft.version}?</DialogTitle>
+            <DialogDescription>
+              Текст сразу появится на&nbsp;сайте, а&nbsp;новые согласия будут
+              записываться с&nbsp;версией {draft.version}. Изменить
+              опубликованную версию нельзя — только выпустить следующую.
+            </DialogDescription>
+          </DialogHeader>
+          <ActionFailureAlert failure={publishing.failure} />
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>
+              Не сейчас
+            </DialogClose>
+            <Button
+              type="button"
+              loading={publishing.pending}
+              onClick={() =>
+                void publishing.run(
+                  () => publishDraft({ id: draft.id, sha256: savedSha256 }),
+                  ({ version }) => {
+                    toast.success(`Версия ${version} опубликована`);
+                    closeDialog();
+                    // The draft is a published version now: show the page anew.
+                    router.refresh();
+                  },
+                )
+              }
+            >
+              {publishing.pending
+                ? "Публикуем…"
+                : `Опубликовать версию ${draft.version}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={confirming === "delete"}
+        onOpenChange={(open) => !open && closeDialog()}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Удалить черновик версии {draft.version}?</DialogTitle>
+            <DialogDescription>
+              Набранный текст пропадёт, восстановить его будет нельзя.
+              Опубликованные версии останутся как есть.
+            </DialogDescription>
+          </DialogHeader>
+          <ActionFailureAlert failure={deleting.failure} />
+          <DialogFooter>
+            <DialogClose render={<Button variant="outline" />}>
+              Оставить
+            </DialogClose>
+            <Button
+              type="button"
+              variant="destructive"
+              loading={deleting.pending}
+              onClick={() =>
+                void deleting.run(
+                  () => deleteDraft({ id: draft.id }),
+                  () => {
+                    toast.success("Черновик удалён");
+                    closeDialog();
+                    router.refresh();
+                  },
+                )
+              }
+            >
+              {deleting.pending ? "Удаляем…" : "Удалить черновик"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
