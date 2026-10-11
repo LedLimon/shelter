@@ -375,7 +375,7 @@ PAGES.stories = () => {
         .map(
           (dog) => `<article class="sheet story">
             ${photo(dog.photo, { ratio: "11", alt: `${dog.name} дома`, focus: dog.focus, stamp: "Дома" })}
-            <div class="stack-sm"><h2 class="t-title">${dog.name}</h2><p>${dog.short}</p><p class="t-caption muted">${dog.story[0]}</p></div>
+            <div class="stack-sm"><h2 class="t-title">${dog.name}</h2><p>${esc(dog.short)}</p><p class="t-caption muted">${dog.story[0]}</p></div>
           </article>`,
         )
         .join("")}</div>

@@ -86,6 +86,7 @@ pnpm dev:reset   # стереть .data/ (база, файлы) и поднят�
   pnpm db:generate # пересоздать Prisma Client (обычно делают pnpm install и db:migrate)
   ```
 
+- **Платежи** в разработке принимает эмулятор CloudPayments (`PAYMENT_PROVIDER` пуст или `fake`): деньги не списываются, сеть не нужна. Тестовый платёж — на [localhost:3000/fake-cloudpayments](http://localhost:3000/fake-cloudpayments); подробности — в [docs/payments.md](docs/payments.md#эмулятор-fakecloudpayments).
 - **Один стек на машину.** Если стек уже поднят из другого checkout или worktree (`docker ps`), используйте его: порты и пароли те же. Второй `dev:up` из другого каталога упадёт с «port is already allocated». Перед удалением worktree выполните в нём `pnpm dev:down`.
 - **Порт занят** — задайте в `.env` `POSTGRES_PORT`, `MINIO_PORT`, `MINIO_CONSOLE_PORT`, `MAILPIT_SMTP_PORT` или `MAILPIT_UI_PORT` и поправьте адрес сервиса там же (`DATABASE_URL`, `S3_ENDPOINT`, `SMTP_PORT`).
 - **e2e** (`pnpm e2e`) ходят в ту же базу, что и `pnpm dev`: нужны поднятый стек, применённые миграции, `pnpm db:seed` и `BETTER_AUTH_SECRET` в `.env`. Перед прогоном [`e2e/global-setup.ts`](e2e/global-setup.ts) создаёт в ней тестовых пользователей `e2e-*@shelter.localhost` — только если база локальная, а её владелец — `@shelter.localhost` (как `SEED_OWNER_EMAIL` в `.env.example`).
