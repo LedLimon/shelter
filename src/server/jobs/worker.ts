@@ -19,7 +19,7 @@ import {
 
 // Docker waits 10 s between SIGTERM and SIGKILL unless told otherwise: the
 // worker's container needs a stop_grace_period above this.
-const SHUTDOWN_TIMEOUT_MS = 25_000;
+export const SHUTDOWN_TIMEOUT_MS = 25_000;
 
 export type WorkerOptions = {
   logger?: Logger;
@@ -80,13 +80,14 @@ export async function startWorker(
 
   return {
     async stop(timeoutMs = SHUTDOWN_TIMEOUT_MS) {
-      const deadline = Date.now() + timeoutMs;
-      // The outbox first: a "job.run" event still running needs pg-boss.
-      await dispatcher.stop(timeoutMs);
-      await boss.stop({
-        graceful: true,
-        timeout: Math.max(1_000, deadline - Date.now()),
-      });
+      // Both stop taking work now and share the time. pg-boss keeps its
+      // pool open meanwhile: a "job.run" event still running sends its job.
+      await Promise.all([
+        dispatcher.stop(timeoutMs),
+        boss.stop({ graceful: true, timeout: timeoutMs, close: false }),
+      ]);
+      // Stopped already: this call only closes the pool.
+      await boss.stop();
       logger.info("[worker] stopped");
     },
   };

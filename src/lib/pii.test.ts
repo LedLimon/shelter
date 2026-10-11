@@ -25,6 +25,14 @@ describe("maskPii", () => {
     expect(maskPii(text)).toBe(expected);
   });
 
+  it("stays fast on a long text without separators", () => {
+    const started = performance.now();
+
+    expect(maskPii("QUJD".repeat(250_000))).toHaveLength(1_000_000);
+
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
+
   it.each([
     "connect ECONNREFUSED 127.0.0.1:1025",
     "connect ETIMEDOUT 192.168.100.200:5432",

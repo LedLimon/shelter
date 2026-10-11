@@ -6,7 +6,9 @@ import { z } from "zod";
  * here and its handler in ../handlers.ts (TypeScript asks for it).
  *
  * Rows outlive deploys. A payload change must accept the rows already in the
- * table (`.optional()`, `.default()`), like a stored setting.
+ * table (`.optional()`, `.default()`), like a stored setting. Plain JSON in
+ * and out — no transforms, dates or coercion: the payload is parsed when it
+ * is enqueued and again, from what was stored, before the handler.
  */
 export const outboxEvents = {
   /** Does nothing: an example, and a check that the worker is alive. */

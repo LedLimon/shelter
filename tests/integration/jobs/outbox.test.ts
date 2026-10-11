@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { PrismaClient } from "@/generated/prisma/client";
 import { getEnv } from "@/lib/env";
 import { getDb } from "@/server/db";
 import { createPrismaClient } from "@/server/db/client";
@@ -371,33 +372,45 @@ describe("outbox dispatcher", () => {
     expect(logged(logger, "error")).toHaveLength(1);
   });
 
-  it("doesn't let a worker that lost its claim overwrite the outcome", async () => {
-    const logger = testLogger();
-    const id = (await outbox.enqueue(getDb(), "noop", {}))!;
-    // While this handler runs, its lease runs out and another worker claims
-    // the event (attempt 2) and processes it.
-    const handler = vi.fn<NoopHandler>(async () => {
-      await getDb().outbox.update({
-        where: { id },
-        data: { attempts: 2, status: "PROCESSED", processedAt: new Date() },
+  it.each([
+    ["fails", () => Promise.reject(new Error("too late"))],
+    ["succeeds", () => Promise.resolve()],
+  ])(
+    "leaves the event to its new owner when a worker that lost its claim %s",
+    async (_outcome, finish) => {
+      const logger = testLogger();
+      const id = (await outbox.enqueue(getDb(), "noop", {}))!;
+      // While this handler runs, its lease runs out and another worker
+      // claims the event: attempt 2, still running, with a lease of its own.
+      const handler = vi.fn<NoopHandler>(async () => {
+        await getDb().$executeRaw`
+          UPDATE "Outbox"
+          SET "attempts" = 2, "availableAt" = now() + interval '10 minutes'
+          WHERE "id" = ${id}`;
+        await finish();
       });
-      throw new Error("too late");
-    });
 
-    await drainOutbox(getDb(), {
-      handlers: handlersWith({ noop: handler }),
-      logger,
-    });
+      await drainOutbox(getDb(), {
+        handlers: handlersWith({ noop: handler }),
+        logger,
+      });
 
-    expect(await outboxRow(id)).toMatchObject({
-      status: "PROCESSED",
-      attempts: 2,
-      lastError: null,
-    });
-    expect(logged(logger, "warn")).toEqual([
-      `[outbox] noop ${id}: attempt 1 lost its claim before it finished; a later attempt decides the outcome`,
-    ]);
-  });
+      // Attempt 1 changed nothing: status, error and lease are attempt 2's.
+      const row = await outboxRow(id);
+      expect(row).toMatchObject({
+        status: "PENDING",
+        attempts: 2,
+        lastError: null,
+        processedAt: null,
+      });
+      expect(await secondsFromDbNow(row.availableAt)).toBeGreaterThan(590);
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(logged(logger, "warn")).toEqual([
+        `[outbox] noop ${id}: attempt 1 lost its claim before it finished; a later attempt decides the outcome`,
+      ]);
+      expect(logged(logger, "info")).toEqual([]);
+    },
+  );
 
   it("retries an event of a type this worker doesn't know", async () => {
     // Written by a newer version of the app, mid-deploy.
@@ -454,6 +467,24 @@ describe("outbox dispatcher", () => {
       "Error: 550 5.1.1 <[email]>: mailbox of [number] is full",
     );
     expect(logged(logger, "error").join("\n")).not.toMatch(/anna|900/);
+  });
+
+  it("saves the outcome of an error whose text Postgres can't store as it is", async () => {
+    const id = (await outbox.enqueue(getDb(), "noop", {}))!;
+
+    await drainOutbox(getDb(), {
+      // A NUL byte: Postgres rejects it in a text value.
+      handlers: handlersWith({
+        noop: failing("bad \u0000 byte from provider"),
+      }),
+      logger: testLogger(),
+    });
+
+    expect(await outboxRow(id)).toMatchObject({
+      status: "PENDING",
+      attempts: 1,
+      lastError: "Error: bad byte from provider",
+    });
   });
 });
 
@@ -536,6 +567,24 @@ describe("startOutboxDispatcher", () => {
       attempts: 0,
     });
     expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it("stop() doesn't wait for a database that stopped answering", async () => {
+    const logger = testLogger();
+    // The connection hangs: the claim query never returns.
+    const hung = {
+      $queryRaw: () => new Promise(() => {}),
+    } as unknown as PrismaClient;
+    const dispatcher = startOutboxDispatcher(hung, {
+      handlers: handlersWith(),
+      logger,
+    });
+
+    await dispatcher.stop(50);
+
+    expect(logged(logger, "warn")).toEqual([
+      "[outbox] the last poll got no answer from the database before shutdown",
+    ]);
   });
 
   it("stop() gives up waiting after its timeout and leaves the event to its lease", async () => {

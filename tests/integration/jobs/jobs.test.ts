@@ -19,6 +19,7 @@ import { outboxHandlers } from "@/server/jobs/handlers";
 import { drainOutbox } from "@/server/jobs/outbox/dispatcher";
 import {
   clearOutbox,
+  deferred,
   logged,
   outboxRow,
   skipBackoff,
@@ -200,6 +201,36 @@ describe("registerJobs", () => {
     expect(JSON.stringify(job!.output)).not.toContain("anna@");
   });
 
+  it("logs a run that outlived its time as failed, not as done", async () => {
+    const finished = deferred();
+    // Ignores the signal, like a long database query would.
+    const handler = vi.fn<Handler>(async () => {
+      await new Promise((done) => setTimeout(done, 1_500));
+      finished.resolve();
+    });
+    const boss = await startBoss();
+    await register(boss, {
+      definitions: {
+        "test.slow": {
+          payload: z.object({}),
+          queue: { retryLimit: 0, expireInSeconds: 1 },
+        },
+      },
+      handlers: { "test.slow": handler },
+    });
+    const spy = boss.getSpy("test.slow");
+
+    const id = (await boss.send("test.slow", {}))!;
+    await spy.waitForJobWithId(id, "failed");
+    await finished.promise;
+
+    expect(logged(logger, "error")).toEqual([
+      `[jobs] test.slow ${id}: FAILED after 1 attempts: cut off while running: it ran over 1 s, or the worker is stopping`,
+    ]);
+    // The handler returned in the end, but the attempt was no longer its.
+    expect(logged(logger, "info")).toEqual([]);
+  });
+
   it("fails a job whose data doesn't fit its schema, without running it", async () => {
     const handler = vi.fn<Handler>(() => Promise.resolve());
     const boss = await startBoss();
@@ -258,6 +289,32 @@ describe("registerJobs", () => {
       expireInSeconds: 60,
       heartbeatSeconds: 30,
     });
+    expect(logged(logger, "warn")).toEqual([]);
+  });
+
+  it("warns when the code asks for another policy than the queue has", async () => {
+    const payload = z.object({});
+    const handlers = { "test.policy": () => Promise.resolve() };
+    const boss = await startBoss();
+    await register(boss, {
+      definitions: { "test.policy": { payload } },
+      handlers,
+    });
+
+    const next = await startBoss();
+    await register(next, {
+      definitions: {
+        "test.policy": { payload, queue: { policy: "singleton" } },
+      },
+      handlers,
+    });
+
+    expect(await next.getQueue("test.policy")).toMatchObject({
+      policy: "standard",
+    });
+    expect(logged(logger, "warn")).toEqual([
+      '[jobs] test.policy: the queue keeps its policy "standard", the code asks for "singleton". pg-boss can\'t change it: delete the queue or rename the job',
+    ]);
   });
 
   it("refuses to start a job that has no handler", async () => {

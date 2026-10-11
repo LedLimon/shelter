@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { maskPii } from "@/lib/pii";
 
+// An error may quote a whole response body; nothing past this is looked at.
+const MAX_INPUT_LENGTH = 2_000;
 const MAX_LENGTH = 500;
 
 /**
@@ -12,6 +14,16 @@ const MAX_LENGTH = 500;
 export function describeError(error: unknown): string {
   if (!(error instanceof Error)) return "a non-Error value was thrown";
   return `${error.name}: ${messageOf(error)}`.slice(0, MAX_LENGTH);
+}
+
+/** The same for a bare message, e.g. of an error that came as a plain object. */
+export function describeMessage(message: string): string {
+  // Control characters too: Postgres rejects a NUL in a text value, and the
+  // outcome that carries this text would not be saved.
+  return maskPii(message.slice(0, MAX_INPUT_LENGTH))
+    .replace(/[\p{Cc}\s]+/gu, " ")
+    .trim()
+    .slice(0, MAX_LENGTH);
 }
 
 function messageOf(error: Error): string {
@@ -29,5 +41,5 @@ function messageOf(error: Error): string {
       ? error.code
       : "message withheld (it quotes query arguments)";
   }
-  return maskPii(error.message).replace(/\s+/g, " ").trim();
+  return describeMessage(error.message);
 }

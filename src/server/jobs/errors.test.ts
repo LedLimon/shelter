@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { describeError } from "./errors";
+import { describeError, describeMessage } from "./errors";
 
 describe("describeError", () => {
   it("gives the error's name and message on one line", () => {
@@ -50,6 +50,27 @@ describe("describeError", () => {
 
   it("cuts a long message", () => {
     expect(describeError(new Error("x".repeat(2_000)))).toHaveLength(500);
+  });
+
+  it("doesn't choke on an error that quotes a megabyte of a response", () => {
+    const started = performance.now();
+
+    describeError(new Error(`bad image: ${"QUJD".repeat(250_000)}`));
+
+    // Unbounded, the email pattern takes minutes on this.
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
+
+  it("drops control characters: Postgres would refuse a NUL in lastError", () => {
+    expect(
+      describeError(new Error("bad \u0000 byte\u0007 from provider")),
+    ).toBe("Error: bad byte from provider");
+  });
+
+  it("describes a bare message the same way", () => {
+    expect(describeMessage("connect to anna@example.ru\n  failed")).toBe(
+      "connect to [email] failed",
+    );
   });
 
   it("doesn't print a thrown value that is not an Error", () => {

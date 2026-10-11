@@ -115,7 +115,7 @@ export function startOutboxDispatcher(
         databaseDown = true;
       }
       // Every slot is taken, or nothing more is due.
-      if (free === 0 || started < free) await idle();
+      if (!stopping && (free === 0 || started < free)) await idle();
     }
   }
 
@@ -125,17 +125,21 @@ export function startOutboxDispatcher(
     async stop(timeoutMs) {
       stopping = true;
       wake();
-      await polling;
       const deadline = new AbortController();
       const finished = await Promise.race([
-        Promise.allSettled([...running]).then(() => true),
+        // The poll first: a claim in flight may still start handlers. It is
+        // under the deadline too: on a hung connection it may never return.
+        polling.then(() => Promise.allSettled([...running])).then(() => true),
         sleep(timeoutMs, false, { signal: deadline.signal }).catch(() => false),
       ]);
       deadline.abort();
       if (!finished) {
         config.logger.warn(
-          `[outbox] ${running.size} event(s) still running at shutdown: ` +
-            "they will be retried when their claim expires",
+          running.size > 0
+            ? `[outbox] ${running.size} event(s) still running at shutdown: ` +
+                "they will be retried when their claim expires"
+            : "[outbox] the last poll got no answer from the database " +
+                "before shutdown",
         );
       }
     },
@@ -227,9 +231,9 @@ async function runEvent(
 ): Promise<void> {
   const { logger, maxAttempts } = config;
   const label = `[outbox] ${event.type} ${event.id}`;
+  let failure: string | undefined;
 
   try {
-    let failure: string | undefined;
     if (event.attempts > maxAttempts) {
       // The last attempt was claimed and never settled: don't let an event
       // that kills its worker run forever.
@@ -285,9 +289,11 @@ async function runEvent(
       );
     }
   } catch (error) {
+    const outcome = failure === undefined ? "success" : `failure: ${failure}`;
     logger.error(
       `${label}: could not save the outcome of attempt ${event.attempts} ` +
-        `(${describeError(error)}); it will run again when its claim expires`,
+        `(${describeError(error)}); it will run again when its claim ` +
+        `expires. The outcome was a ${outcome}`,
     );
   }
 }

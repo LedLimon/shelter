@@ -8,9 +8,10 @@ import type { QueueSettings } from "./boss";
  */
 export type JobDefinition<Schema extends z.ZodType = z.ZodType> = {
   /**
-   * Shape of the job's data, checked when the job is enqueued and again
-   * before the handler runs. Ids only, like an outbox payload: no personal
-   * data.
+   * Shape of the job's data. Ids only, like an outbox payload: no personal
+   * data. Plain JSON in and out — no transforms, dates or coercion: the data
+   * is parsed on every hop (enqueueJob, the outbox, the worker), each time
+   * from the previous output.
    */
   payload: Schema;
   /** Runs the job on a schedule, besides enqueueJob(). */
@@ -40,8 +41,9 @@ export type JobDefinition<Schema extends z.ZodType = z.ZodType> = {
 };
 
 /**
- * A failed run is retried 3 times, about 1, 2 and 4 minutes later, then the
- * job stays `failed`. A run that takes over 15 minutes counts as failed.
+ * A failed run is retried 3 times — 1–2, 2–4 and 4–8 minutes later (pg-boss
+ * adds jitter) — then the job stays `failed`. A run that takes over 15
+ * minutes counts as failed.
  */
 export const DEFAULT_QUEUE = {
   retryLimit: 3,

@@ -16,7 +16,7 @@ import {
   type JobName,
   type JobPayload,
 } from "./definitions";
-import { describeError } from "./errors";
+import { describeError, describeMessage } from "./errors";
 import type { Logger } from "./log";
 
 /** pg-boss keeps its tables in a schema of its own, next to Prisma's `public`. */
@@ -77,14 +77,28 @@ export function createBoss(
     ...options,
   });
   // Node turns an "error" event nobody listens to into an uncaught exception.
-  boss.on("error", (error) => {
-    logger.error(`[jobs] pg-boss: ${describeError(error)}`);
+  // While the database is down every worker's every poll emits one: the same
+  // text is logged once a minute.
+  const lastLogged = new Map<string, number>();
+  boss.on("error", (error: BossError) => {
+    const text = `[jobs] pg-boss${error.queue ? ` (${error.queue})` : ""}: ${describeMessage(String(error.message))}`;
+    const now = Date.now();
+    if (now - (lastLogged.get(text) ?? 0) < ERROR_LOG_INTERVAL_MS) return;
+    if (lastLogged.size >= 100) lastLogged.clear();
+    lastLogged.set(text, now);
+    logger.error(text);
   });
   boss.on("warning", ({ message }) => {
-    logger.warn(`[jobs] pg-boss: ${message}`);
+    logger.warn(`[jobs] pg-boss: ${describeMessage(message)}`);
   });
   return boss;
 }
+
+// What the "error" event carries is typed as an Error, but pg-boss emits a
+// copy, `{ ...error, message, stack, queue?, worker? }`: not an instance.
+type BossError = { message?: unknown; queue?: string };
+
+const ERROR_LOG_INTERVAL_MS = 60_000;
 
 export type RegisterOptions = {
   handlers: Handlers;
@@ -131,6 +145,14 @@ export async function registerJobs(
       retryDelayMax: cap ?? null,
       heartbeatSeconds: settings.heartbeatSeconds ?? null,
     });
+    const queue = await boss.getQueue(name);
+    if (queue && queue.policy !== (policy ?? "standard")) {
+      logger.warn(
+        `[jobs] ${name}: the queue keeps its policy "${queue.policy}", ` +
+          `the code asks for "${policy ?? "standard"}". pg-boss can't ` +
+          "change it: delete the queue or rename the job",
+      );
+    }
 
     if (definition.schedule) {
       const { cron, payload, missed = "once" } = definition.schedule;
@@ -169,16 +191,7 @@ async function runJob(
 ): Promise<void> {
   const attempt = job.retryCount + 1;
   const label = `[jobs] ${job.name} ${job.id}`;
-  try {
-    const payload = definition.payload.parse(job.data);
-    await handler(payload as never, {
-      jobId: job.id,
-      attempt,
-      signal: job.signal,
-    });
-    logger.info(`${label}: done (attempt ${attempt})`);
-  } catch (error) {
-    const failure = describeError(error);
+  const logFailure = (failure: string) => {
     if (job.retryCount >= job.retryLimit) {
       logger.error(`${label}: FAILED after ${attempt} attempts: ${failure}`);
     } else {
@@ -187,9 +200,36 @@ async function runJob(
           `will be retried: ${failure}`,
       );
     }
+  };
+  // pg-boss aborts the signal when it takes the job away from a handler
+  // that is still running, and has by then failed the attempt itself. Left
+  // unlogged, a job that ran over its time four times would read as done.
+  const onAbort = () => {
+    logFailure(
+      `cut off while running: it ran over ${job.expireInSeconds} s, ` +
+        "or the worker is stopping",
+    );
+  };
+  job.signal.addEventListener("abort", onAbort, { once: true });
+
+  try {
+    const payload = definition.payload.parse(job.data);
+    await handler(payload as never, {
+      jobId: job.id,
+      attempt,
+      signal: job.signal,
+    });
+    // Aborted: the outcome is already logged and no longer the handler's.
+    if (!job.signal.aborted) logger.info(`${label}: done (attempt ${attempt})`);
+  } catch (error) {
+    const failure = describeError(error);
+    if (!job.signal.aborted) logFailure(failure);
     // pg-boss stores what is thrown as the job's output, message and stack:
     // the described error holds no personal data, the original might.
     throw new Error(failure);
+  } finally {
+    // pg-boss also aborts the signal after a handler that returned.
+    job.signal.removeEventListener("abort", onAbort);
   }
 }
 
