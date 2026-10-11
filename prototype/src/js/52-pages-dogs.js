@@ -63,7 +63,7 @@ function dogMatches(dog, filter) {
 PAGES.dogs = (params, query) => {
   const filter = {};
   for (const [key, group] of Object.entries(DOG_FILTERS))
-    filter[key] = group.options[query[key]] ? query[key] : "all";
+    filter[key] = own(group.options, query[key]) ? query[key] : "all";
   const link = (next) => {
     const merged = { ...filter, ...next };
     const parts = Object.entries(merged)
@@ -152,7 +152,7 @@ function healthLine(ok, yes, no) {
 }
 
 function guardianship(dog) {
-  if (!dog.monthlyCost) return "";
+  if (!dog.monthlyCost || ["home", "rainbow"].includes(dog.status)) return "";
   const share = dog.guardianKop / dog.monthlyCost;
   const full = dog.guardianKop >= dog.monthlyCost;
   return `<section class="sheet sheet-body" aria-labelledby="guard-title">
@@ -181,9 +181,9 @@ PAGES.dog = ({ id }) => {
   const settled =
     dog.status === "home"
       ? `<div><span class="stamp">Дома</span></div>`
-      : canAdopt
-        ? ""
-        : `<p class="t-caption muted">Семья уже нашлась: ждём переезда.</p>`;
+      : dog.status === "reserved"
+        ? `<p class="t-caption muted">Семья уже нашлась: ждём переезда.</p>`
+        : "";
   return {
     title: dog.name,
     sticky: canAdopt

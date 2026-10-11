@@ -27,6 +27,9 @@ const ui = {
   ledgerFilter: { type: "all", need: "all" },
 };
 
+/** A key the object itself has: values from the address never reach its prototype. */
+const own = (object, key) => Object.hasOwn(object, key ?? "");
+
 /** Click handlers by name: <button data-action="name">. */
 const ACTIONS = {};
 /** Fragments recomputed while the viewer types: <span data-live="name">. */
@@ -236,7 +239,7 @@ function dogCard(dog, level = 3) {
       ${photo(dog.photo, { ratio: "45", focus: dog.focus, href: `#/dogs/${dog.id}` })}
       <h${level} class="t-name"><a href="#/dogs/${dog.id}">${dog.name}</a></h${level}>
       <p class="when dog-meta">${facts.sex.toLowerCase()} · ${facts.age} · ${facts.size}</p>
-      <p class="t-caption dog-short">${dog.short}</p>
+      <p class="t-caption dog-short">${esc(dog.short)}</p>
       <p class="when">${dogLine(dog)}</p>
     </div>
     ${HAS_TABS.includes(dog.status) ? adoptTabs(dog) : ""}

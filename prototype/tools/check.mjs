@@ -238,12 +238,88 @@ async function scenarios() {
   await context.close();
 }
 
+/** Things a code review once found: they must stay fixed. */
+async function regressions() {
+  const { context, page } = await open({ width: 1280, height: 900 }, false);
+  const text = async (selector) =>
+    (await page.locator(selector).first().innerText()).replaceAll(
+      "\u00a0",
+      " ",
+    );
+
+  // The sticky bottom of the donate sheet must not cover the link above it.
+  await page.goto(`${base}#/needs/buran-surgery`);
+  await page.click("#main-cta");
+  await page.click("#donate-more-toggle");
+  if (!(await page.locator("#donate-more").count()))
+    fail("шторка доната, 1280: ссылка на имя и комиссию перекрыта");
+
+  // Consents are per payment: the next form starts unticked.
+  await page.check("#donate-fee");
+  await page.check("#donate-offer");
+  await page.click("#donate-submit");
+  await page.click("#pay-ok");
+  await page.waitForSelector(".ok");
+  if (!(await text("main")).includes("1 029 ₽"))
+    fail("комиссия: в «Спасибо» нет полной суммы 1 029 ₽");
+  await page.goto(`${base}#/home`);
+  if (!(await text(".today")).includes("Анна — 1 029 ₽"))
+    fail("комиссия: в «Сегодня помогли» не полная сумма платежа");
+  await page.goto(`${base}#/needs/buran-surgery`);
+  await page.click("#main-cta");
+  if (await page.isChecked("#donate-offer"))
+    fail("согласие осталось отмеченным после прошлого платежа");
+  await page.keyboard.press("Escape");
+
+  await signIn(page);
+
+  // Text typed in the admin is shown as text, never as markup.
+  await page.goto(`${base}#/admin/dogs/marta`);
+  await page.fill(
+    "#dog-short",
+    '<b id="injected">x</b><img src=x onerror="window.injected=1">',
+  );
+  await page.click("#save-dog");
+  for (const route of ["#/dogs", "#/home", "#/dogs/marta", "#/admin/dogs"]) {
+    await page.goto(`${base}${route}`);
+    const leaked = await page.evaluate(
+      () =>
+        Boolean(document.getElementById("injected")) ||
+        Boolean(window.injected),
+    );
+    if (leaked) fail(`${route}: описание собаки попало в разметку`);
+  }
+
+  // A need is closed only with a result photo; the fund cannot go below zero.
+  await page.goto(`${base}#/admin/needs/boards-floor`);
+  if (!(await page.isDisabled("#finish-boards-floor")))
+    fail("нужду можно закрыть без фото результата");
+  await page.click('a[href="#/admin/needs/boards-floor/expense"]');
+  await page.click("#fill-expense");
+  await page.fill("#exp-amount", "100000");
+  await page.check("#exp-redacted");
+  await page.click("#save-expense");
+  if (!(await text("main")).includes("столько нет"))
+    fail("расход больше общего фонда проведён без ошибки");
+  await page.goto(`${base}#/admin/needs/boards-floor`);
+  await page.click("#photo-boards-floor");
+  await page.click("#finish-boards-floor");
+  await page.click("#finish-need");
+
+  // No expenses on a closed need: its money has already gone to the fund.
+  await page.goto(`${base}#/admin/needs/boards-floor/expense`);
+  if ((await text("h1")).includes("Новый расход"))
+    fail("по закрытой нужде открывается форма расхода");
+  await context.close();
+}
+
 try {
   const pages = await sweep("375 светлая", { width: 375, height: 812 }, false);
   await sweep("375 тёмная", { width: 375, height: 812 }, true);
   await sweep("1280 светлая", { width: 1280, height: 900 }, false);
   await sweep("1280 тёмная", { width: 1280, height: 900 }, true);
   await scenarios();
+  await regressions();
   console.log(
     `Маршрутов: ${PUBLIC.length + ADMIN.length} × 4, страниц в самопроверке: ${pages}, сценариев: 3.`,
   );

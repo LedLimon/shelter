@@ -50,7 +50,11 @@ function resolve(hash) {
     const params = {};
     const fits = want.every((piece, index) => {
       if (piece.startsWith(":")) {
-        params[piece.slice(1)] = decodeURIComponent(parts[index]);
+        try {
+          params[piece.slice(1)] = decodeURIComponent(parts[index]);
+        } catch {
+          return false; // a broken %-sequence typed by hand: no such page
+        }
         return true;
       }
       return piece === parts[index];
@@ -191,7 +195,7 @@ function render(options = {}) {
   const route = resolve(currentHash);
   let page = route ? PAGES[route.name](route.params, route.query) : null;
   if (page?.redirect) {
-    ui.afterLogin = currentHash;
+    if (page.redirect === "#/admin/login") ui.afterLogin = currentHash;
     go(page.redirect, true);
     return;
   }
@@ -457,9 +461,16 @@ function clearError(el) {
   if (root === "volunteer") ui.volunteer.error = null;
 }
 
+// A layer closes on a click that both starts and ends on the dimmed board:
+// selecting text in a field and letting go outside the sheet must not close it.
+let pressedOnBackdrop = false;
+document.addEventListener("pointerdown", (event) => {
+  pressedOnBackdrop = Boolean(event.target.matches?.("[data-backdrop]"));
+});
+
 document.addEventListener("click", (event) => {
   if (event.target.matches?.("[data-backdrop]")) {
-    closeLayer();
+    if (pressedOnBackdrop) closeLayer();
     return;
   }
   // Links between screens are handled here, not by the browser: inside an
