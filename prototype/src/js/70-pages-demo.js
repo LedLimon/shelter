@@ -155,7 +155,7 @@ PAGES.hub = () => ({
       <div class="hub-lead">
         <div class="stack-sm">
           <div><span class="demo-tag">прототип · демо-данные</span></div>
-          <h1 class="t-hero no-hyphens" id="hub-title">Сайт приюта «Островок Надежды»</h1>
+          <h1 class="t-hero no-hyphens" id="hub-title">Сайт приюта «Мыс доброй надежды»</h1>
           <p class="t-lead">Это макет, по которому можно ходить: так сайт будет выглядеть и работать. Собаки, суммы, имена и адреса выдуманы, деньги не списываются.</p>
           <p>Сайт делает три вещи. Собирает деньги на конкретные нужды: корм, лекарства, ремонт. Показывает, куда ушёл каждый рубль, вплоть до чека. И помогает собакам найти дом.</p>
           <div class="row"><a class="btn btn-lg" href="#/home">Открыть сайт</a><a class="btn btn-outline btn-lg" href="#/admin/login">Открыть админку</a><a href="#/plan">Что будет и когда</a></div>

@@ -116,7 +116,7 @@ describe("settings form", () => {
   it("normalises what was typed", () => {
     const settings = settingsFormSchema.parse(
       form((values) => {
-        values.requisites.legalName = "  АНО «Островок»  ";
+        values.requisites.legalName = "  АНО «Мыс доброй надежды»  ";
         values.requisites.inn = "7707-083-893";
         values.requisites.account = "40703.810.9.3800.0001234";
         values.requisites.correspondentAccount = "3010 1810 4000 0000 0225";
@@ -128,7 +128,7 @@ describe("settings form", () => {
     );
 
     expect(settings["shelter.requisites"]).toMatchObject({
-      legalName: "АНО «Островок»",
+      legalName: "АНО «Мыс доброй надежды»",
       inn: "7707083893",
       account: "40703810938000001234",
       correspondentAccount: "30101810400000000225",

@@ -133,7 +133,7 @@ PAGES.home = () => {
   const stories = state.dogs.filter((dog) => dog.status === "home");
   const top = hero
     ? `<div class="board-top">${heroNeed(hero)}${todayHelped()}</div>`
-    : `<h1 class="sr-only">Островок Надежды</h1>${emptyState("Пока все сыты 🎉 Посмотрите, кто ждёт дом.", "Собаки", "#/dogs")}`;
+    : `<h1 class="sr-only">Мыс доброй надежды</h1>${emptyState("Пока все сыты 🎉 Посмотрите, кто ждёт дом.", "Собаки", "#/dogs")}`;
   return {
     title: "Главная",
     ownHelp: Boolean(hero),
