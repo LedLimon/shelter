@@ -40,7 +40,11 @@ export function outcomeOf(checkout: FakeCheckout): CheckoutOutcome | null {
       return {
         tone: "neutral",
         title: "Виджет закрыт без оплаты",
-        text: "Уведомления сайту не отправлялись.",
+        // After «Повторить платёж» the log below holds the earlier attempt.
+        text:
+          checkout.deliveries.length === 0
+            ? "Уведомления сайту не отправлялись."
+            : "В последней попытке уведомления сайту не отправлялись.",
       };
     case "paid":
       return last?.accepted
@@ -59,26 +63,26 @@ export function outcomeOf(checkout: FakeCheckout): CheckoutOutcome | null {
         return {
           tone: "failure",
           title: "Сайт не подтвердил платёж",
-          text: `Ответ сайта на уведомление Check: ${answer}. Платёж проходит только после ответа {"code":0} — так же поступает CloudPayments. Проверьте обработчик Check или снимите галочку «Отправлять уведомление Check».`,
+          text: `Ответ сайта на уведомление Check: ${answer}. Платёж проходит, только когда сайт разрешает его в этом ответе, — так же поступает CloudPayments. Проверьте обработчик Check или повторите платёж без галочки «Отправлять уведомление Check».`,
         };
       }
       const [title, reason] =
         checkout.declineReason === "3ds"
           ? [
               "3-D Secure не пройден",
-              "с кодом 5206: банк не подтвердил плательщика",
+              "код 5206: банк не подтвердил плательщика",
             ]
-          : ["Банк отклонил платёж", "с кодом 5051: на карте не хватило денег"];
+          : ["Банк отклонил платёж", "код 5051: на карте не хватило денег"];
       return last?.accepted
         ? {
             tone: "failure",
             title,
-            text: `Сайт принял уведомление Fail ${reason}.`,
+            text: `Сайт принял уведомление Fail (${reason}).`,
           }
         : {
             tone: "warning",
             title,
-            text: `Эмулятор отправил уведомление Fail ${reason}, но сайт его не принял (${answer}).`,
+            text: `Эмулятор отправил уведомление Fail (${reason}). Сайт его не принял: ${answer}.`,
           };
     }
   }

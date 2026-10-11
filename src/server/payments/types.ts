@@ -246,8 +246,19 @@ export type UnreadableTransaction = {
 };
 
 export type TransactionRegistry = {
-  /** Oldest first. */
+  /**
+   * Oldest first. Of every kind and status: money received is a `payment`
+   * with status COMPLETED, nothing else.
+   */
   transactions: ProviderTransaction[];
+  /**
+   * Transactions of a test terminal, kept apart where test payments don't
+   * count (PaymentProvider.acceptsTestPayments is false): they are not money
+   * and must never become donations. If there are any, the terminal is — or
+   * was — in test mode: tell a person. Empty where test payments count; there
+   * they are in `transactions`.
+   */
+  testTransactions: ProviderTransaction[];
   /**
    * Rows of the period that didn't parse. A row stays in the provider's
    * registry forever, so one bad row must not block the rest of the day:
@@ -309,8 +320,8 @@ export interface PaymentProvider {
   /**
    * Whether payments of the provider's test terminal count here (staging,
    * dev). If not, a `check` or `pay` with `testMode` is refused before it
-   * reaches a handler. Reconciliation must apply the same rule to the
-   * registry: a test transaction is not money.
+   * reaches a handler, and listTransactions() keeps test transactions out of
+   * `transactions`: a test payment is not money.
    */
   readonly acceptsTestPayments: boolean;
 

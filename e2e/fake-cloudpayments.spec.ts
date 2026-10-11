@@ -117,7 +117,7 @@ test("declines a payment our Check doesn't approve", async ({ page }) => {
   ).toBeVisible();
   await expect(notifications(page)).toHaveCount(1);
   await expect(notifications(page)).toContainText("Check — не принято");
-  await expect(page.getByText("снимите галочку")).toBeVisible();
+  await expect(page.getByText("повторите платёж без галочки")).toBeVisible();
 });
 
 test("declines by the bank: a Fail notification", async ({ page }) => {
@@ -146,10 +146,16 @@ test("a declined payment can be retried: Fail, then Pay of the same order", asyn
 
   await page.getByRole("button", { name: "Повторить платёж" }).click();
 
+  const again = page.getByRole("heading", {
+    level: 1,
+    name: "Тестовая оплата",
+  });
+  await expect(again).toBeVisible();
+  await expect(again).toBeFocused();
+  // The widget remembers how the terminal was set for the first attempt.
   await expect(
-    page.getByRole("heading", { level: 1, name: "Тестовая оплата" }),
-  ).toBeVisible();
-  await withoutCheck(page);
+    page.getByRole("checkbox", { name: "Отправлять уведомление Check" }),
+  ).not.toBeChecked();
   await payButton(page).click();
 
   await expect(
@@ -236,6 +242,9 @@ test("closing the widget sends nothing and can't be paid afterwards", async ({
     page.getByRole("heading", { level: 1, name: "Виджет закрыт без оплаты" }),
   ).toBeVisible();
   await expect(notificationLog(page)).toHaveCount(0);
+  await expect(
+    page.getByText("Уведомления сайту не отправлялись."),
+  ).toBeVisible();
   await expect(payButton(page)).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Повторить платёж" }),

@@ -318,6 +318,20 @@ describe("the emulated widget", () => {
     expect(fake.getCheckout(id)!.deliveries).toHaveLength(2);
   });
 
+  it("remembers whether the last attempt sent Check, for the retry", async () => {
+    const { fake } = setup();
+    const id = open(fake);
+    expect(fake.getCheckout(id)!.sendsCheck).toBe(true);
+
+    await fake.pay(id, { outcome: "decline", check: false });
+    fake.retry(id);
+
+    expect(fake.getCheckout(id)).toMatchObject({
+      status: "open",
+      sendsCheck: false,
+    });
+  });
+
   it("offers a retry only after a decline", async () => {
     const { fake, received } = setup();
     const paid = open(fake);
@@ -504,6 +518,40 @@ describe("the emulator sends what the adapter verifies", () => {
     expect(() => adapter.receiveWebhook("check", incoming(pay!))).toThrow(
       WebhookParseError,
     );
+  });
+
+  // The fake's secret is public: its signature alone must not open a server
+  // that was put behind a proxy by mistake.
+  it("serves only requests addressed to this machine", () => {
+    const { fake } = setup();
+    const pay = payWebhook();
+    const from = (headers: Record<string, string>) => ({
+      rawBody: pay.body,
+      headers: new Headers({ ...pay.headers, ...headers }),
+    });
+
+    for (const headers of <Record<string, string>[]>[
+      { host: "priyut.example" },
+      { host: "192.168.1.10:3000" },
+      { host: "localhost:3000", "x-forwarded-host": "priyut.example" },
+    ]) {
+      expect(() => fake.receiveWebhook("pay", from(headers))).toThrow(
+        WebhookSignatureError,
+      );
+    }
+    for (const headers of <Record<string, string>[]>[
+      {},
+      { host: "localhost:3000" },
+      { host: "127.0.0.1:3100", "x-forwarded-host": "127.0.0.1:3100" },
+    ]) {
+      expect(fake.receiveWebhook("pay", from(headers))).toMatchObject({
+        type: "pay",
+      });
+    }
+    // CloudPayments' adapter has a real secret and no such rule.
+    expect(
+      adapter.receiveWebhook("pay", from({ host: "priyut.example" })),
+    ).toMatchObject({ type: "pay" });
   });
 
   it("is refused on a live site: the emulator's payments are test ones", async () => {
@@ -896,9 +944,12 @@ describe("the emulated API", () => {
       from: new Date("2026-10-11T00:00:00Z"),
       to: new Date("2026-10-12T00:00:00Z"),
     };
-    const { transactions, unreadable } = await fake.listTransactions(day);
+    const { transactions, testTransactions, unreadable } =
+      await fake.listTransactions(day);
 
     expect(unreadable).toEqual([]);
+    // Test payments are all the emulator has, and here they count.
+    expect(testTransactions).toEqual([]);
     expect(transactions).toHaveLength(3);
     expect(transactions).toEqual(
       expect.arrayContaining([
@@ -1032,6 +1083,44 @@ describe("the emulator refuses what the adapter refuses", () => {
     expect(fromFake.code).toBe("INVALID_INPUT");
     expect(fromFake.message).toBe(fromAdapter.message);
     expect(received).toEqual([]);
+  });
+});
+
+describe("a deliverer that throws", () => {
+  // In tests the deliverer is the handler under test: its exception must
+  // reach the test, not turn into "the site didn't answer".
+  function failing() {
+    const state = createFakeState();
+    state.deliver = () => Promise.reject(new Error("handler exploded"));
+    return createFakeCloudPayments({ appUrl: APP_URL, state });
+  }
+
+  it("fails the payment step and leaves the checkout as it was", async () => {
+    const fake = failing();
+    const id = open(fake);
+
+    await expect(
+      fake.pay(id, { outcome: "success", check: true }),
+    ).rejects.toThrow("handler exploded");
+
+    expect(fake.getCheckout(id)).toMatchObject({
+      status: "open",
+      deliveries: [],
+    });
+  });
+
+  it("comes out of settled() for a notification sent in the background", async () => {
+    const fake = failing();
+
+    await fake.refund({
+      providerTxId: "3059300327",
+      amountKop: 100,
+      idempotencyKey: "refund:donation-1:1",
+    });
+
+    await expect(fake.settled()).rejects.toThrow("handler exploded");
+    // Reported once.
+    await expect(fake.settled()).resolves.toBeUndefined();
   });
 });
 

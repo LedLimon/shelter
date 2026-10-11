@@ -126,9 +126,14 @@ export default async function FakeCheckoutPage({ params }: Props) {
 
       {checkout.status === "open" && (
         <>
-          <h1 className="text-title">Тестовая оплата</h1>
+          {checkout.deliveries.length > 0 ? (
+            // Back here after «Повторить платёж»: the screen has changed.
+            <ResultHeading>Тестовая оплата</ResultHeading>
+          ) : (
+            <h1 className="text-title">Тестовая оплата</h1>
+          )}
           <Summary checkout={checkout} />
-          <PayForm checkoutId={checkout.id} />
+          <PayForm checkoutId={checkout.id} sendsCheck={checkout.sendsCheck} />
         </>
       )}
 

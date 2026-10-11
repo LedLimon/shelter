@@ -63,7 +63,7 @@ function ChoiceButton(props: ButtonProps & Choice) {
 }
 
 /** The terminal's «send Check» setting; locked while the payment is sent. */
-function CheckOption() {
+function CheckOption({ defaultChecked }: { defaultChecked: boolean }) {
   const id = useId();
   const { pending } = useFormStatus();
 
@@ -72,7 +72,7 @@ function CheckOption() {
       <Checkbox
         id={`${id}-check`}
         name="check"
-        defaultChecked
+        defaultChecked={defaultChecked}
         readOnly={pending}
         aria-describedby={`${id}-check-note`}
       />
@@ -91,11 +91,18 @@ function CheckOption() {
 }
 
 /** The widget's first screen: how the bank will answer. */
-export function PayForm({ checkoutId }: { checkoutId: string }) {
+export function PayForm({
+  checkoutId,
+  sendsCheck,
+}: {
+  checkoutId: string;
+  /** The choice of the previous attempt, kept for «Повторить платёж». */
+  sendsCheck: boolean;
+}) {
   return (
     <form action={payFakeCheckout} className="flex flex-col gap-5">
       <input type="hidden" name="checkoutId" value={checkoutId} />
-      <CheckOption />
+      <CheckOption defaultChecked={sendsCheck} />
       <div className="flex flex-col gap-3">
         <ChoiceButton name="outcome" value="success" className="w-full">
           Оплатить

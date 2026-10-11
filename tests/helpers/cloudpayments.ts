@@ -154,7 +154,7 @@ export function tamper(
   return { ...webhook, body: change(webhook.body) };
 }
 
-/** What PaymentProvider.verifyWebhook() takes. */
+/** What PaymentProvider.receiveWebhook() takes. */
 export function incoming(webhook: SimulatedWebhook): IncomingWebhook {
   return { rawBody: webhook.body, headers: new Headers(webhook.headers) };
 }
@@ -183,7 +183,7 @@ export function webhookRequest(
  *     POST(webhookRequest(webhook), { params }),
  *   );
  *   await provider.refund(…);
- *   await provider.settled();
+ *   await provider.settled(); // rethrows what the handler threw
  */
 export function interceptFakeWebhooks(
   handle?: (webhook: SimulatedWebhook) => Response | Promise<Response>,
@@ -192,6 +192,8 @@ export function interceptFakeWebhooks(
   globalFakeState().deliver = async (webhook) => {
     sent.push(webhook);
     if (!handle) return { status: null, code: null };
+    // An exception of the handler isn't "the site didn't answer": it comes
+    // out of the emulator's pay() or settled(), where the test sees it.
     return deliveryResultOf(await handle(webhook));
   };
   return sent;

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { webhookFixtures } from "../../../../tests/fixtures/cloudpayments-webhooks";
+import {
+  checkWebhook,
+  payWebhook,
+} from "../../../../tests/helpers/cloudpayments";
 import { WebhookParseError } from "../errors";
 import { WEBHOOK_TYPES } from "../types";
 import {
@@ -609,10 +613,14 @@ describe("parseWebhook: the body must be of the type its URL names", () => {
   };
   const ownType = (name: keyof typeof bodies) =>
     name.startsWith("pay") ? "pay" : name;
+  // The one pair that passes, and may: a Pay without an authorisation code
+  // read as a Check. It records nothing; see the test below.
+  const tolerated = (name: string, type: string) =>
+    name === "paySbp" && type === "check";
 
   for (const name of Object.keys(bodies) as (keyof typeof bodies)[]) {
     for (const type of WEBHOOK_TYPES) {
-      if (type === ownType(name)) continue;
+      if (type === ownType(name) || tolerated(name, type)) continue;
 
       it(`refuses the ${name} fixture as ${type}`, () => {
         expect(() => parseWebhook(type, bodies[name])).toThrow(
@@ -622,22 +630,50 @@ describe("parseWebhook: the body must be of the type its URL names", () => {
     }
   }
 
-  it("tells a Pay from a Check by GatewayName", () => {
-    const check = errorOf("pay", webhookFixtures.check.body);
-    const pay = errorOf("check", webhookFixtures.pay.body);
+  it("never takes a Check for a Pay: a Pay must name its gateway", () => {
+    const error = errorOf("pay", webhookFixtures.check.body);
 
-    expect(check.message).toBe(
+    expect(error.code).toBe("MALFORMED");
+    expect(error.message).toBe(
       "payments: pay notification: missing or invalid GatewayName",
     );
-    expect(pay.code).toBe("UNSUPPORTED");
-    expect(pay.message).toContain("has GatewayName");
+    // The simulator's Check differs from its Pay the same way.
+    expect(() => parseWebhook("pay", checkWebhook().body)).toThrow(
+      WebhookParseError,
+    );
+    expect(parseWebhook("pay", payWebhook().body)).toMatchObject({
+      type: "pay",
+    });
   });
 
-  it("holds for the simulator's bodies as well", () => {
-    // The emulator must not be able to do what CloudPayments can't.
-    const check = edit(webhookFixtures.check.body, { CardId: null });
+  it("takes a Pay for a Check only when it has no authorisation code", () => {
+    // A bank's code can't exist before the bank is asked: that is a Pay.
+    const pay = errorOf("check", webhookFixtures.pay.body);
+    expect(pay.code).toBe("UNSUPPORTED");
+    expect(pay.message).toContain("has AuthCode: is this a Pay notification?");
+    expect(() => parseWebhook("check", payWebhook().body)).toThrow(
+      WebhookParseError,
+    );
 
-    expect(() => parseWebhook("pay", check)).toThrow(WebhookParseError);
+    // Without one we can't tell — and don't refuse: a Check declined for an
+    // extra field would decline the payment itself.
+    expect(parseWebhook("check", webhookFixtures.paySbp.body)).toMatchObject({
+      type: "check",
+    });
+  });
+
+  it("doesn't refuse a Check for fields the docs don't list in it", () => {
+    const body = edit(webhookFixtures.check.body, {
+      GatewayName: "Test",
+      TotalFee: "0",
+      AuthCode: "",
+      SomethingNew: "1",
+    });
+
+    expect(parseWebhook("check", body)).toMatchObject({
+      type: "check",
+      amountKop: 150_000,
+    });
   });
 });
 

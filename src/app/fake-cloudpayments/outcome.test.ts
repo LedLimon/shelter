@@ -49,6 +49,7 @@ function checkout(
     declineReason,
     transactionId: "179171014212300",
     chargedAt: new Date("2026-10-11T09:15:42Z"),
+    sendsCheck: true,
     subscriptionId: null,
     deliveries,
   };
@@ -125,7 +126,9 @@ describe("outcomeOf", () => {
       tone: "warning",
       title: "Банк отклонил платёж",
     });
-    expect(lost?.text).toContain(`сайт его не принял (HTTP${NBSP}500)`);
+    expect(lost?.text).toBe(
+      `Эмулятор отправил уведомление Fail (код 5051: на карте не хватило денег). Сайт его не принял: HTTP${NBSP}500.`,
+    );
   });
 
   it("says what our Check answered and what to do about it", () => {
@@ -138,13 +141,22 @@ describe("outcomeOf", () => {
       title: "Сайт не подтвердил платёж",
     });
     expect(outcome?.text).toContain(`HTTP${NBSP}200, code${NBSP}10`);
-    expect(outcome?.text).toContain("снимите галочку");
+    // The box is on the next screen, after «Повторить платёж».
+    expect(outcome?.text).toContain("повторите платёж без галочки");
   });
 
   it("reports a closed widget and a payment in progress", () => {
     expect(outcomeOf(checkout("cancelled"))).toMatchObject({
       tone: "neutral",
       title: "Виджет закрыт без оплаты",
+      text: "Уведомления сайту не отправлялись.",
+    });
+    // Closed after a declined attempt: the log below still shows its Fail.
+    expect(
+      outcomeOf(checkout("cancelled", [delivery("fail", 404, null)])),
+    ).toMatchObject({
+      title: "Виджет закрыт без оплаты",
+      text: "В последней попытке уведомления сайту не отправлялись.",
     });
     expect(outcomeOf(checkout("processing"))).toMatchObject({
       tone: "neutral",

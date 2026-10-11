@@ -160,6 +160,7 @@ describe("with the emulator, asked for under a public host name", () => {
       { host: "localhost:3000", "x-forwarded-host": "priyut.example" },
     ],
     ["a host that only looks local", { host: "localhost.priyut.example" }],
+    ["a LAN address", { host: "192.168.1.10:3000" }],
     ["no host at all", {}],
   ])("answers 404 by %s", async (_what, headers) => {
     for (const [, enter] of ENTRY_POINTS) {

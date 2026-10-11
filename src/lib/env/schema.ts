@@ -45,6 +45,15 @@ export function isLocalUrl(url: string): boolean {
   );
 }
 
+/** The same for a Host header: "localhost:3000", "[::1]", "priyut.example". */
+export function isLocalHost(host: string): boolean {
+  try {
+    return isLocalUrl(`http://${host}`);
+  } catch {
+    return false;
+  }
+}
+
 const portError = "must be a port number (1-65535)";
 const port = () =>
   z.coerce

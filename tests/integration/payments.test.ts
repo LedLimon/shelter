@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getPaymentProvider, WebhookSignatureError } from "@/server/payments";
-import { isFakeCloudPayments } from "@/server/payments/fake";
+import { globalFakeState, isFakeCloudPayments } from "@/server/payments/fake";
 import {
   incoming,
   interceptFakeWebhooks,
@@ -26,6 +26,24 @@ function fakeProvider() {
 }
 
 describe("the app's payment provider in tests", () => {
+  // First, before this file installs anything itself: the setup of every
+  // integration test file must have taken the delivery over.
+  it("has its notifications off the network from the start", async () => {
+    const fetchStub = vi.fn(() => Promise.reject(new Error("no network")));
+    vi.stubGlobal("fetch", fetchStub);
+    const provider = fakeProvider();
+
+    expect(globalFakeState().deliver).not.toBeNull();
+    await provider.refund({
+      providerTxId: "3059300326",
+      amountKop: 70_000,
+      idempotencyKey: "refund:donation-0:1",
+    });
+    await provider.settled();
+
+    expect(fetchStub).not.toHaveBeenCalled();
+  });
+
   it("is the emulator and accepts what the simulator signs", () => {
     const provider = fakeProvider();
     const pay = payWebhook({ invoiceId: "donation-1", amountKop: 150_000 });
@@ -85,6 +103,21 @@ describe("the app's payment provider in tests", () => {
 
     expect(sent).toHaveLength(1);
     expect(handled).toEqual([`cp:refund:${refundTxId}`]);
+  });
+
+  it("shows a test what its handler threw", async () => {
+    const provider = fakeProvider();
+    interceptFakeWebhooks(() => {
+      throw new Error("handler exploded");
+    });
+
+    await provider.refund({
+      providerTxId: "3059300329",
+      amountKop: 70_000,
+      idempotencyKey: "refund:donation-4:1",
+    });
+
+    await expect(provider.settled()).rejects.toThrow("handler exploded");
   });
 
   it("goes through a whole checkout against a handler", async () => {

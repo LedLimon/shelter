@@ -5,6 +5,8 @@ import { API_URL, createCloudPaymentsApi } from "./api";
 const CREDENTIALS = {
   publicId: "pk_test_public",
   apiSecret: "test-api-secret",
+  // As on staging: the docs' example transactions are test ones.
+  acceptTestPayments: true,
 };
 
 type Call = { url: string; headers: Headers; body: unknown };
@@ -67,10 +69,10 @@ describe("requests", () => {
 
   it("refuse to start without credentials", () => {
     expect(() =>
-      createCloudPaymentsApi({ publicId: "pk_test", apiSecret: "" }),
+      createCloudPaymentsApi({ ...CREDENTIALS, apiSecret: "" }),
     ).toThrow("credentials are empty");
     expect(() =>
-      createCloudPaymentsApi({ publicId: "", apiSecret: "secret" }),
+      createCloudPaymentsApi({ ...CREDENTIALS, publicId: "" }),
     ).toThrow("credentials are empty");
   });
 });
@@ -447,8 +449,42 @@ describe("listTransactions", () => {
           metadata: { some: "value" },
         },
       ],
+      testTransactions: [],
       unreadable: [],
     });
+  });
+
+  // Production with a terminal left in test mode: the registry is full of
+  // "payments" no money stands behind.
+  it("keeps test transactions out of the registry where they aren't money", async () => {
+    const rows = [
+      transaction({ TransactionId: 80, TestMode: true }),
+      transaction({ TransactionId: 81, TestMode: false }),
+      transaction({ TransactionId: 82, TestMode: true, Status: "Declined" }),
+    ];
+    const calls: unknown[] = [];
+    const live = createCloudPaymentsApi({
+      ...CREDENTIALS,
+      acceptTestPayments: false,
+      fetch: (_url, init) => {
+        calls.push(init?.body);
+        return Promise.resolve(ok(rows));
+      },
+    });
+    const { api: staging } = apiWith(ok(rows));
+
+    const production = await live.listTransactions(DAY);
+    const onStaging = await staging.listTransactions(DAY);
+
+    expect(calls).toHaveLength(1);
+    expect(production.transactions.map((item) => item.providerTxId)).toEqual([
+      "81",
+    ]);
+    expect(
+      production.testTransactions.map((item) => item.providerTxId),
+    ).toEqual(["80", "82"]);
+    expect(onStaging.transactions).toHaveLength(3);
+    expect(onStaging.testTransactions).toEqual([]);
   });
 
   it("reads refunds, declines and missing fees", async () => {

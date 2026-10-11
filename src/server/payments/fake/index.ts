@@ -7,8 +7,9 @@
 // restart forgets it. Nothing here may be reachable in production — the
 // environment check allows this provider only on a local APP_URL.
 import { randomBytes } from "node:crypto";
+import { isLocalHost } from "@/lib/env/schema";
 import { cloudPaymentsWebhooks } from "../cloudpayments";
-import { PaymentProviderError } from "../errors";
+import { PaymentProviderError, WebhookSignatureError } from "../errors";
 import {
   assertPaymentIntent,
   parsePeriod,
@@ -59,7 +60,10 @@ export type DeliveryResult = {
   code: number | null;
 };
 
-/** Takes a notification to `url` and reports the answer; must not throw. */
+/**
+ * Takes a notification to `url` and reports the answer. If it throws (a
+ * handler under test did), the error comes out of pay() or settled().
+ */
 export type Deliver = (
   webhook: SimulatedWebhook,
   url: string,
@@ -97,6 +101,8 @@ export type FakeCheckout = {
   transactionId: string | null;
   /** When the donor pressed «Оплатить»: the transaction's time. */
   chargedAt: Date | null;
+  /** Whether the last attempt sent Check: the widget's choice for a retry. */
+  sendsCheck: boolean;
   subscriptionId: string | null;
   /** Notifications sent for this payment, in order. */
   deliveries: FakeDelivery[];
@@ -120,6 +126,8 @@ export type FakeState = {
   refunds: Map<string, { result: { refundTxId: string }; at: number }>;
   /** Notifications sent outside a checkout: refunds, subscription changes. */
   background: Set<Promise<unknown>>;
+  /** What a replaced deliverer threw in the background; settled() rethrows it. */
+  backgroundErrors: Error[];
   lastTransactionId: number;
   /**
    * Replaces the HTTP delivery: tests route notifications to a handler or
@@ -135,6 +143,7 @@ export function createFakeState(): FakeState {
     subscriptions: new Map(),
     refunds: new Map(),
     background: new Set(),
+    backgroundErrors: [],
     lastTransactionId: 0,
     deliver: null,
   };
@@ -172,7 +181,10 @@ export type FakeCloudPayments = PaymentProvider & {
   retry(checkoutId: string): void;
   /** The donor closed the widget without paying: no notifications. */
   cancel(checkoutId: string): void;
-  /** Resolves when notifications sent in the background are delivered. */
+  /**
+   * Resolves when notifications sent in the background are delivered;
+   * rejects with what a deliverer threw while delivering one.
+   */
   settled(): Promise<void>;
 };
 
@@ -272,11 +284,7 @@ export function createFakeCloudPayments(
   ): Promise<FakeDelivery> {
     const webhook = simulateWebhook(type, fields, FAKE_API_SECRET);
     const url = `${options.appUrl}${WEBHOOK_PATH}/${type}`;
-    const deliver = state.deliver ?? httpDeliver;
-    const result = await deliver(webhook, url).catch((): DeliveryResult => ({
-      status: null,
-      code: null,
-    }));
+    const result = await (state.deliver ?? httpDeliver)(webhook, url);
     const ok =
       result.status !== null && result.status >= 200 && result.status < 300;
     return { webhook, url, ...result, accepted: ok && result.code === 0 };
@@ -284,9 +292,15 @@ export function createFakeCloudPayments(
 
   /** Not awaited by the caller, like a notification that follows an API call. */
   function sendInBackground(type: WebhookType, fields: WebhookFields): void {
-    const delivery = send(type, fields).finally(() => {
-      state.background.delete(delivery);
-    });
+    const delivery = send(type, fields)
+      .catch((error: unknown) => {
+        state.backgroundErrors.push(
+          error instanceof Error ? error : new Error(String(error)),
+        );
+      })
+      .finally(() => {
+        state.background.delete(delivery);
+      });
     state.background.add(delivery);
   }
 
@@ -396,6 +410,12 @@ export function createFakeCloudPayments(
     }
   }
 
+  // Every payment of the fake is a test one: it has nothing else to take.
+  const webhooks = cloudPaymentsWebhooks({
+    apiSecret: FAKE_API_SECRET,
+    acceptTestPayments: true,
+  });
+
   function subscriptionOf(path: string, id: string): ProviderSubscription {
     return (
       state.subscriptions.get(id) ?? refused(path, "Subscription not found")
@@ -405,11 +425,22 @@ export function createFakeCloudPayments(
   return {
     name: "fake",
 
-    // Every payment of the fake is a test one: it has nothing else to take.
-    ...cloudPaymentsWebhooks({
-      apiSecret: FAKE_API_SECRET,
-      acceptTestPayments: true,
-    }),
+    ...webhooks,
+
+    // The fake's secret is public, so its signature proves nothing to a
+    // stranger. Like the emulator's pages, it serves only requests addressed
+    // to this machine — a seat belt for a server that ended up behind a
+    // proxy; the environment check is what keeps the fake off a public site.
+    // No Host at all is a call made in this process (tests).
+    receiveWebhook(type, webhook) {
+      for (const name of ["host", "x-forwarded-host"]) {
+        const host = webhook.headers.get(name);
+        if (host !== null && !isLocalHost(host)) {
+          throw new WebhookSignatureError();
+        }
+      }
+      return webhooks.receiveWebhook(type, webhook);
+    },
 
     widgetParams(intent) {
       assertPaymentIntent(intent);
@@ -421,6 +452,7 @@ export function createFakeCloudPayments(
         declineReason: null,
         transactionId: null,
         chargedAt: null,
+        sendsCheck: true,
         subscriptionId: null,
         deliveries: [],
       });
@@ -436,6 +468,7 @@ export function createFakeCloudPayments(
         checkout.transactionId = nextTransactionId();
         checkout.chargedAt = now();
         checkout.declineReason = null;
+        checkout.sendsCheck = scenario.check;
 
         if (scenario.check) {
           const check = await send("check", checkFields(chargeOf(checkout)));
@@ -477,6 +510,8 @@ export function createFakeCloudPayments(
       while (state.background.size > 0) {
         await Promise.allSettled(state.background);
       }
+      const [error] = state.backgroundErrors.splice(0);
+      if (error) throw error;
     },
 
     // The API is emulated in memory, but answers like the network one: every
@@ -597,6 +632,8 @@ export function createFakeCloudPayments(
       found.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
       return {
         transactions: found.map((transaction) => ({ ...transaction })),
+        // Every transaction here is a test one, and here they count.
+        testTransactions: [],
         unreadable: [],
       };
     },

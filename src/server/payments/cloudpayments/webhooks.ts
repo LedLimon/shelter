@@ -100,9 +100,8 @@ class Notification {
   }
 
   /**
-   * The URL names the type and the signature doesn't cover the URL, so a
-   * body of one type sent to another type's address is still signed. `name`
-   * is a field only another type has: with it, this body isn't ours.
+   * `name` is a field that only a notification of another type can carry:
+   * with it, this body was posted to the wrong address.
    */
   forbid(name: string, owner: string): void {
     if (this.fields.get(name)) {
@@ -298,8 +297,14 @@ function read(
       // Documented for payments; whether a check of a refund has it, isn't.
       requireOneStage(n, kind === "payment");
       requireRealMoney(details);
-      // GatewayName exists only once the bank answered: in Pay, not in Check.
-      n.forbid("GatewayName", "Pay");
+      // A Pay posted to the Check address would be answered "may go through"
+      // and count as delivered. An authorisation code can't exist before the
+      // bank is asked, so a body with one is a Pay. (Not GatewayName: that a
+      // Check never has it is only what the docs' table suggests, and a
+      // Check refused for an extra field would decline every payment. A Pay
+      // without AuthCode — SBP, possibly — passes here; reconciliation and
+      // the first test payment catch a mixed-up address.)
+      n.forbid("AuthCode", "Pay");
       return {
         type,
         operation: kind,
@@ -312,8 +317,10 @@ function read(
       requireOneStage(n);
       requireRealMoney(details);
       if (operation(n) !== "payment") n.reject("OperationType is not Payment");
-      // What tells a Pay from a Check of the same transaction, which is
-      // sent before the bank is asked and may end in a decline.
+      // The URL names the type, and the signature doesn't cover the URL: a
+      // signed Check posted to the Pay address must not become a payment —
+      // it is sent before the bank is asked and may end in a decline.
+      // GatewayName is what the docs require in Pay and don't list in Check.
       n.required("GatewayName");
       return {
         type,

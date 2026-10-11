@@ -39,6 +39,29 @@ describe("getEnv", () => {
     expect(getEnv()).toBe(first);
     expect(first.SMTP_PORT).toBe(1025);
   });
+
+  // The default provider is the payment emulator: a production server that
+  // forgot the variable must stop, not start with it.
+  it("demands a payment provider in a production build", async () => {
+    for (const [key, value] of Object.entries(example)) vi.stubEnv(key, value);
+    vi.stubEnv("NODE_ENV", "production");
+    const { getEnv } = await import("./index");
+
+    vi.stubEnv("PAYMENT_PROVIDER", "");
+
+    expect(() => getEnv()).toThrow("  - PAYMENT_PROVIDER: is not set");
+
+    vi.stubEnv("PAYMENT_PROVIDER", "fake");
+    expect(getEnv().PAYMENT_PROVIDER).toBe("fake");
+  });
+
+  it("defaults to the emulator outside production", async () => {
+    for (const [key, value] of Object.entries(example)) vi.stubEnv(key, value);
+    vi.stubEnv("NODE_ENV", "development");
+    const { getEnv } = await import("./index");
+
+    expect(getEnv().PAYMENT_PROVIDER).toBe("fake");
+  });
 });
 
 describe("checkEnvOrExit", () => {

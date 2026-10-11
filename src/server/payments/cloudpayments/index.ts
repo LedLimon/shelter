@@ -5,13 +5,12 @@ import { SIGNATURE_HEADER, verifySignature } from "./signature";
 import { parseWebhook, webhookResponse } from "./webhooks";
 import { cloudPaymentsWidgetParams } from "./widget";
 
-export type CloudPaymentsConfig = CloudPaymentsApiConfig & {
-  /**
-   * The terminal is a test one (staging): its payments are what we expect.
-   * Off in production, where a test payment must never be taken for money.
-   */
-  acceptTestPayments: boolean;
-};
+/**
+ * `acceptTestPayments` — the terminal is a test one (staging): its payments
+ * are what we expect. Off in production, where a test payment must never be
+ * taken for money.
+ */
+export type CloudPaymentsConfig = CloudPaymentsApiConfig;
 
 type Webhooks = Pick<
   PaymentProvider,

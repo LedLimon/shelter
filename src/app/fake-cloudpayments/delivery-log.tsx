@@ -44,7 +44,7 @@ export function DeliveryLog({ deliveries }: { deliveries: FakeDelivery[] }) {
                   {`${NBSP}— ${accepted ? "принято" : "не принято"}: ${answerOf(delivery)}`}
                 </span>
               </p>
-              <p className="font-mono text-mono [overflow-wrap:anywhere] text-toner-muted">
+              <p className="font-mono text-mono break-all text-toner-muted">
                 POST {delivery.url}
               </p>
               {!accepted && webhook.type !== "check" && (
@@ -58,7 +58,7 @@ export function DeliveryLog({ deliveries }: { deliveries: FakeDelivery[] }) {
                   Запрос {title}
                 </summary>
                 <div className="flex flex-col gap-3 pb-1">
-                  <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1">
+                  <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 font-mono text-mono">
                     {[...new URLSearchParams(webhook.body)].map(
                       ([name, value]) => (
                         <div key={name} className="contents">
@@ -69,7 +69,8 @@ export function DeliveryLog({ deliveries }: { deliveries: FakeDelivery[] }) {
                     )}
                   </dl>
                   <p className="text-toner-muted">
-                    Как отправлено — подписано именно это тело:
+                    Как отправлено: заголовки и&nbsp;тело, по&nbsp;которому
+                    посчитана подпись.
                   </p>
                   <pre className="bg-background p-3 font-mono text-mono [overflow-wrap:anywhere] whitespace-pre-wrap">
                     {Object.entries(webhook.headers)

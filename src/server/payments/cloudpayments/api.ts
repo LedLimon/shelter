@@ -32,6 +32,8 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 export type CloudPaymentsApiConfig = {
   publicId: string;
   apiSecret: string;
+  /** PaymentProvider.acceptsTestPayments: where test transactions go in the registry. */
+  acceptTestPayments: boolean;
   /** For tests; the global fetch by default. */
   fetch?: typeof fetch;
   timeoutMs?: number;
@@ -326,8 +328,9 @@ export function createCloudPaymentsApi(config: CloudPaymentsApiConfig) {
       // CloudPayments reactivates a cancelled or finished subscription on any
       // change. The donor may have cancelled it on my.cloudpayments.ru a
       // moment ago, whatever our database says — so the provider is asked
-      // first. A cancellation between the two calls still slips through;
-      // the returned status shows it.
+      // first. A cancellation in the instant between the two calls still
+      // slips through, and nothing in the answer shows it: the API has no
+      // conditional update.
       const current = await getSubscription({ subscriptionId });
       if (current.status !== "ACTIVE" && current.status !== "PAST_DUE") {
         throw new PaymentProviderError(
@@ -358,6 +361,7 @@ export function createCloudPaymentsApi(config: CloudPaymentsApiConfig) {
         CreatedDateLte: isoSeconds(Math.ceil(toMs / 1000) * 1000),
       };
       const found = new Map<string, ProviderTransaction>();
+      const test = new Map<string, ProviderTransaction>();
       const unreadable: UnreadableTransaction[] = [];
       for (let page = 1; ; page++) {
         if (page > MAX_PAGES) {
@@ -387,15 +391,21 @@ export function createCloudPaymentsApi(config: CloudPaymentsApiConfig) {
           }
           const createdMs = parsed.data.createdAt.getTime();
           if (createdMs >= fromMs && createdMs < toMs) {
-            found.set(parsed.data.providerTxId, parsed.data);
+            // Not money here: kept where reconciliation can't take them for it.
+            const list =
+              parsed.data.testMode && !config.acceptTestPayments ? test : found;
+            list.set(parsed.data.providerTxId, parsed.data);
           }
         }
         if (rows.length < PAGE_SIZE) break;
       }
-      return {
-        transactions: [...found.values()].sort(
+      const oldestFirst = (list: Map<string, ProviderTransaction>) =>
+        [...list.values()].sort(
           (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
-        ),
+        );
+      return {
+        transactions: oldestFirst(found),
+        testTransactions: oldestFirst(test),
         unreadable,
       };
     },
