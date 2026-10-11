@@ -12,6 +12,11 @@ export function proxy(request: NextRequest) {
   if (pathname === "/admin/login" || getSessionCookie(request)) {
     return NextResponse.next();
   }
+  // A server action answers for itself (adminAction: `unauthorized`): a
+  // redirect would replace the form that sent it, with everything typed in.
+  if (request.method === "POST" && request.headers.has("next-action")) {
+    return NextResponse.next();
+  }
 
   const login = new URL("/admin/login", request.url);
   login.searchParams.set("next", pathname + search);

@@ -1,5 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { secretFromOtpauth, totp, wrongTotp } from "../tests/support/totp";
+import { enterPassword, giveEachTestItsOwnIp } from "./support/sign-in";
 import {
   E2E_PASSWORD,
   E2E_TOTP_SECRET,
@@ -7,27 +8,7 @@ import {
   newStaffEmail,
 } from "./support/users";
 
-// Every test signs in from its own client IP (the app is not behind a proxy
-// here, so it takes X-Forwarded-For as is): sign-in attempts are rate-limited
-// per IP, and the tests run in parallel.
-let ipCounter = 0;
-test.beforeEach(async ({ context }, testInfo) => {
-  ipCounter += 1;
-  const project = testInfo.project.name === "mobile" ? 2 : 1;
-  await context.setExtraHTTPHeaders({
-    "x-forwarded-for": `10.${project}.${testInfo.workerIndex % 250}.${ipCounter % 250}`,
-  });
-});
-
-async function enterPassword(
-  page: Page,
-  email: string,
-  password = E2E_PASSWORD,
-) {
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Пароль").fill(password);
-  await page.getByRole("button", { name: "Дальше" }).click();
-}
+giveEachTestItsOwnIp();
 
 test("the admin sends a visitor to sign in and back", async ({ page }) => {
   await page.goto("/admin");
@@ -58,7 +39,8 @@ test("the owner signs in with a password and a TOTP code", async ({ page }) => {
   ).toBeVisible();
   await expect(page.getByRole("banner")).toContainText("Владелец");
 
-  await page.getByRole("button", { name: "Выйти" }).click();
+  await page.getByRole("button", { name: /Владелец/ }).click();
+  await page.getByRole("menuitem", { name: "Выйти" }).click();
   await expect(page).toHaveURL("/admin/login");
   await page.goto("/admin");
   await expect(page).toHaveURL(/\/admin\/login/);

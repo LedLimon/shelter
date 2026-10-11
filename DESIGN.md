@@ -91,6 +91,11 @@ typography:
     fontSize: "0.875rem"
     fontWeight: 400
     lineHeight: 1.45
+  body-admin:
+    fontFamily: "Sofia Sans, Arial, sans-serif"
+    fontSize: "1rem"
+    fontWeight: 400
+    lineHeight: 1.55
   mono:
     fontFamily: "Martian Mono, ui-monospace, monospace"
     fontSize: "0.78125rem"
@@ -186,7 +191,7 @@ components:
 
 ## Typography
 
-**Display Font:** Sofia Sans Extra Condensed · **Body Font:** Literata · **Label Font:** Martian Mono. Шкала и правила — [docs/design.md#шрифты](docs/design.md#шрифты).
+**Display Font:** Sofia Sans Extra Condensed · **Body Font:** Literata · **Label Font:** Martian Mono. В админке `/admin` (режим Operate) текст набран Sofia Sans обычной ширины вместо Literata. Шкала и правила — [docs/design.md#шрифты](docs/design.md#шрифты).
 
 **The Short Caps Rule.** Капс — только короткие метки и клички. Длинные заголовки — в обычном регистре.
 
@@ -204,7 +209,7 @@ Mobile-first: один столбец листов на доске; на дес�
 
 ## Components
 
-Базовые компоненты shadcn/ui стилизованы в DS-2 ([docs/design.md#базовые-компоненты](docs/design.md#базовые-компоненты)), доменные (`NeedCard`, `DogCard`, `TearTabs`, `UrgencyBadge`) — DS-3; их назначение — [docs/design.md#компоненты-дизайн-системы](docs/design.md#компоненты-дизайн-системы). Токены и утилиты, из которых они собираются (поверхности `surface-notice` и `surface-footer`, рамки срочности `urgency-*`, тень `shadow-sheet`), — [docs/design.md#токены-в-коде](docs/design.md#токены-в-коде). Витрина компонентов и токенов в dev — `/dev/ui`.
+Базовые компоненты shadcn/ui стилизованы в DS-2 ([docs/design.md#базовые-компоненты](docs/design.md#базовые-компоненты)), доменные (`NeedCard`, `DogCard`, `TearTabs`, `UrgencyBadge`) — DS-3; их назначение — [docs/design.md#компоненты-дизайн-системы](docs/design.md#компоненты-дизайн-системы). Токены и утилиты, из которых они собираются (поверхности `surface-notice` и `surface-footer`, рамки срочности `urgency-*`, тень `shadow-sheet`), — [docs/design.md#токены-в-коде](docs/design.md#токены-в-коде). Каркас админки, `DataTable` и формы — [docs/design.md#админка](docs/design.md#админка). Витрина компонентов и токенов в dev — `/dev/ui`.
 
 **The Bordered Yellow Rule.** Кнопка «Помочь» — жёлтая бумага с рамкой 2 px цветом `notice-foreground` в обеих темах: без рамки жёлтый на бумаге — 1,26:1.
 

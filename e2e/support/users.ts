@@ -8,6 +8,9 @@ export const E2E_TOTP_SECRET = "e2e-totp-secret-not-secret-0123";
 export const E2E_USERS = {
   /** Staff with TOTP set up: the owner of the shelter. */
   owner: "e2e-owner@shelter.localhost",
+  /** Staff with TOTP set up and narrower roles: what the menu hides from them. */
+  editor: "e2e-editor@shelter.localhost",
+  coordinator: "e2e-coordinator@shelter.localhost",
   /** A donor who somehow has a password: must get 403 in the admin. */
   donor: "e2e-donor@shelter.localhost",
 } as const;

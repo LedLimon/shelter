@@ -6,6 +6,7 @@ import { EnvValidationError, parseEnv, seedEnvSchema } from "@/lib/env/schema";
 import { createAuth } from "@/server/auth/config";
 import { ensurePassword, ensureTotp } from "@/server/auth/credentials";
 import { createPrismaClient } from "@/server/db/client";
+import { defaultSettings } from "@/server/settings/schema";
 import {
   E2E_ATTEMPTS,
   E2E_PASSWORD,
@@ -54,6 +55,7 @@ async function main() {
       DATABASE_URL: true,
       APP_URL: true,
       BETTER_AUTH_SECRET: true,
+      SHELTER_TIMEZONE: true,
     }),
     process.env,
     "e2e",
@@ -85,7 +87,29 @@ async function main() {
       data: { failedVerificationCount: 0, lockedUntil: null },
     });
 
+    for (const [email, role, name] of [
+      [E2E_USERS.editor, "EDITOR", "Куратор (e2e)"],
+      [E2E_USERS.coordinator, "COORDINATOR", "Координатор (e2e)"],
+    ] as const) {
+      await ensureTotp(
+        auth,
+        db,
+        await user(email, role, name),
+        E2E_TOTP_SECRET,
+      );
+    }
+
     await user(E2E_USERS.donor, "DONOR", "Донор (e2e)");
+
+    // What the settings test fills in: back to the seed's empty values.
+    const defaults = defaultSettings(env.SHELTER_TIMEZONE);
+    for (const key of ["shelter.requisites", "shelter.contacts"] as const) {
+      await db.setting.upsert({
+        where: { key },
+        create: { key, value: defaults[key] },
+        update: { value: defaults[key] },
+      });
+    }
 
     for (const project of E2E_PROJECTS) {
       for (let retry = 0; retry < E2E_ATTEMPTS; retry += 1) {
