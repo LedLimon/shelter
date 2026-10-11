@@ -111,7 +111,7 @@ PAGES.admin = staffOnly(() => {
       LEDGER_GROUP[row.kind] === "in" &&
       (row.isNew || row.when.getDate() === NOW.getDate()),
   );
-  const sum = today.reduce((total, row) => total + row.amount, 0);
+  const sum = today.reduce((total, row) => total + (row.paid ?? row.amount), 0);
   const clicks = CURATOR.channels
     .map(
       (channel) =>
@@ -348,21 +348,43 @@ function needNext(need) {
       return `<p>Собрано. Когда начнёте покупать, отметьте это — доноры увидят новый шаг в истории нужды.</p>
         <div class="form-actions"><button type="button" class="btn" id="work-${id}" data-action="start-work" data-need="${id}">Начали закупку</button>${cancel}</div>`;
     case "working": {
-      const ready = (need.expenseIds ?? []).length > 0;
+      const expenses = (need.expenseIds ?? []).map(expenseById);
+      const hasPhoto = expenses.some((expense) =>
+        expense.docs.some((doc) => doc.kind === "photo"),
+      );
+      const ready = expenses.length > 0 && hasPhoto;
+      const hint = !expenses.length
+        ? "Закрыть можно после первого расхода с чеком и фото результата."
+        : hasPhoto
+          ? ""
+          : "Чтобы закрыть нужду, прикрепите фото результата: доноры увидят, что купили.";
       return `<p>Внесите расход с чеком. Когда всё куплено и есть фото результата — закройте нужду: отчёт опубликуется сам.</p>
         <div class="form-actions">
-          <a class="btn${ready ? " btn-outline" : ""}" href="#/admin/needs/${id}/expense">${icon("plus")}Добавить расход</a>
+          <a class="btn${expenses.length ? " btn-outline" : ""}" href="#/admin/needs/${id}/expense">${icon("plus")}Добавить расход</a>
+          ${expenses.length && !hasPhoto ? `<button type="button" class="btn" id="photo-${id}" data-action="attach-result" data-need="${id}">${icon("camera")}Прикрепить фото результата (демо)</button>` : ""}
           <button type="button" class="btn" id="finish-${id}" data-action="ask-close" data-need="${id}"${ready ? "" : " disabled"}>Закрыть нужду</button>
           ${cancel}
         </div>
-        ${ready ? "" : '<p class="hint">Закрыть можно после первого расхода с чеком.</p>'}`;
+        ${hint ? `<p class="hint">${hint}</p>` : ""}`;
     }
     case "done":
       return `<p>Выполнено: отчёт опубликован, остаток переведён в общий фонд. Все, кто помог, получат письмо с отчётом.</p>
         <div class="form-actions"><a class="btn" href="#/transparency/ledger?need=${id}">Строки в публичной книге</a><a class="btn btn-outline" href="#/needs/${id}">Отчёт на сайте</a></div>`;
-    default:
-      return `<p>Нужда отменена. Собранное переведено в общий фонд, донорам ушло письмо.</p>
-        <div class="form-actions"><a class="btn btn-outline" href="#/transparency/ledger?need=${id}">Строки в публичной книге</a></div>`;
+    default: {
+      const text =
+        need.published === false
+          ? "Черновик отменён. На сайте он не появлялся."
+          : need.returned > 0
+            ? `Нужда отменена. ${formatRub(need.returned)} переведены в общий фонд, всем, кто помог, ушло письмо.`
+            : need.donors
+              ? "Нужда отменена. Всё собранное к этому времени уже было потрачено; всем, кто помог, ушло письмо."
+              : "Нужда отменена. Пожертвований по ней не было.";
+      return `<p>${text}</p>${
+        isPublic(need)
+          ? `<div class="form-actions"><a class="btn btn-outline" href="#/transparency/ledger?need=${id}">Строки в публичной книге</a></div>`
+          : ""
+      }`;
+    }
   }
 }
 
@@ -427,6 +449,14 @@ ACTIONS["start-work"] = (el) => {
   refresh();
 };
 
+ACTIONS["attach-result"] = (el) => {
+  const need = needById(el.dataset.need);
+  const last = expenseById(need.expenseIds[need.expenseIds.length - 1]);
+  last.docs.push({ kind: "photo", label: "Фото результата (демо-заглушка)" });
+  toast("Фото прикреплено. Теперь нужду можно закрыть.");
+  refresh(`finish-${need.id}`);
+};
+
 LIVE.expenseHint = () => {
   const form = ui.expenseForm;
   const need = needById(form.needId);
@@ -441,6 +471,8 @@ LIVE.expenseHint = () => {
 PAGES.adminExpense = staffOnly(({ id }) => {
   const need = needById(id);
   if (!need) return { html: null };
+  // Expenses are posted only while the purchase is under way.
+  if (need.status !== "working") return { redirect: `#/admin/needs/${id}` };
   if (!ui.expenseForm || ui.expenseForm.needId !== id)
     ui.expenseForm = {
       needId: id,
@@ -529,8 +561,12 @@ ACTIONS["save-expense"] = () => {
       "Напишите, что купили: это название строки в публичной книге.";
   if (!form.supplier.trim())
     errors.supplier = "Укажите магазин, клинику или мастера.";
-  if (!parseRubInput(form.amount))
-    errors.amount = "Укажите сумму цифрами, как в чеке.";
+  const amount = parseRubInput(form.amount);
+  const need = needById(form.needId);
+  const shortage = amount ? Math.max(0, amount - balance(need)) : 0;
+  if (!amount) errors.amount = "Укажите сумму цифрами, как в чеке.";
+  else if (shortage > state.stats.fund)
+    errors.amount = `У нужды и в общем фонде столько нет: не хватает ${formatRub(shortage - state.stats.fund)}. Проверьте сумму или разбейте покупку.`;
   if (!form.receipt)
     errors.receipt =
       "Прикрепите чек или счёт: без документа расход не публикуется.";
@@ -550,12 +586,11 @@ ACTIONS["save-expense"] = () => {
     refresh(invalid[1]);
     return;
   }
-  const need = needById(form.needId);
-  const { shortage } = addExpense(need, form);
+  const { shortage: covered } = addExpense(need, form);
   ui.expenseForm = null;
   toast(
-    shortage
-      ? `Расход проведён. ${formatRub(shortage)} добавил общий фонд.`
+    covered
+      ? `Расход проведён. ${formatRub(covered)} добавил общий фонд.`
       : "Расход проведён. Строка уже в публичной книге.",
   );
   go(`#/admin/needs/${need.id}`);
@@ -604,7 +639,15 @@ LAYERS.cancelNeed = () => {
   const rest = Math.max(0, balance(need));
   return layerShell(
     "Отменить нужду?",
-    `<p>${rest > 0 ? `Собранные ${formatRub(rest)} перейдут в общий фонд, а всем, кто помог, уйдёт письмо.` : "Пожертвований по этой нужде нет — она просто исчезнет со страницы сборов."} Вернуть её обратно будет нельзя.</p>
+    `<p>${
+      rest > 0
+        ? `Собранные ${formatRub(rest)} перейдут в общий фонд, а всем, кто помог, уйдёт письмо.`
+        : need.donors
+          ? "Всё собранное уже потрачено, в общий фонд ничего не перейдёт. Всем, кто помог, уйдёт письмо."
+          : isPublic(need)
+            ? "Пожертвований по этой нужде нет — она уйдёт из списка сборов."
+            : "Черновик на сайте не появлялся — он просто уйдёт из работы."
+    } Вернуть её обратно будет нельзя.</p>
     <form class="stack-sm admin" data-submit="cancel-need" novalidate>
       ${field({ id: "cancel-text", label: "Что случилось", model: "closeForm.text", value: ui.closeForm.text, textarea: true, hint: "Это увидят доноры. Пишите как есть, по-человечески." })}
       <div class="layer-foot">
@@ -621,9 +664,13 @@ ACTIONS["ask-cancel"] = (el) => {
 };
 
 ACTIONS["cancel-need"] = () => {
-  cancelNeed(needById(ui.layer.needId), ui.closeForm.text);
+  const rest = cancelNeed(needById(ui.layer.needId), ui.closeForm.text);
   closeLayer(true);
-  toast("Нужда отменена. Собранное — в общем фонде.");
+  toast(
+    rest > 0
+      ? `Нужда отменена. ${formatRub(rest)} — в общем фонде.`
+      : "Нужда отменена.",
+  );
 };
 
 PAGES.adminDogs = staffOnly(() => ({
@@ -671,7 +718,7 @@ PAGES.adminDog = staffOnly(({ id }) => {
       <div class="row-between"><h1>${dog.name}</h1><a href="#/dogs/${dog.id}">Открыть на сайте</a></div>
       <div class="split split-even">
         <form class="sheet sheet-body form" data-submit="save-dog" novalidate>
-          ${field({ id: "dog-name", label: "Кличка", model: "dogForm.name", value: form.name })}
+          ${field({ id: "dog-name", label: "Кличка", model: "dogForm.name", value: form.name, attrs: "disabled", hint: "В прототипе кличку не меняем: на ней держатся падежи в демо-текстах." })}
           ${selectField({ id: "dog-status", label: "Статус", model: "dogForm.status", value: form.status, options: Object.entries(DOG_STATUS).map(([key, item]) => [key, item.label]), hint: "«Забронирована» и «Дома» убирают язычки «Хочу забрать»." })}
           ${field({ id: "dog-short", label: "Коротко о характере", model: "dogForm.short", value: form.short, textarea: true, hint: "Две-три фразы для карточки в каталоге." })}
           <div class="form-row form-row-3">
@@ -699,7 +746,6 @@ PAGES.adminDog = staffOnly(({ id }) => {
 ACTIONS["save-dog"] = () => {
   const form = ui.dogForm;
   const dog = dogById(form.id);
-  dog.name = form.name.trim() || dog.name;
   dog.status = form.status;
   dog.short = form.short.trim() || dog.short;
   dog.zoneId = form.zoneId || null;
@@ -772,7 +818,7 @@ PAGES.adminMap = staffOnly((params, query) => {
           <ul class="zone-list">${state.zones
             .map(
               (item) =>
-                `<li><a class="zone-link" href="#/admin/map?zone=${item.id}"${item.id === zone.id ? ' aria-current="true"' : ""}><b>${item.name}</b><span class="mono t-mono-sm muted">${zoneSummary(item) || "пусто"}</span></a></li>`,
+                `<li><a class="zone-link" id="zone-link-${item.id}" href="#/admin/map?zone=${item.id}"${item.id === zone.id ? ' aria-current="true"' : ""}><b>${item.name}</b><span class="mono t-mono-sm muted">${zoneSummary(item) || "пусто"}</span></a></li>`,
             )
             .join("")}</ul>
         </section>

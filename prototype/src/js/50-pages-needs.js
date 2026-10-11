@@ -20,7 +20,7 @@ function todayHelped() {
   const items = rows
     .map(
       (row) =>
-        `<li><b>${row.who ? esc(row.who) : "Аноним"} — ${formatRub(row.amount)}</b><span>${formatRelative(row.when, NOW)}</span></li>`,
+        `<li><b>${row.who ? esc(row.who) : "Аноним"} — ${formatRub(row.paid ?? row.amount)}</b><span>${formatRelative(row.when, NOW)}</span></li>`,
     )
     .join("");
   return `<aside class="today surface-notice" aria-labelledby="today-title">
@@ -110,7 +110,7 @@ function waysSheet(withTitle = true) {
 function storyCard(dog) {
   return `<article class="sheet story">
     ${photo(dog.photo, { ratio: "11", alt: `${dog.name} дома`, focus: dog.focus, stamp: "Дома" })}
-    <div class="stack-xs"><h3>${dog.name}</h3><p class="t-caption">${dog.short}</p></div>
+    <div class="stack-xs"><h3>${dog.name}</h3><p class="t-caption">${esc(dog.short)}</p></div>
   </article>`;
 }
 
@@ -191,12 +191,14 @@ const NEED_SHOW = {
 };
 
 function chipLink(href, label, on) {
-  return `<a class="chip" href="${href}"${on ? ' aria-current="true"' : ""}>${on ? icon("check") : ""}${label}</a>`;
+  // A stable id: after the filter is applied, focus returns to the same chip.
+  const id = `chip-${href.replace(/[^a-z0-9]+/gi, "-")}`;
+  return `<a class="chip" id="${id}" href="${href}"${on ? ' aria-current="true"' : ""}>${on ? icon("check") : ""}${label}</a>`;
 }
 
 PAGES.needs = (params, query) => {
-  const show = NEED_SHOW[query.show] ? query.show : "active";
-  const cat = CATEGORIES[query.cat] ? query.cat : "all";
+  const show = own(NEED_SHOW, query.show) ? query.show : "active";
+  const cat = own(CATEGORIES, query.cat) ? query.cat : "all";
   const link = (next) => {
     const merged = { show, cat, ...next };
     const parts = [];

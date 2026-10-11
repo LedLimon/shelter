@@ -13,7 +13,8 @@ const state = {
   tasks: TASKS,
   zones: ZONES,
   seq: 147,
-  donations: {},
+  // No prototype: ids come from the address, so «__proto__» must not resolve.
+  donations: Object.create(null),
   adoptClicks: { telegram: 9, whatsapp: 3, max: 0, phone: 2 },
   staff: null,
 };
@@ -26,9 +27,16 @@ const expenseById = (id) => state.expenses.find((item) => item.id === id);
 const remaining = (need) => Math.max(0, need.goal - need.collected);
 const progress = (need) =>
   need.goal ? clamp(need.collected / need.goal, 0, 1) : 0;
-/** Money a need still holds: collected plus what the fund added, minus spent. */
-const balance = (need) => need.collected + (need.covered ?? 0) - need.spent;
-const isPublic = (need) => need.status !== "draft";
+/**
+ * Money a need still holds: collected plus what the fund added, minus spent.
+ * Nothing once the need is closed: the rest has gone to the general fund.
+ */
+const balance = (need) =>
+  ["done", "cancelled"].includes(need.status)
+    ? 0
+    : need.collected + (need.covered ?? 0) - need.spent;
+/** Drafts are internal, and so is a draft cancelled before it was ever published. */
+const isPublic = (need) => need.status !== "draft" && need.published !== false;
 
 /** Needs for the board: most urgent first, then the closest to the goal. */
 function activeNeeds() {
@@ -86,6 +94,8 @@ function receive(need, amount, who, extra = {}) {
         who,
         needId: need.id,
         amount: toNeed,
+        // The whole payment, when a part of it went past the goal: feeds show it.
+        ...(toFund > 0 ? { paid: amount } : {}),
         ...extra,
       }),
     );
@@ -119,14 +129,18 @@ function fee(amount) {
 function donate(form, outcome) {
   const id = `d${Object.keys(state.donations).length + 1}`;
   const who = form.anon || !form.name.trim() ? null : form.name.trim();
+  // «Покрыть комиссию» adds the estimated fee to the donation itself
+  // (docs/payments.md): there is no separate entry for it.
+  const feeKop = form.coverFee ? fee(form.amount) : 0;
+  const total = form.amount + feeKop;
   const donation = {
     id,
     status: outcome === "failed" ? "failed" : "paid",
     target: form.target,
-    amount: form.amount,
+    amount: total,
     monthly: form.mode === "monthly",
     who,
-    feeKop: form.coverFee ? fee(form.amount) : 0,
+    feeKop,
     toNeed: 0,
     toFund: 0,
     rows: [],
@@ -138,63 +152,45 @@ function donate(form, outcome) {
   const need = form.target.type === "need" ? needById(form.target.id) : null;
   if (need && !donation.monthly && need.status === "open") {
     if (outcome === "race") {
-      const left = Math.max(
-        rub(50),
-        Math.round((form.amount * 0.35) / 5000) * 5000,
-      );
+      const left = Math.max(rub(50), Math.round((total * 0.35) / 5000) * 5000);
       const other = remaining(need) - Math.min(left, remaining(need));
       if (other > 0) receive(need, other, null);
       donation.raced = true;
     }
-    const result = receive(need, form.amount, who);
-    Object.assign(donation, result);
-  } else if (form.target.type === "dog") {
-    const dog = dogById(form.target.id);
-    donation.rows.push(
-      post({
-        kind: "guardian",
-        who,
-        dogId: dog.id,
-        needId: null,
-        amount: form.amount,
-        monthly: true,
-      }),
-    );
-    dog.guardianKop = Math.min(dog.monthlyCost, dog.guardianKop + form.amount);
+    Object.assign(donation, receive(need, total, who));
+    return donation;
+  }
+
+  const dog = form.target.type === "dog" ? dogById(form.target.id) : null;
+  donation.rows.push(
+    post(
+      dog
+        ? {
+            kind: "guardian",
+            who,
+            dogId: dog.id,
+            needId: null,
+            amount: total,
+            monthly: true,
+          }
+        : {
+            kind: "donation",
+            who,
+            needId: null,
+            amount: total,
+            monthly: donation.monthly,
+          },
+    ),
+  );
+  if (dog) {
+    dog.guardianKop = Math.min(dog.monthlyCost, dog.guardianKop + total);
     dog.guardians += 1;
-    donation.toFund = form.amount;
-    state.stats.fund += form.amount;
-    state.stats.monthIn += form.amount;
-    state.stats.monthDonors += 1;
-  } else {
-    donation.rows.push(
-      post({
-        kind: "donation",
-        who,
-        needId: null,
-        amount: form.amount,
-        monthly: donation.monthly,
-      }),
-    );
-    donation.toFund = form.amount;
-    donation.redirected = Boolean(need);
-    state.stats.fund += form.amount;
-    state.stats.monthIn += form.amount;
-    state.stats.monthDonors += 1;
   }
-  if (donation.feeKop) {
-    donation.rows.push(
-      post({
-        kind: "donation",
-        who,
-        needId: null,
-        amount: donation.feeKop,
-        text: "на комиссию банка",
-      }),
-    );
-    state.stats.fund += donation.feeKop;
-    state.stats.monthIn += donation.feeKop;
-  }
+  donation.toFund = total;
+  donation.redirected = Boolean(need);
+  state.stats.fund += total;
+  state.stats.monthIn += total;
+  state.stats.monthDonors += 1;
   return donation;
 }
 
@@ -227,6 +223,7 @@ function createNeed(form) {
     breakdown: [],
     donors: 0,
     isNew: true,
+    published: false,
     timeline: [],
   };
   if (form.unit)
@@ -244,6 +241,7 @@ function createNeed(form) {
 
 function publishNeed(need) {
   need.status = "open";
+  need.published = true;
   addEvent(need, "Сбор открыт", undefined, "Ирина, админ");
 }
 
@@ -339,6 +337,7 @@ function completeNeed(need, reportText) {
     post({ kind: "to_fund", needId: need.id, amount: rest });
     state.stats.fund += rest;
   }
+  need.returned = rest;
   need.status = "done";
   need.report =
     reportText.trim() ||
@@ -362,9 +361,13 @@ function cancelNeed(need, reason) {
     post({ kind: "cancel", needId: need.id, amount: rest });
     state.stats.fund += rest;
   }
+  need.returned = rest;
   need.status = "cancelled";
   need.report =
-    reason.trim() || "Сбор отменён. Собранное перешло в общий фонд приюта.";
+    reason.trim() ||
+    (rest > 0
+      ? "Сбор отменён. Собранное перешло в общий фонд приюта."
+      : "Сбор отменён.");
   addEvent(
     need,
     "Отменено",

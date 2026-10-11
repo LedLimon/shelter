@@ -49,6 +49,12 @@ function donateAmount(form) {
   return form.custom.trim() ? parseRubInput(form.custom) : form.amount;
 }
 
+/** What will be charged: the sum plus the bank fee, if the donor covers it. */
+function donateTotal(form) {
+  const amount = donateAmount(form);
+  return amount ? amount + (form.coverFee ? fee(amount) : 0) : amount;
+}
+
 function donateTiles(form) {
   const { need } = donateTarget(form);
   const monthly = form.mode === "monthly";
@@ -70,7 +76,7 @@ function donateTiles(form) {
 
 LIVE.donateCta = () => {
   const form = ui.donate;
-  const amount = donateAmount(form);
+  const amount = donateTotal(form);
   const sum = amount ? ` — ${formatRub(amount)}` : "";
   if (form.target.type === "dog")
     return `Стать опекуном${sum}${amount ? " в месяц" : ""}`;
@@ -87,7 +93,7 @@ LIVE.donateFee = () => {
 LIVE.donateSummary = () => {
   const form = ui.donate;
   const { need } = donateTarget(form);
-  const amount = donateAmount(form);
+  const amount = donateTotal(form);
   const lines = [];
   if (need && form.mode === "monthly")
     lines.push(
@@ -225,8 +231,7 @@ LAYERS.donate = () => {
 LAYERS.pay = () => {
   const form = ui.donate;
   const { need, dog } = donateTarget(form);
-  const amount = donateAmount(form);
-  const total = amount + (form.coverFee ? fee(amount) : 0);
+  const total = donateTotal(form);
   const where = dog
     ? `опека, ${dog.name}`
     : need
@@ -322,11 +327,19 @@ ACTIONS["donate-submit"] = () => {
     refresh(DONATE_FIELD[invalid]);
     return;
   }
-  openLayer({ type: "pay" }, ui.layer?.opener);
+  // From the form on the fund page there is no layer yet: focus returns to its button.
+  openLayer(
+    { type: "pay" },
+    ui.layer?.opener ?? document.getElementById("main-cta"),
+  );
 };
 
 ACTIONS["pay-back"] = () => {
-  if (currentHash.startsWith("#/donate") && ui.donate.target.type === "fund") {
+  // On the fund page the form is on the page itself: just close the payment layer.
+  if (
+    resolve(currentHash)?.name === "fund" &&
+    ui.donate.target.type === "fund"
+  ) {
     closeLayer();
     return;
   }
@@ -338,13 +351,15 @@ ACTIONS.pay = (el) => {
   form.amount = donateAmount(form);
   form.custom = "";
   const donation = donate(form, el.dataset.outcome);
+  // Consents are given for one payment: the next form starts unticked.
+  Object.assign(form, { offer: false, recurring: false });
   closeLayer();
   go(`#/donate/status/${donation.id}`);
 };
 
 ACTIONS["retry-donate"] = (el) => {
   const donation = state.donations[el.dataset.donation];
-  ui.donate = { ...donation.form, errors: {} };
+  ui.donate = { ...donation.form, offer: false, recurring: false, errors: {} };
   openLayer({ type: "donate" }, el);
 };
 
@@ -399,7 +414,7 @@ function statusBody(donation) {
   }
   if (donation.feeKop)
     lines.push(
-      `Комиссию банка, ${formatRub(donation.feeKop)}, вы взяли на себя — спасибо.`,
+      `В сумму вошли ${formatRub(donation.feeKop)} на комиссию банка — спасибо, что взяли её на себя.`,
     );
   const progressBlock =
     need && !need.unit && donation.toNeed > 0
