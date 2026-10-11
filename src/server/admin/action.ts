@@ -53,6 +53,11 @@ export type AdminActionContext = {
  * The handler refuses with `throw new ActionError(message, fieldErrors?)` and
  * may check further permissions with assertCan(). Anything else it throws is
  * a bug: it propagates, and the form shows a generic message.
+ *
+ * Don't call redirect() in the handler: it works by throwing, which would
+ * roll the transaction back and then navigate to a record that was never
+ * saved. Return what the page needs (an id) and navigate in the form's
+ * `onSuccess`; adminAction refuses a redirect loudly.
  */
 export function adminAction<Schema extends z.ZodType, Data = void>(
   schema: Schema,
@@ -85,12 +90,23 @@ export function adminAction<Schema extends z.ZodType, Data = void>(
       const tags = new Set<string>();
       const data = await getDb().$transaction(async (tx) => {
         const entries: AuditEntry[] = [];
-        const result = await handler(parsed.data, {
-          user,
-          db: tx,
-          audit: (entry) => entries.push(entry),
-          revalidate: (...names) => names.forEach((name) => tags.add(name)),
-        });
+        let result: Data;
+        try {
+          result = await handler(parsed.data, {
+            user,
+            db: tx,
+            audit: (entry) => entries.push(entry),
+            revalidate: (...names) => names.forEach((name) => tags.add(name)),
+          });
+        } catch (error) {
+          if (isRedirect(error)) {
+            throw new Error(
+              "redirect() inside an adminAction handler rolls its transaction " +
+                "back: return the id and navigate in the form's onSuccess.",
+            );
+          }
+          throw error;
+        }
         await recordAudit(tx, user, entries);
         return result;
       });
@@ -118,6 +134,17 @@ function failure(code: "unauthorized" | "forbidden"): {
   error: ActionFailure;
 } {
   return { ok: false, error: { code, message: ACTION_MESSAGES[code] } };
+}
+
+/** What redirect() of next/navigation throws: an error with this digest. */
+function isRedirect(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "digest" in error &&
+    typeof error.digest === "string" &&
+    error.digest.startsWith("NEXT_REDIRECT")
+  );
 }
 
 /** The first message of every field, keyed by its path: `contacts.email`. */

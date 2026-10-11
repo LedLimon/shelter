@@ -1,12 +1,15 @@
 "use server";
 
 import { adminAction } from "@/server/admin/action";
-import { saveSettings as save } from "@/server/settings";
-import { settingsFormSchema, settingsFormValues } from "./schema";
+import { getSettings, saveSettings as save } from "@/server/settings";
+import { settingsChangesSchema, settingsFormValues } from "./schema";
 
-/** Saves the settings form; returns the values as they are stored now. */
+/**
+ * Saves the groups of the settings form that the owner changed; returns the
+ * whole form as it is stored now, changes made elsewhere included.
+ */
 export const saveSettings = adminAction(
-  settingsFormSchema,
+  settingsChangesSchema,
   "settings.edit",
   async (settings, { db, audit, revalidate }) => {
     const changes = await save(db, settings);
@@ -20,6 +23,6 @@ export const saveSettings = adminAction(
       });
     }
     if (changes.length > 0) revalidate("settings");
-    return settingsFormValues(settings);
+    return settingsFormValues(await getSettings(db));
   },
 );

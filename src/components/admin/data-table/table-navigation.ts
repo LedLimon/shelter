@@ -1,7 +1,14 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { createContext, use, useCallback, useTransition } from "react";
+import {
+  createContext,
+  use,
+  useCallback,
+  useEffect,
+  useRef,
+  useTransition,
+} from "react";
 import type { TableQuery } from "./table-query";
 
 export type TableUrl = {
@@ -22,21 +29,30 @@ export type TableUrl = {
 export function useTableUrl(): TableUrl {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const current = useSearchParams().toString();
   const [pending, startTransition] = useTransition();
+  // Where the table is heading while a navigation loads. The next change
+  // builds on it: built on the URL still on screen, a sort clicked during a
+  // slow search would drop the search.
+  const heading = useRef<string | null>(null);
+  useEffect(() => {
+    // Settled (or the user went Back): the URL is the truth again.
+    if (!pending) heading.current = null;
+  }, [pending, current]);
 
   const navigate = useCallback<TableUrl["navigate"]>(
     (change, { replace = false, scroll = true } = {}) => {
-      const params = new URLSearchParams(searchParams);
+      const params = new URLSearchParams(heading.current ?? current);
       change(params);
       const search = params.toString();
+      heading.current = search;
       const href = search ? `${pathname}?${search}` : pathname;
       startTransition(() => {
         if (replace) router.replace(href, { scroll });
         else router.push(href, { scroll });
       });
     },
-    [pathname, router, searchParams],
+    [pathname, router, current],
   );
 
   return { pending, navigate };

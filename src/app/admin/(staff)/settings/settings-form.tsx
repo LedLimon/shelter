@@ -23,7 +23,7 @@ import {
   type SettingsFormValues,
 } from "./schema";
 
-type SettingsControl = Control<SettingsFormValues, unknown, Settings>;
+type SettingsControl = Control<SettingsFormValues, unknown, Partial<Settings>>;
 
 /**
  * The reference admin form: fields from src/components/form, a zod schema
@@ -41,6 +41,8 @@ export function SettingsForm({
     schema: settingsFormSchema,
     defaultValues,
     action: saveSettings,
+    // Four settings in one form: only the changed ones are sent.
+    changedOnly: true,
     success: "Настройки сохранены",
     savedValues: (saved) => saved,
   });

@@ -28,7 +28,7 @@ export function DataTableSearch({
   placeholder?: string;
 }) {
   const id = useId();
-  const { query, navigate } = useTableNavigation();
+  const { query, navigate, pending } = useTableNavigation();
   const [value, setValue] = useState(query.search);
   // What this box last put into the URL, and the URL's value last rendered.
   const [sent, setSent] = useState(query.search);
@@ -43,6 +43,9 @@ export function DataTableSearch({
       setValue(query.search);
       setSent(query.search);
     }
+  } else if (!pending && sent !== query.search) {
+    // The box's navigation never arrived: Enter must be able to send it again.
+    setSent(query.search);
   }
 
   useEffect(() => () => clearTimeout(timer.current), []);

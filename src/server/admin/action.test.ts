@@ -230,6 +230,20 @@ describe("adminAction", () => {
     expect(mocks.events).toEqual(["begin", "rollback"]);
   });
 
+  it("refuses a redirect() from the handler instead of undoing the work silently", async () => {
+    const action = adminAction(schema, "needs.edit", () => {
+      // What redirect() of next/navigation throws.
+      throw Object.assign(new Error("NEXT_REDIRECT"), {
+        digest: "NEXT_REDIRECT;push;/admin/needs/1;307;",
+      });
+    });
+
+    await expect(action(input)).rejects.toThrow(
+      /navigate in the form's onSuccess/,
+    );
+    expect(mocks.events).toEqual(["begin", "rollback"]);
+  });
+
   it("lets an unexpected error through: it is a bug, not an answer", async () => {
     const action = adminAction(schema, "needs.edit", () => {
       throw new Error("connection lost");

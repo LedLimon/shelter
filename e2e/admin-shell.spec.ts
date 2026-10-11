@@ -97,9 +97,14 @@ test("a section's address answers 403 to a role without the permission", async (
 }) => {
   await signIn(page, E2E_USERS.editor);
 
-  // Settings are a real page, donations and audit the placeholder: all
-  // check the section's permission.
-  for (const path of ["/admin/settings", "/admin/donations", "/admin/audit"]) {
+  // Settings are a real page, donations and audit the placeholder, the last
+  // one an address below a section: all check the section's permission.
+  for (const path of [
+    "/admin/settings",
+    "/admin/donations",
+    "/admin/audit",
+    "/admin/donations/manual",
+  ]) {
     const response = await page.request.get(path);
     expect(response.status(), path).toBe(403);
   }
@@ -120,12 +125,18 @@ test("a section's address answers 403 to a role without the permission", async (
 test("an address that is no section answers 404 to staff", async ({ page }) => {
   await signIn(page, E2E_USERS.editor);
 
-  expect((await page.request.get("/admin/no-such-section")).status()).toBe(404);
+  // Below a section of the curator's own, too: no page there yet.
+  for (const path of ["/admin/no-such-section", "/admin/needs/42/edit"]) {
+    expect((await page.request.get(path)).status(), path).toBe(404);
 
-  await page.goto("/admin/no-such-section");
-  await expect(
-    page.getByRole("heading", { level: 1, name: "Страница не найдена" }),
-  ).toBeVisible();
+    await page.goto(path);
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Страница не найдена" }),
+    ).toBeVisible();
+    // Inside the frame, with the way back.
+    const menu = await openMenu(page);
+    await expect(menu.getByRole("link", { name: "Нужды" })).toBeVisible();
+  }
 });
 
 test("the owner fills in the settings; they validate and stay saved", async ({
@@ -177,6 +188,28 @@ test("the owner fills in the settings; they validate and stay saved", async ({
   await expect(page.getByLabel("Телефон")).toHaveValue("+7 900 123-45-67");
   await expect(page.getByLabel("Часовой пояс")).toContainText("UTC+");
   expect(errors).toEqual([]);
+});
+
+test("a form keeps what was typed while it was being saved", async ({
+  page,
+}) => {
+  await signIn(page, E2E_USERS.owner);
+  await page.goto("/admin/settings");
+  await page.waitForLoadState("networkidle");
+  // A slow server. Nothing is changed before saving, so nothing is written.
+  await page.route("**/admin/settings", async (route) => {
+    if (route.request().method() === "POST") {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+    }
+    await route.continue();
+  });
+
+  await page.getByRole("button", { name: "Сохранить" }).click();
+  await page.getByLabel("Адрес").fill("Лесная улица, 1");
+
+  await expect(page.getByText("Настройки сохранены")).toBeVisible();
+  await expect(page.getByLabel("Адрес")).toHaveValue("Лесная улица, 1");
+  await expect(page.getByText("Есть несохранённые изменения")).toBeVisible();
 });
 
 test("a form keeps what was typed when the session has ended", async ({

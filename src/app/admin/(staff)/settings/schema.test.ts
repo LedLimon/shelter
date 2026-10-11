@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { defaultSettings, settingSchemas } from "@/server/settings/schema";
 import {
   MAX_PRESET_AMOUNTS,
+  settingsChangesSchema,
   settingsFormSchema,
   settingsFormValues,
   type SettingsFormValues,
@@ -42,7 +43,7 @@ describe("settings form", () => {
 
     values.presets.monthly = [{ amount: "250" }, { amount: "1 500,50" }];
     expect(
-      settingsFormSchema.parse(values)["donation.presetAmounts"].monthlyKop,
+      settingsFormSchema.parse(values)["donation.presetAmounts"]?.monthlyKop,
     ).toEqual([25_000, 150_050]);
   });
 
@@ -60,6 +61,52 @@ describe("settings form", () => {
       expect(settingSchemas[key].parse(settings[key])).toEqual(settings[key]);
     }
   });
+
+  it("as the action's input, turns only the groups it was given into settings", () => {
+    const { contacts, timeZone } = form((values) => {
+      values.contacts.telegram = "@priyut";
+      values.timeZone = "Asia/Omsk";
+    });
+
+    expect(settingsChangesSchema.parse({ contacts, timeZone })).toEqual({
+      "shelter.contacts": {
+        ...defaults["shelter.contacts"],
+        telegram: "https://t.me/priyut",
+      },
+      "shelter.timezone": "Asia/Omsk",
+    });
+    expect(settingsChangesSchema.parse({})).toEqual({});
+    // The browser checks the whole form: there every group is required.
+    expect(settingsFormSchema.safeParse({ contacts, timeZone }).success).toBe(
+      false,
+    );
+  });
+
+  it.each(["info@приют.рф", "info@xn--h1alffa9f.xn--p1ai", "a.b+c@mail.ru"])(
+    "accepts the email %j",
+    (email) => {
+      expect(
+        errorsOf(
+          form((values) => {
+            values.contacts.email = email;
+          }),
+        ),
+      ).toEqual({});
+    },
+  );
+
+  it.each(["info@", "@priyut.ru", "info@priyut", "in fo@priyut.ru"])(
+    "rejects the email %j",
+    (email) => {
+      expect(
+        errorsOf(
+          form((values) => {
+            values.contacts.email = email;
+          }),
+        ),
+      ).toHaveProperty(["contacts.email"]);
+    },
+  );
 
   it("normalises what was typed", () => {
     const settings = settingsFormSchema.parse(
@@ -96,7 +143,7 @@ describe("settings form", () => {
       }),
     );
 
-    expect(settings["shelter.contacts"].telegram).toBe(stored);
+    expect(settings["shelter.contacts"]?.telegram).toBe(stored);
   });
 
   it("says what is wrong with each field", () => {
@@ -144,13 +191,14 @@ describe("settings form", () => {
     },
   );
 
-  it("rejects amounts that are empty, zero, not numbers or repeated", () => {
+  it("rejects amounts that are empty, too small, not numbers or repeated", () => {
     const errors = errorsOf(
       form((values) => {
         values.presets.oneTime = [
           { amount: "" },
-          { amount: "0" },
+          { amount: "99,99" },
           { amount: "пятьсот" },
+          { amount: "100" },
         ];
         values.presets.monthly = [
           { amount: "500" },
@@ -162,7 +210,8 @@ describe("settings form", () => {
 
     expect(errors).toEqual({
       "presets.oneTime.0.amount": "Введите сумму или удалите строку.",
-      "presets.oneTime.1.amount": "Сумма должна быть больше нуля.",
+      "presets.oneTime.1.amount":
+        "Не меньше 100\u00A0₽: это минимальное пожертвование.",
       "presets.oneTime.2.amount":
         "Введите сумму цифрами, например 500 или 1 500.",
       "presets.monthly.2.amount": "Такая сумма уже есть в списке.",

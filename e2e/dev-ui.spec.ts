@@ -314,6 +314,32 @@ test.describe("DataTable", () => {
     await expect(next).toBeDisabled();
   });
 
+  test("keeps a change made while the previous one is still loading", async ({
+    page,
+  }) => {
+    const table = await openTable(page);
+    // A slow server: every navigation of the table takes a while.
+    await page.route(/\/dev\/ui\?.*_rsc=/, async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      await route.continue();
+    });
+
+    const searching = page.waitForRequest(/\/dev\/ui\?.*q=/);
+    await section(page).getByRole("searchbox", { name: "Поиск" }).fill("забор");
+    await searching;
+    // The search is on its way; sort before it arrives.
+    await table
+      .getByRole("columnheader", { name: "Сумма" })
+      .getByRole("button")
+      .click();
+
+    await expect(page).toHaveURL(/[?&]sort=-amountKop/);
+    await expect(page).toHaveURL(/[?&]q=/);
+    await expect(section(page).getByRole("status")).toHaveText(
+      "Показаны 1–10 из 10",
+    );
+  });
+
   test("searches, filters and offers a way out of an empty result", async ({
     page,
   }) => {

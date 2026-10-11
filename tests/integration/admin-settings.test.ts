@@ -146,6 +146,30 @@ describe("the settings form's action", () => {
     expect(mocks.updateTag).toHaveBeenCalledExactlyOnceWith("settings");
   });
 
+  it("writes only the groups it was sent: an old tab keeps off the rest", async () => {
+    // Another tab saved new bank details after this one had loaded the form.
+    const requisites = {
+      ...defaults["shelter.requisites"],
+      account: "40703810938000001234",
+    };
+    await setSetting(getDb(), "shelter.requisites", requisites);
+
+    // This tab changed the phone only, so it sends the contacts only.
+    const { contacts } = typed();
+    contacts.phone = "+7 900 123-45-67";
+    const result = await saveSettingsAction({ contacts });
+
+    expect(await getSetting(getDb(), "shelter.requisites")).toEqual(requisites);
+    expect(await getSetting(getDb(), "shelter.contacts")).toMatchObject({
+      phone: "+7 900 123-45-67",
+    });
+    // The answer is the whole form as stored: the other tab's change shows up.
+    expect(result).toMatchObject({
+      ok: true,
+      data: { requisites: { account: "40703810938000001234" } },
+    });
+  });
+
   it("doesn't touch the cache when nothing changed", async () => {
     const result = await saveSettingsAction(settingsFormValues(defaults));
 

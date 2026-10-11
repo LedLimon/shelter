@@ -3,6 +3,13 @@ import { isTimeZone } from "@/lib/time-zones";
 
 const amountKop = z.number().int().positive();
 
+/**
+ * The smallest donation (docs/product.md#пожертвования: about 100 ₽, against
+ * card testing). A preset below it would be a button that cannot be paid; the
+ * donation form must refuse smaller amounts by the same constant.
+ */
+export const MIN_DONATION_KOP = 100_00;
+
 /** Every setting key and the shape of its JSON value. */
 export const settingSchemas = {
   /** Shown dates use this zone; the database stores UTC. */
