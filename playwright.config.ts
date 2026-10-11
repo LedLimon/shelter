@@ -15,12 +15,26 @@ const host = isCI ? "127.0.0.1" : "localhost";
 // (Next.js refuses a second `next dev` in the same checkout).
 const externalBaseURL = process.env.E2E_BASE_URL;
 const baseURL = externalBaseURL ?? `http://${host}:${port}`;
-// The /dev/ui showcase exists only in `next dev`. CI tests the production
-// build, so it starts a dev server next to it for the showcase project.
+// The /dev/ui showcase and the upload demo (/admin/dev/media) exist only in
+// `next dev`. CI tests the production build, so it starts a dev server next
+// to it for the showcase project.
 const devPort = port + 1;
 const showcaseBaseURL =
   externalBaseURL ?? (isCI ? `http://localhost:${devPort}` : baseURL);
-const SHOWCASE_SPEC = /dev-ui\.spec\.ts/;
+const SHOWCASE_SPEC = /(dev-ui|media-upload)\.spec\.ts/;
+
+// Uploads are processed by the worker (`pnpm worker`): the upload spec needs
+// one running, also next to a server that was started by hand (a second
+// worker does no harm). It reads the same environment as the app.
+const worker = {
+  name: "worker",
+  command: "pnpm worker",
+  wait: { stdout: /\[worker\] started/ },
+  env: { APP_URL: baseURL, PAYMENT_PROVIDER: "fake" },
+  reuseExistingServer: false,
+  gracefulShutdown: { signal: "SIGTERM" as const, timeout: 5_000 },
+  timeout: 60_000,
+};
 
 export default defineConfig({
   testDir: "./e2e",
@@ -54,7 +68,7 @@ export default defineConfig({
     },
   ],
   webServer: externalBaseURL
-    ? undefined
+    ? [worker]
     : [
         {
           // CI tests the production build (`pnpm build` runs in an earlier step);
@@ -81,10 +95,14 @@ export default defineConfig({
               {
                 command: `pnpm dev --port ${devPort}`,
                 url: showcaseBaseURL,
+                // Staff sign in on this server too (the upload demo), and
+                // Better Auth takes sign-ins only from APP_URL.
+                env: { APP_URL: showcaseBaseURL, PAYMENT_PROVIDER: "fake" },
                 reuseExistingServer: false,
                 timeout: 120_000,
               },
             ]
           : []),
+        worker,
       ],
 });

@@ -111,6 +111,12 @@ async function main() {
       });
     }
 
+    // The upload demo opens with a staff member's last uploads: none of the
+    // previous run's. Their files stay in the dev bucket; nothing lists them.
+    await db.media.deleteMany({
+      where: { uploadedBy: { email: { in: Object.values(E2E_USERS) } } },
+    });
+
     for (const project of E2E_PROJECTS) {
       for (let retry = 0; retry < E2E_ATTEMPTS; retry += 1) {
         const id = await user(

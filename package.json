@@ -39,6 +39,7 @@
     "better-auth": "1.7.7",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "libheif-js": "1.23.2",
     "lucide-react": "^1.53.0",
     "next": "16.4.0",
     "pg-boss": "12.35.1",
