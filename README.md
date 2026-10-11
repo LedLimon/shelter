@@ -46,6 +46,7 @@ pnpm dev:up      # Postgres, MinIO, Mailpit в Docker
 pnpm db:migrate  # схема БД
 pnpm db:seed     # владелец (SEED_OWNER_EMAIL с паролем) и настройки по умолчанию
 pnpm dev         # http://localhost:3000, админка — /admin
+pnpm worker      # во втором терминале: outbox и задачи по расписанию
 ```
 
 При первом входе в [`/admin`](http://localhost:3000/admin) админка попросит настроить приложение-аутентификатор (Яндекс Ключ, Google Authenticator и т. п.): без кода из него сотрудники не входят. `SEED_OWNER_TOTP_SECRET` задаёт владельцу известный TOTP-секрет вместо этой настройки — он для автотестов (CI), в production пуст.
@@ -89,6 +90,7 @@ pnpm dev:reset   # стереть .data/ (база, файлы) и поднят�
 - **Порт занят** — задайте в `.env` `POSTGRES_PORT`, `MINIO_PORT`, `MINIO_CONSOLE_PORT`, `MAILPIT_SMTP_PORT` или `MAILPIT_UI_PORT` и поправьте адрес сервиса там же (`DATABASE_URL`, `S3_ENDPOINT`, `SMTP_PORT`).
 - **e2e** (`pnpm e2e`) ходят в ту же базу, что и `pnpm dev`: нужны поднятый стек, применённые миграции, `pnpm db:seed` и `BETTER_AUTH_SECRET` в `.env`. Перед прогоном [`e2e/global-setup.ts`](e2e/global-setup.ts) создаёт в ней тестовых пользователей `e2e-*@shelter.localhost` — только если база локальная, а её владелец — `@shelter.localhost` (как `SEED_OWNER_EMAIL` в `.env.example`).
 - **Переменные окружения** проверяются при старте `pnpm dev` и `next start` (схема — [`src/lib/env/schema.ts`](src/lib/env/schema.ts)). Если чего-то не хватает, сервер не запустится и перечислит, какие переменные не заданы или неверны. Значения запоминаются при старте: после правки `.env` перезапустите `pnpm dev`. Новую переменную добавляйте в схему и в `.env.example` — тест сверяет их.
+- **Воркер** (`pnpm worker`) — отдельный процесс: выполняет побочные эффекты из таблицы `Outbox` (письма, уведомления) и задачи по расписанию. `.env` читает сам, после правки кода или `.env` его надо перезапустить. Пока он не запущен, события ждут в `Outbox` и выполнятся при следующем старте. Останавливается по Ctrl+C, дождавшись начатой работы. Подробно — [docs/architecture.md](docs/architecture.md#фоновые-задачи-worker).
 - **MinIO** — официальные образы `minio/minio` больше не публикуются, поэтому используется [`pgsty/minio`](https://github.com/pgsty/minio) — поддерживаемая сообществом сборка того же сервера. Регион — `ru-central1`, как у Yandex Object Storage.
 
 ## Разработка с ИИ-агентами
