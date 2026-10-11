@@ -182,19 +182,24 @@ enum OutboxStatus {
 }
 
 /// Side effects (emails, notifications) written in the same transaction as the
-/// business data; the worker (FND-5) runs them after commit.
+/// business data; the worker runs them after commit. Written only through
+/// outbox.enqueue() of src/server/jobs, settled only by its dispatcher.
 model Outbox {
   id          String       @id @default(cuid(2))
-  /// Event type, e.g. "donation.thanks".
+  /// Event type, e.g. "donation.thanks": a key of outboxEvents.
   type        String
   /// Ids only, no personal data: the handler loads the rest.
   payload     Json
-  /// One event per key, e.g. "donation.thanks:{donationId}"; insert with skipDuplicates.
+  /// One event per key, e.g. "donation.thanks:{donationId}". Rows are kept, so
+  /// the key guards against a repeated side effect for good.
   dedupeKey   String?      @unique
   status      OutboxStatus @default(PENDING)
+  /// Attempts started: the dispatcher adds one when it claims the event.
   attempts    Int          @default(0)
-  /// Not to be picked up before this time (retry backoff).
-  availableAt DateTime     @default(now()) @db.Timestamptz(3)
+  /// Not to be picked up before this time: the retry backoff, and the lease
+  /// of the worker running the event. The database's clock, like the
+  /// dispatcher's now(): the app's may differ.
+  availableAt DateTime     @default(dbgenerated("transaction_timestamp()")) @db.Timestamptz(3)
   /// No personal data here either (no raw SMTP replies with addresses).
   lastError   String?
   processedAt DateTime?    @db.Timestamptz(3)
