@@ -158,7 +158,9 @@ test("the owner fills in the settings; they validate and stay saved", async ({
 
   // An invalid field: the error is at the field, which takes the focus, and
   // what was typed stays.
-  await page.getByLabel("Название организации").fill("АНО «Островок Надежды»");
+  await page
+    .getByLabel("Название организации")
+    .fill("АНО «Мыс доброй надежды»");
   await page.getByLabel("ИНН").fill("12345");
   await save.click();
   const inn = page.getByLabel("ИНН");
@@ -168,25 +170,25 @@ test("the owner fills in the settings; they validate and stay saved", async ({
     "ИНН — 10 цифр у организации или 12 у ИП.",
   );
   await expect(page.getByLabel("Название организации")).toHaveValue(
-    "АНО «Островок Надежды»",
+    "АНО «Мыс доброй надежды»",
   );
 
   // Both projects save the same values at the same time: the last write
   // wins, and it is the same write.
   await inn.fill("7707 083 893");
   await page.getByLabel("Телефон").fill("+7 900 123-45-67");
-  await page.getByLabel("Telegram").fill("@ostrovok_nadezhdy");
+  await page.getByLabel("Telegram").fill("@mys_dobroy_nadezhdy");
   await save.click();
   await expect(page.getByText("Настройки сохранены")).toBeVisible();
   // The form shows what was stored: digits without spaces, a link for a nick.
   await expect(inn).toHaveValue("7707083893");
   await expect(page.getByLabel("Telegram")).toHaveValue(
-    "https://t.me/ostrovok_nadezhdy",
+    "https://t.me/mys_dobroy_nadezhdy",
   );
 
   await page.reload();
   await expect(page.getByLabel("Название организации")).toHaveValue(
-    "АНО «Островок Надежды»",
+    "АНО «Мыс доброй надежды»",
   );
   await expect(page.getByLabel("ИНН")).toHaveValue("7707083893");
   await expect(page.getByLabel("Телефон")).toHaveValue("+7 900 123-45-67");

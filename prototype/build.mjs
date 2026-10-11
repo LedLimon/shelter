@@ -3,7 +3,7 @@
 //
 //   node prototype/build.mjs
 //
-// dist/ostrovok-nadezhdy.html — the page to publish as an artifact (its host
+// dist/mys-dobroy-nadezhdy.html — the page to publish as an artifact (its host
 // adds <html>, <head> and <body> itself); dist/preview.html — the same page as
 // a full document: for checking locally and for GitHub Pages
 // (.github/workflows/prototype-pages.yml).
@@ -84,7 +84,7 @@ const preview = `<!doctype html>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="robots" content="noindex, nofollow" />
-<meta name="description" content="Прототип сайта приюта «Островок Надежды» на демо-данных: так сайт будет выглядеть и работать." />
+<meta name="description" content="Прототип сайта приюта «Мыс доброй надежды» на демо-данных: так сайт будет выглядеть и работать." />
 <link rel="icon" type="image/svg+xml" href="${favicon}" />
 </head>
 <body>
@@ -94,8 +94,8 @@ ${page}
 `;
 
 await mkdir(join(root, "dist"), { recursive: true });
-await writeFile(join(root, "dist/ostrovok-nadezhdy.html"), page);
+await writeFile(join(root, "dist/mys-dobroy-nadezhdy.html"), page);
 await writeFile(join(root, "dist/preview.html"), preview);
 console.log(
-  `dist/ostrovok-nadezhdy.html — ${(Buffer.byteLength(page) / 1024).toFixed(0)} KB`,
+  `dist/mys-dobroy-nadezhdy.html — ${(Buffer.byteLength(page) / 1024).toFixed(0)} KB`,
 );
