@@ -13,6 +13,7 @@ const SHELTER = {
   pickup: "посёлок Берёзовка, ул. Полевая, 3",
   hours: "каждый день с 10:00 до 18:00, по звонку",
   minDonation: rub(100),
+  maxDonation: rub(500000),
   feeShare: 0.029,
 };
 
@@ -614,6 +615,7 @@ const NEEDS = [
     goal: rub(28600),
     collected: rub(28600),
     spent: rub(31200),
+    covered: rub(2600),
     deadline: null,
     dogId: null,
     zoneId: "a",

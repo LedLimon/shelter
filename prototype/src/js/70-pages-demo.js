@@ -76,7 +76,7 @@ const SCREENS_SITE = [
   [
     "#/contacts",
     "Контакты и «Как добраться»",
-    "Каналы куратора, схема проезда",
+    "Каналы куратора и адрес; схема проезда — на втором этапе",
     "mvp",
   ],
 ];
@@ -151,31 +151,25 @@ PAGES.hub = () => ({
   title: "Что внутри",
   bare: true,
   html: `
-    <section class="sheet ways" aria-labelledby="hub-title">
+    <section class="sheet" aria-labelledby="hub-title">
       <div class="hub-lead">
         <div class="stack-sm">
           <div><span class="demo-tag">прототип · демо-данные</span></div>
           <h1 class="t-hero no-hyphens" id="hub-title">Сайт приюта «Островок Надежды»</h1>
           <p class="t-lead">Это макет, по которому можно ходить: так сайт будет выглядеть и работать. Собаки, суммы, имена и адреса выдуманы, деньги не списываются.</p>
           <p>Сайт делает три вещи. Собирает деньги на конкретные нужды: корм, лекарства, ремонт. Показывает, куда ушёл каждый рубль, вплоть до чека. И помогает собакам найти дом.</p>
-          <div class="row"><a class="btn btn-lg" href="#/home">Открыть сайт</a><a class="btn btn-outline btn-lg" href="#/admin/login">Открыть админку</a></div>
+          <div class="row"><a class="btn btn-lg" href="#/home">Открыть сайт</a><a class="btn btn-outline btn-lg" href="#/admin/login">Открыть админку</a><a href="#/plan">Что будет и когда</a></div>
         </div>
         <div class="stack-sm">
           <h2 class="t-title">Как смотреть</h2>
           <ul class="prose t-caption">
-            <li>Включите <b>«Пояснения»</b> в тёмной полосе сверху. На каждом экране появятся синие заметки: что здесь будет работать и на каком этапе.</li>
-            <li>Кнопка с луной в шапке сайта переключает светлую и тёмную тему.</li>
+            <li>Включите <b>«Пояснения»</b> в синей полосе сверху. На каждом экране появятся синие заметки: что здесь будет работать и на каком этапе.</li>
+            <li>Кнопка с луной переключает светлую и тёмную тему: она в шапке сайта, а на телефоне — в меню.</li>
             <li>Всё, что вы сделаете, — пожертвование, новая нужда, расход — живёт до обновления страницы. Обновите её, чтобы начать заново.</li>
             <li>Кнопки, которых в макете нет, честно говорят: «В прототипе не показано» — и объясняют, что там будет.</li>
           </ul>
           <ul class="stage-legend"><li>${stage("mvp")}к запуску</li><li>${stage("p2")}второй этап</li><li>${stage("p3")}третий этап</li></ul>
         </div>
-      </div>
-      <div class="tabs">
-        <a class="tab" href="#/home"><b>Помочь нужде</b><span>Главная → сумма → оплата → спасибо</span></a>
-        <a class="tab" href="#/dogs"><b>Забрать собаку</b><span>Каталог → профиль → контакты куратора</span></a>
-        <a class="tab" href="#/admin/login"><b>Отчитаться</b><span>Админка: нужда → чек → строка в книге</span></a>
-        <a class="tab" href="#/plan"><b>Что и когда</b><span>Этапы запуска простыми словами</span></a>
       </div>
     </section>
     <section class="section" aria-labelledby="scen-title">
@@ -267,7 +261,7 @@ const PLAN = [
     gets: [
       "Анкета волонтёра, смены с лимитом мест, напоминания.",
       "Доска разовых задач: отвезти в клинику, передержка.",
-      "Проверка удобства для людей с ограничениями зрения и нагрузки.",
+      "Проверка доступности для людей с нарушениями зрения и работы сайта под нагрузкой.",
     ],
     needs: ["Координатор волонтёров."],
   },
@@ -388,15 +382,18 @@ const SITE_NAV = [
   ["#/help", "Как помочь", ["help", "guardianship", "things", "volunteers"]],
 ];
 
-LAYERS.menu = () =>
-  layerShell(
+LAYERS.menu = () => {
+  const dark = isDark();
+  return layerShell(
     "Меню",
     `<nav class="menu-nav" aria-label="Основная">
       <a href="#/home">Главная</a>
       ${SITE_NAV.map(([href, title]) => `<a href="${href}">${title}</a>`).join("")}
-      <a href="#/stories">Они дома</a><a href="#/about">О приюте</a><a href="#/contacts">Контакты</a>
-    </nav>`,
+      <a href="#/about">О приюте</a><a href="#/contacts">Контакты</a>
+    </nav>
+    <button type="button" class="btn btn-outline btn-block" id="menu-theme" data-action="theme">${icon(dark ? "sun" : "moon")}${dark ? "Светлая тема" : "Тёмная тема"}</button>`,
     { side: true },
   );
+};
 
 ACTIONS.menu = (el) => openLayer({ type: "menu" }, el);

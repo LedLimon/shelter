@@ -33,7 +33,7 @@ function startDonate(options = {}) {
     amount,
     custom: "",
     mode: monthly ? "monthly" : "once",
-    email: previous?.email ?? "anna@example.ru",
+    email: previous?.email ?? "anna@example.com",
     name: previous?.name ?? "Анна",
     anon: previous?.anon ?? false,
     comment: "",
@@ -110,6 +110,41 @@ function donateForm(inline) {
         <button type="button" class="seg-item" id="mode-once" data-action="mode" data-mode="once" aria-pressed="${form.mode === "once"}">Разово</button>
         <button type="button" class="seg-item" id="mode-monthly" data-action="mode" data-mode="monthly" aria-pressed="${form.mode === "monthly"}">${icon("repeat")}Каждый месяц</button>
       </div>`;
+  const emailHint =
+    form.mode === "monthly"
+      ? "Пришлём чек после каждого списания."
+      : need
+        ? "Пришлём чек и отчёт, когда всё купим."
+        : "Пришлём чек.";
+  const more = form.more
+    ? `<div class="stack-sm" id="donate-more">
+        ${field({
+          id: "donate-name",
+          label: "Имя",
+          model: "donate.name",
+          value: form.name,
+          attrs: 'autocomplete="given-name"',
+        })}
+        ${checkField({
+          id: "donate-anon",
+          label: "Не показывать имя",
+          model: "donate.anon",
+          checked: form.anon,
+          hint: "В ленте и книге операций будет «Аноним».",
+        })}
+        <label class="check" for="donate-fee">
+          <input type="checkbox" id="donate-fee" data-model="donate.coverFee"${form.coverFee ? " checked" : ""} aria-describedby="donate-fee-hint" />
+          <span data-live="donateFee">${LIVE.donateFee()}</span>
+          <span class="hint" id="donate-fee-hint">Тогда до приюта дойдёт вся сумма.</span>
+        </label>
+        ${checkField({
+          id: "donate-news",
+          label: "Присылать новости приюта раз в месяц",
+          model: "donate.news",
+          checked: form.news,
+        })}
+      </div>`
+    : "";
   return `<form class="stack-sm" id="donate-form" data-submit="donate-submit" novalidate>
     ${modes}
     <fieldset class="stack-sm">
@@ -133,60 +168,41 @@ function donateForm(inline) {
       value: form.email,
       type: "email",
       error: errors.email,
-      hint: need
-        ? "Пришлём чек и отчёт, когда всё купим."
-        : "Пришлём чек. В прототипе почта уже вписана.",
+      hint: inline ? `${emailHint} В прототипе почта уже вписана.` : emailHint,
       attrs: 'autocomplete="email"',
     })}
-    ${field({
-      id: "donate-name",
-      label: "Имя",
-      model: "donate.name",
-      value: form.name,
-      attrs: 'autocomplete="given-name"',
-    })}
-    ${checkField({
-      id: "donate-anon",
-      label: "Не показывать имя",
-      model: "donate.anon",
-      checked: form.anon,
-      hint: "В ленте и книге операций будет «Аноним».",
-    })}
-    <label class="check" for="donate-fee">
-      <input type="checkbox" id="donate-fee" data-model="donate.coverFee"${form.coverFee ? " checked" : ""} aria-describedby="donate-fee-hint" />
-      <span data-live="donateFee">${LIVE.donateFee()}</span>
-      <span class="hint" id="donate-fee-hint">Тогда до приюта дойдёт вся сумма.</span>
-    </label>
-    <hr class="divider" />
-    ${checkField({
-      id: "donate-offer",
-      label: `Принимаю <button type="button" class="btn-link" ${stub("Здесь откроется публичная оферта. Текст готовит юрист, у каждого согласия хранится версия документа.")}>оферту</button> и согласен на <button type="button" class="btn-link" ${stub("Здесь откроется политика обработки персональных данных по 152-ФЗ.")}>обработку персональных данных</button>`,
-      model: "donate.offer",
-      checked: form.offer,
-      error: errors.offer,
-    })}
-    ${
-      form.mode === "monthly"
-        ? checkField({
-            id: "donate-recurring",
-            label: "Согласен на списание каждый месяц, пока не отменю",
-            model: "donate.recurring",
-            checked: form.recurring,
-            error: errors.recurring,
-            hint: "Отменить можно по ссылке из любого письма, без регистрации.",
-          })
-        : ""
-    }
-    ${checkField({
-      id: "donate-news",
-      label: "Присылать новости приюта раз в месяц",
-      model: "donate.news",
-      checked: form.news,
-    })}
-    <button type="submit" class="btn ${dog ? "btn-lg" : "btn-help"} btn-block" id="${inline ? "main-cta" : "donate-submit"}"><span data-live="donateCta">${LIVE.donateCta()}</span></button>
+    <div><button type="button" class="btn-link" id="donate-more-toggle" data-action="donate-more" aria-expanded="${Boolean(form.more)}" aria-controls="donate-more">${form.more ? "Скрыть имя, комиссию и новости" : `Имя, комиссия банка и новости — сейчас от имени «${form.anon || !form.name.trim() ? "Аноним" : esc(form.name.trim())}»`}</button></div>
+    ${more}
     ${note("mvp", "Галочки согласий не отмечены заранее — так требует закон. Пожертвовать можно без регистрации: нужна только почта, для гостя попросим ввести её дважды. Ежемесячные платежи в общий фонд — с запуска.")}
+    <div class="${inline ? "form-foot" : "layer-sticky"}">
+      ${checkField({
+        id: "donate-offer",
+        label: `Принимаю <button type="button" class="btn-link" ${stub("Здесь откроется публичная оферта. Текст готовит юрист, у каждого согласия хранится версия документа.")}>оферту</button> и согласен на <button type="button" class="btn-link" ${stub("Здесь откроется политика обработки персональных данных по 152-ФЗ.")}>обработку персональных данных</button>`,
+        model: "donate.offer",
+        checked: form.offer,
+        error: errors.offer,
+      })}
+      ${
+        form.mode === "monthly"
+          ? checkField({
+              id: "donate-recurring",
+              label: "Согласен на списание каждый месяц, пока не отменю",
+              model: "donate.recurring",
+              checked: form.recurring,
+              error: errors.recurring,
+              hint: "Отменить можно по ссылке из любого письма, без регистрации.",
+            })
+          : ""
+      }
+      <button type="submit" class="btn ${dog ? "btn-lg" : "btn-help"} btn-block" id="${inline ? "main-cta" : "donate-submit"}"><span data-live="donateCta">${LIVE.donateCta()}</span></button>
+    </div>
   </form>`;
 }
+
+ACTIONS["donate-more"] = (el) => {
+  ui.donate.more = !ui.donate.more;
+  refresh(el.id);
+};
 
 LAYERS.donate = () => {
   const form = ui.donate;
@@ -244,9 +260,11 @@ function validateDonate() {
   const form = ui.donate;
   const errors = {};
   const amount = donateAmount(form);
-  if (!amount) errors.amount = "Введите сумму цифрами, например 750.";
+  if (amount == null) errors.amount = "Введите сумму цифрами, например 750.";
   else if (amount < SHELTER.minDonation)
     errors.amount = `Минимальная сумма — ${formatRub(SHELTER.minDonation)}: меньше банк не проводит.`;
+  else if (amount > SHELTER.maxDonation)
+    errors.amount = `Больше ${formatRub(SHELTER.maxDonation)} одним платежом не провести. Для крупной суммы напишите нам — пришлём реквизиты.`;
   if (!/^\S+@\S+\.\S{2,}$/.test(form.email.trim()))
     errors.email =
       "Проверьте адрес: после «@» нужен домен целиком, например example.ru.";
@@ -308,10 +326,7 @@ ACTIONS["donate-submit"] = () => {
 };
 
 ACTIONS["pay-back"] = () => {
-  if (
-    location.hash.startsWith("#/donate") &&
-    ui.donate.target.type === "fund"
-  ) {
+  if (currentHash.startsWith("#/donate") && ui.donate.target.type === "fund") {
     closeLayer();
     return;
   }
@@ -417,7 +432,7 @@ PAGES.donateStatus = ({ id }) => {
       if (donation.revealed) return;
       setTimeout(() => {
         donation.revealed = true;
-        if (location.hash === `#/donate/status/${id}`)
+        if (currentHash === `#/donate/status/${id}`)
           render({ keepScroll: true });
       }, 1400);
     },
@@ -436,7 +451,12 @@ PAGES.fund = () => {
     ownHelp: true,
     html: `
       ${pageHead("Общий фонд", "Общий фонд — запас приюта на то, что не ждёт сбора. Сейчас в нём " + formatRub(state.stats.fund) + ".")}
+      ${note("mvp", "Общий фонд — отдельный счёт в книге операций. Сюда приходят пожертвования «без адреса», переплаты, остатки закрытых сборов и ежемесячные платежи; отсюда оплачивают срочное и комиссии банка.")}
       <div class="split split-even">
+        <section class="sheet sheet-body" aria-labelledby="fund-form">
+          <h2 class="t-title" id="fund-form">Пожертвовать</h2>
+          ${donateForm(true)}
+        </section>
         <div class="stack">
           <section class="sheet sheet-body" aria-labelledby="fund-what">
             <h2 class="t-title" id="fund-what">На что он идёт</h2>
@@ -449,14 +469,11 @@ PAGES.fund = () => {
           </section>
           <section class="sheet sheet-body" aria-labelledby="fund-moves">
             <h2 class="t-title" id="fund-moves">Последние движения фонда</h2>
-            ${ledgerList(moves)}
+            <p class="t-caption muted">Плюс — пришло в фонд, минус — ушло из него.</p>
+            ${ledgerList(moves, { fund: true })}
             <a href="#/transparency/ledger">Вся книга операций</a>
           </section>
         </div>
-        <section class="sheet sheet-body" aria-labelledby="fund-form">
-          <h2 class="t-title" id="fund-form">Пожертвовать</h2>
-          ${donateForm(true)}
-        </section>
       </div>`,
   };
 };

@@ -74,7 +74,7 @@ function mapPreview() {
   </section>`;
 }
 
-function waysSheet() {
+function waysSheet(withTitle = true) {
   const ways = [
     ["#/donate", "Деньгами", "500 ₽ — две недели корма для одной собаки"],
     [
@@ -93,9 +93,9 @@ function waysSheet() {
       "Выгул по субботам с 10:00 до 14:00, нужны шесть человек",
     ],
   ];
-  return `<section class="sheet ways" aria-labelledby="ways-title">
+  return `<section class="sheet ways" aria-label="Как помочь">
     <div class="sheet-body">
-      <h2 class="t-section caps" id="ways-title">Как помочь</h2>
+      ${withTitle ? '<h2 class="t-section caps">Как помочь</h2>' : ""}
       <p class="muted">Оторвите то, что подходит вам.</p>
     </div>
     <div class="tabs">${ways
@@ -114,6 +114,15 @@ function storyCard(dog) {
   </article>`;
 }
 
+/** For the home page: the latest purchases with receipts and the latest gift. */
+function moneyRows() {
+  const of = (group, count) =>
+    latest(
+      state.ledger.filter((row) => LEDGER_GROUP[row.kind] === group),
+    ).slice(0, count);
+  return latest([...of("in", 1), ...of("out", 3)]);
+}
+
 PAGES.home = () => {
   const urgent = activeNeeds();
   const [hero, ...rest] = urgent;
@@ -129,17 +138,28 @@ PAGES.home = () => {
     title: "Главная",
     ownHelp: Boolean(hero),
     html: `
-      ${top}
       ${note("mvp", "Первый экран — самая срочная нужда. Язычок с суммой сразу открывает оплату: два нажатия с главной. В жёлтом листе — последние пожертвования; имя показываем, только если человек разрешил.")}
+      ${top}
       <section class="section" aria-labelledby="urgent-title">
         ${sectionHead("Срочно нужно", "Все нужды", "#/needs", "urgent-title")}
         ${note("mvp", "Нужды выстраиваются сами: сначала срочные и почти собранные. Срочность и порядок задаёт админ приюта.")}
-        ${rest.length ? `<div class="grid-3">${rest.slice(0, 3).map(needCard).join("")}</div>` : emptyState("Остальное уже собрано. Можно поддержать общий фонд — из него закрываем срочное.", "Общий фонд", "#/donate")}
+        ${
+          rest.length
+            ? `<div class="grid-3">${rest
+                .slice(0, 3)
+                .map((need) => needCard(need))
+                .join("")}</div>`
+            : emptyState(
+                "Остальное уже собрано. Можно поддержать общий фонд — из него закрываем срочное.",
+                "Общий фонд",
+                "#/donate",
+              )
+        }
       </section>
       <section class="section" aria-labelledby="waiting-title">
         ${sectionHead("Ждут дом", "Все собаки", "#/dogs", "waiting-title")}
         ${note("mvp", "Сначала те, кто ждёт дольше всех. Язычки «Хочу забрать» открывают контакты куратора — анкеты нет.")}
-        <div class="dogs-strip">${waiting.map(dogCard).join("")}</div>
+        <div class="dogs-strip">${waiting.map((dog) => dogCard(dog)).join("")}</div>
       </section>
       <section class="section" aria-labelledby="money-title">
         ${sectionHead("Куда уходят деньги", "Все операции", "#/transparency/ledger", "money-title")}
@@ -150,14 +170,14 @@ PAGES.home = () => {
             <a href="#/transparency">Прозрачность: на что именно</a>
             <a href="#/transparency/reports/2026-09">Отчёт за сентябрь</a>
           </div>
-          ${ledgerList(latest(state.ledger).slice(0, 4))}
+          ${ledgerList(moneyRows())}
         </div>
       </section>
       ${mapPreview()}
       <section class="section" aria-labelledby="home-stories-title">
         ${sectionHead("Они дома", "Все истории", "#/stories", "home-stories-title")}
         ${note("p2", "Истории пристроенных собак — второй этап. Собаку не удаляем с сайта: у неё просто меняется статус на «Дома».")}
-        <div class="grid-2">${stories.map(storyCard).join("")}</div>
+        <div class="grid-2">${stories.map((dog) => storyCard(dog)).join("")}</div>
       </section>
       ${waysSheet()}
       ${note("mvp", "Деньги — с запуска. Помощь вещами и опека — второй этап, волонтёрские смены — третий.")}`,
@@ -232,7 +252,7 @@ PAGES.needs = (params, query) => {
             .join("")}</div>
         </div>
       </div>
-      ${list.length ? `<div class="grid-3">${list.map(needCard).join("")}</div>` : empty}
+      ${list.length ? `<div class="grid-3">${list.map((need) => needCard(need, 2)).join("")}</div>` : empty}
       <section class="sheet sheet-body" aria-labelledby="fund-teaser">
         <h2 class="t-title" id="fund-teaser">Не знаете, что выбрать?</h2>
         <p>Общий фонд закрывает то, что не ждёт: комиссии банка, недостачи по сборам, срочный визит к врачу. Каждый рубль из него тоже виден в книге операций.</p>
@@ -307,7 +327,7 @@ function needReport(need) {
           .join('<hr class="divider" />')}
       </div>
       <div class="sheet sheet-body">
-        <h3 class="t-title">Проводки по этой нужде</h3>
+        <h3 class="t-title">Строки в книге операций</h3>
         ${ledgerList(rows)}
         <p class="t-caption muted">Собрано ${formatRub(need.collected)}, потрачено ${formatRub(need.spent)}.</p>
       </div>
@@ -343,13 +363,12 @@ PAGES.need = ({ id }) => {
         : null,
     html: `
       <nav class="crumbs" aria-label="Вы здесь"><a href="#/needs">Нужды</a> / ${CATEGORIES[need.category].label}</nav>
+      ${note("mvp", "Прогресс — это сумма настоящих платежей, а не число, вписанное вручную. Когда сбор доходит до 100 %, он закрывается сам; всё, что пришло сверх цели, уходит в общий фонд отдельной строкой.")}
       <div class="split split-wide">
         <article class="sheet">
           <div class="hero-body">
             <div class="need-meta"><span class="cat">${CATEGORIES[need.category].label}</span>${
-              need.status === "open"
-                ? urgencyBadge(need.urgency)
-                : needStatusBadge(need.status)
+              need.status === "open" ? urgencyBadge(need.urgency) : ""
             }</div>
             <h1 class="need-h1">${esc(need.title)}</h1>
             ${need.photo && !need.unit ? photo(need.photo, { alt: need.alt, focus: need.focus }) : ""}
@@ -361,7 +380,6 @@ PAGES.need = ({ id }) => {
           ${sumTabs(need, true)}
         </article>
         <div class="stack">
-          ${note("mvp", "Прогресс — это сумма настоящих платежей, а не число, вписанное вручную. Когда сбор доходит до 100 %, он закрывается сам; всё, что пришло сверх цели, уходит в общий фонд отдельной строкой.")}
           <section class="sheet sheet-body" aria-labelledby="donors-title">
             <h2 class="t-title" id="donors-title">Помогли</h2>
             <p class="t-caption muted">${need.donors ? `${formatCount(need.donors, ["человек", "человека", "человек"])}. Имя видно, только если человек разрешил.` : "Пока никто — вы можете быть первым."}</p>

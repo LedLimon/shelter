@@ -32,9 +32,7 @@
   justify-self: start;
   background: var(--color-paper);
   padding: 0.5rem 0.875rem 0.375rem;
-  box-shadow:
-    0 1px 1px rgb(15 16 20 / 0.1),
-    0 10px 18px -14px rgb(15 16 20 / 0.5);
+  box-shadow: var(--shadow-sheet);
 }
 
 .slip > * {
@@ -139,9 +137,7 @@
 .btn-help:hover {
   background: var(--color-notice);
   transform: translateY(-1px);
-  box-shadow:
-    0 1px 1px rgb(15 16 20 / 0.12),
-    0 10px 18px -10px rgb(15 16 20 / 0.55);
+  box-shadow: var(--shadow-sheet);
 }
 
 .btn-help:active {
@@ -445,7 +441,7 @@
 
 .seg-item {
   flex: 1 1 auto;
-  min-height: 2.5rem;
+  min-height: 2.75rem;
   padding: 0.25rem 0.875rem;
   border: 0;
   background: transparent;
@@ -486,8 +482,8 @@
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
-  min-height: 2.25rem;
-  padding: 0.125rem 0.625rem;
+  min-height: 2.75rem;
+  padding: 0.125rem 0.75rem;
   border: 1px solid var(--color-perforation);
   background: var(--color-paper);
   color: var(--color-toner);
@@ -645,6 +641,26 @@ html.dark .layer-panel {
   gap: 0.5rem;
 }
 
+/* The consent and the main button stay in view while the sheet scrolls. */
+.layer-sticky {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: grid;
+  gap: 0.375rem;
+  margin: 0 calc(var(--sheet) * -1)
+    calc((var(--sheet) + env(safe-area-inset-bottom, 0px)) * -1);
+  padding: 0.5rem var(--sheet)
+    calc(var(--sheet) + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--color-perforation);
+  background: var(--color-paper);
+}
+
+.form-foot {
+  display: grid;
+  gap: 0.375rem;
+}
+
 .layer-side {
   align-items: stretch;
   justify-items: end;
@@ -770,6 +786,8 @@ html.dark .layer-panel {
   text-transform: uppercase;
 }
 
+/* `relative` keeps visually hidden text of the table inside the scroll box. */
 .table-wrap {
+  position: relative;
   overflow-x: auto;
 }

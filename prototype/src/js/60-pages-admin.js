@@ -52,7 +52,10 @@ ACTIONS["login-back"] = () => {
 ACTIONS["login-code"] = () => {
   state.staff = STAFF;
   ui.login.step = 1;
-  go("#/admin");
+  // Back to the page the visitor wanted before the sign-in, if there was one.
+  const wanted = ui.afterLogin;
+  ui.afterLogin = null;
+  go(wanted && wanted !== "#/admin/login" ? wanted : "#/admin");
 };
 
 ACTIONS.logout = () => {
@@ -495,10 +498,21 @@ ACTIONS.attach = (el) => {
 
 ACTIONS["fill-expense"] = (el) => {
   const need = needById(ui.expenseForm.needId);
-  Object.assign(ui.expenseForm, {
-    title: "Попоны зимние с подкладкой, 3 шт.",
-    supplier: "Зоомаркет «Хвост» (демо)",
-    amount: String(Math.round((need.collected * 0.94) / 10000) * 100 || 9000),
+  const left = Math.max(0, balance(need));
+  // With money left the example spends most of it; with none it shows a
+  // small extra purchase that the general fund will have to cover.
+  const example = left
+    ? {
+        title: "Попоны зимние с подкладкой, 3 шт.",
+        supplier: "Зоомаркет «Хвост» (демо)",
+        amount: String(Math.max(100, Math.round((left * 0.94) / 10000) * 100)),
+      }
+    : {
+        title: "Саморезы и пропитка для досок",
+        supplier: "Стройдвор (демо)",
+        amount: "1800",
+      };
+  Object.assign(ui.expenseForm, example, {
     receipt: true,
     redacted: false,
     result: true,
@@ -707,7 +721,7 @@ PAGES.adminLedger = staffOnly(() => {
       return `<tr><td class="mono">${row.id}<br />${formatDay(row.when)} ${formatTime(row.when)}</td>
         <td>${view.title}${row.isNew ? '<span class="ledger-new">новое</span>' : ""}<br /><span class="hint">${view.sub}</span></td>
         <td class="r"><span class="amt ${view.cls}">${view.amount}</span></td>
-        <td class="r"><button type="button" class="btn btn-ghost btn-sm" ${stub("Сторно — обратная запись, которая отменяет ошибочную строку. Обе остаются в книге. Делать сторно может только владелец.")} aria-label="Сторно операции ${row.id}">${icon("undo-2")}Сторно</button></td></tr>`;
+        <td class="r"><button type="button" class="btn btn-ghost btn-sm" ${stub("Ошибочную строку нельзя стереть: её отменяет обратная запись, и обе остаются в книге. Отменять записи может только владелец.")} aria-label="Отменить запись ${row.id}">${icon("undo-2")}Отменить</button></td></tr>`;
     })
     .join("");
   return {

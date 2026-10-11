@@ -63,9 +63,9 @@ function resolve(hash) {
 // ——— Shell.
 
 function protobar() {
-  return `<div class="protobar surface-footer"><div class="wrap protobar-in">
+  return `<div class="protobar"><div class="wrap protobar-in">
     <a href="#/" id="proto-home">${icon("list")}Что внутри</a>
-    <span class="protobar-demo">прототип · демо-данные · деньги не списываются</span>
+    <span class="protobar-demo"><span class="protobar-long">прототип · демо-данные · деньги не списываются</span><span class="protobar-short">прототип</span></span>
     <label class="switch" for="notes-switch"><span>Пояснения</span>
       <input type="checkbox" role="switch" id="notes-switch" data-change="notes"${ui.notes ? " checked" : ""} /></label>
   </div></div>`;
@@ -85,9 +85,9 @@ function siteHeader(page, route) {
     <a class="mark" href="#/home">Островок Надежды</a>
     <nav class="site-nav" aria-label="Основная">${nav}</nav>
     <div class="site-tools">
-      <button type="button" class="btn btn-outline btn-icon" id="theme-toggle" data-action="theme" aria-label="${dark ? "Включить светлую тему" : "Включить тёмную тему"}">${icon(dark ? "sun" : "moon")}</button>
+      <button type="button" class="btn btn-outline btn-icon header-theme" id="theme-toggle" data-action="theme" aria-label="${dark ? "Включить светлую тему" : "Включить тёмную тему"}">${icon(dark ? "sun" : "moon")}</button>
       ${page.ownHelp ? "" : '<a class="btn btn-help header-help" href="#/donate">Помочь</a>'}
-      <button type="button" class="btn btn-outline btn-icon site-menu" id="menu-toggle" data-action="menu" aria-label="Меню">${icon("menu")}</button>
+      <button type="button" class="btn btn-outline btn-icon site-menu" id="menu-toggle" data-action="menu" aria-haspopup="dialog" aria-label="Меню">${icon("menu")}</button>
     </div>
   </div></header>`;
 }
@@ -159,9 +159,12 @@ function shell(page, route) {
 const app = document.getElementById("app");
 const layerRoot = document.getElementById("layer-root");
 const toastRoot = document.getElementById("toast-root");
+let currentHash = location.hash || "#/";
+let renderedHash = null;
 let lastPath = null;
 let ctaObserver = null;
 let toastTimer = null;
+let toastAt = 0;
 
 function focusById(id, reveal) {
   const el = id ? document.getElementById(id) : null;
@@ -175,7 +178,7 @@ function focusById(id, reveal) {
 function watchMainCta() {
   ctaObserver?.disconnect();
   const bar = document.getElementById("sticky-bar");
-  const main = document.getElementById("main-cta");
+  const main = document.querySelector("#main-cta, [data-main-cta]");
   document.documentElement.classList.toggle("has-sticky", Boolean(bar));
   if (!bar || !main || !("IntersectionObserver" in window)) return;
   ctaObserver = new IntersectionObserver(([entry]) => {
@@ -185,10 +188,10 @@ function watchMainCta() {
 }
 
 function render(options = {}) {
-  const route = resolve(location.hash);
+  const route = resolve(currentHash);
   let page = route ? PAGES[route.name](route.params, route.query) : null;
   if (page?.redirect) {
-    ui.afterLogin = location.hash;
+    ui.afterLogin = currentHash;
     go(page.redirect, true);
     return;
   }
@@ -204,12 +207,17 @@ function render(options = {}) {
   lastPath = route?.path ?? null;
 
   // The hatching is «drawn» once per visit, not on every redraw of the page.
+  renderedHash = currentHash;
   app.classList.toggle("is-refresh", keepScroll);
   app.innerHTML = shell(page, route);
   document.title = `${page.title} — Островок Надежды`;
+  layerRoot.classList.toggle("admin", Boolean(page.admin));
+  typograf(app);
   if (keepScroll) {
     window.scrollTo(0, scrollY);
-    focusById(focusId, Boolean(options.focus));
+    // The control that had focus may be gone (a need was closed): fall back to the page.
+    if (!focusById(focusId, Boolean(options.focus)) && options.focus)
+      document.getElementById("main")?.focus({ preventScroll: true });
   } else {
     window.scrollTo(0, 0);
     if (!focusById(focusId))
@@ -228,6 +236,7 @@ function renderLayer(focusId) {
   const scrolled = layerRoot.querySelector(".layer-panel")?.scrollTop ?? 0;
   layerRoot.innerHTML = LAYERS[ui.layer.type]();
   document.body.style.overflow = "hidden";
+  typograf(layerRoot);
   const panel = layerRoot.querySelector(".layer-panel");
   if (focusId) panel.scrollTop = scrolled;
   if (!focusById(focusId, true)) panel.focus({ preventScroll: true });
@@ -274,21 +283,52 @@ function refresh(focusId) {
   else render({ keepScroll: true, focus: id });
 }
 
+/**
+ * Opens a route. The page is drawn from `currentHash` straight away; the
+ * address bar is updated on a best-effort basis, because an embedded viewer
+ * may not let a framed page change its own address.
+ */
 function go(hash, replace) {
-  if (location.hash === hash) {
-    render();
-    return;
+  if (ui.layer) {
+    ui.layer = null;
+    renderLayer();
   }
-  if (replace) {
-    try {
-      history.replaceState(null, "", hash);
-      render();
-      return;
-    } catch {
-      // Some embedded viewers forbid history changes: fall back to a plain jump.
+  // A message about the previous screen should not hang over the next one.
+  if (performance.now() - toastAt > 100) toastRoot.replaceChildren();
+  currentHash = hash || "#/";
+  try {
+    if (replace) history.replaceState(null, "", currentHash);
+    else if (location.hash !== currentHash) location.hash = currentHash;
+  } catch {
+    // The address stays as it was; the prototype still works.
+  }
+  render();
+}
+
+const NBSP_AFTER_SHORT =
+  /(^|[\s(«„"])(в|во|на|и|с|со|к|ко|у|о|об|от|из|за|до|по|не|ни|а|но|да|для|при|над|под|про|без|что|как)\s+/giu;
+
+/**
+ * Russian typography for everything on screen: thousands, a number and its
+ * unit, short prepositions and the dash stay on one line with their neighbour.
+ */
+function typograf(root) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node = walker.nextNode();
+  while (node) {
+    const text = node.nodeValue;
+    if (text.trim() && !node.parentElement.closest("textarea, script, style")) {
+      const glue = (match, before, word) => `${before}${word}${NBSP}`;
+      const next = text
+        .replace(/(\d)\s+(?=\d{3}(?!\d))/g, `$1${NBSP}`)
+        .replace(/(\d)\s+(?=[₽%№а-яёa-z])/giu, `$1${NBSP}`)
+        .replace(/\s+—/g, `${NBSP}—`)
+        .replace(NBSP_AFTER_SHORT, glue)
+        .replace(NBSP_AFTER_SHORT, glue);
+      if (next !== text) node.nodeValue = next;
     }
+    node = walker.nextNode();
   }
-  location.hash = hash;
 }
 
 /** A tab «tears off» before its sheet opens; no motion if the viewer asked for none. */
@@ -306,6 +346,8 @@ function toast(text) {
   const item = document.createElement("div");
   item.className = "toast";
   item.innerHTML = `${icon("circle-check")}<span>${esc(text)}</span>`;
+  typograf(item);
+  toastAt = performance.now();
   toastRoot.replaceChildren(item);
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => item.remove(), 5000);
@@ -356,23 +398,32 @@ function syncThemeButton() {
   button.innerHTML = icon(dark ? "sun" : "moon");
 }
 
-ACTIONS.theme = () => {
+ACTIONS.theme = (el) => {
   ui.theme = isDark() ? "light" : "dark";
   remember("ostrovok-theme", ui.theme);
   applyTheme();
   syncThemeButton();
+  if (ui.layer?.type === "menu") refresh(el.id);
 };
 
 ACTIONS.notes = (el) => {
   ui.notes = el.checked;
   remember("ostrovok-notes", ui.notes ? "on" : null);
   document.documentElement.classList.toggle("notes-on", ui.notes);
+  if (!ui.notes) return;
+  // Say how many notes this screen has: the first one may be below the fold.
+  const count = app.querySelectorAll(".note").length;
+  toast(
+    count
+      ? `Пояснения включены: на этом экране ${formatCount(count, ["синяя заметка", "синие заметки", "синих заметок"])}.`
+      : "Пояснения включены. На этом экране заметок нет.",
+  );
 };
 
 ACTIONS["close-layer"] = () => closeLayer();
 
 ACTIONS["ledger-need"] = (el) => {
-  const route = resolve(location.hash);
+  const route = resolve(currentHash);
   const parts = [];
   if (route.query.type) parts.push(`type=${route.query.type}`);
   if (el.value !== "all") parts.push(`need=${el.value}`);
@@ -385,13 +436,44 @@ ACTIONS["ledger-need"] = (el) => {
 function updateLive() {
   for (const el of document.querySelectorAll("[data-live]")) {
     const html = LIVE[el.dataset.live]?.();
-    if (html != null && el.innerHTML !== html) el.innerHTML = html;
+    if (html == null || el.dataset.shown === html) continue;
+    el.dataset.shown = html;
+    el.innerHTML = html;
+    typograf(el);
   }
+}
+
+/** The visitor started fixing a field: its error goes away at once. */
+function clearError(el) {
+  if (!el.hasAttribute("aria-invalid")) return;
+  el.removeAttribute("aria-invalid");
+  document.getElementById(`${el.id}-error`)?.remove();
+  const [root, key] = el.dataset.model.split(".");
+  const errors = ui[root]?.errors;
+  if (errors) {
+    delete errors[key];
+    if (key === "custom") delete errors.amount;
+  }
+  if (root === "volunteer") ui.volunteer.error = null;
 }
 
 document.addEventListener("click", (event) => {
   if (event.target.matches?.("[data-backdrop]")) {
     closeLayer();
+    return;
+  }
+  // Links between screens are handled here, not by the browser: inside an
+  // embedded viewer a «#/…» link may resolve against the viewer's address.
+  const link = event.target.closest?.('a[href^="#"]');
+  if (
+    link &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.shiftKey &&
+    event.button === 0
+  ) {
+    event.preventDefault();
+    go(link.getAttribute("href"));
     return;
   }
   const el = event.target.closest?.("[data-action]");
@@ -413,6 +495,7 @@ function onInput(event) {
   const el = event.target;
   if (!el.matches?.("[data-model]")) return;
   setPath(el.dataset.model, el.type === "checkbox" ? el.checked : el.value);
+  clearError(el);
   if (el.hasAttribute("data-rerender")) refresh(el.id);
   else updateLive();
 }
@@ -464,20 +547,10 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
+// Back and forward buttons, or an address typed by hand.
 window.addEventListener("hashchange", () => {
-  if (ui.layer) {
-    ui.layer = null;
-    renderLayer();
-  }
-  if (state.staff && ui.afterLogin && location.hash === "#/admin") {
-    const target = ui.afterLogin;
-    ui.afterLogin = null;
-    if (target !== "#/admin" && target !== "#/admin/login") {
-      go(target, true);
-      return;
-    }
-  }
-  render();
+  const hash = location.hash || "#/";
+  if (hash !== renderedHash) go(hash, true);
 });
 
 /**

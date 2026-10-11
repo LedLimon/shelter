@@ -1,8 +1,10 @@
 /* Public pages: header, footer and page layouts. */
 
 .site-header {
+  position: relative;
+  z-index: 2;
   background: var(--color-paper);
-  box-shadow: 0 1px 0 rgb(15 16 20 / 0.12);
+  box-shadow: var(--shadow-sheet);
 }
 
 .site-header-in {
@@ -57,10 +59,13 @@
 }
 
 .header-help {
-  display: none;
   min-height: 2.75rem;
-  padding-inline: 1rem;
+  padding-inline: 0.875rem;
   font-size: 1.125rem;
+}
+
+.header-theme {
+  display: none;
 }
 
 .menu-nav {
@@ -88,7 +93,7 @@
     display: flex;
   }
 
-  .header-help {
+  .header-theme {
     display: inline-flex;
   }
 
@@ -121,7 +126,7 @@
 .footer-cols a,
 .footer-cols .btn-link {
   display: inline-block;
-  padding-block: 0.3125rem;
+  padding-block: 0.6875rem;
 }
 
 .site-footer .mark {
@@ -146,9 +151,19 @@
 }
 
 .crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 0.5rem;
   font-family: var(--font-mono);
   font-size: var(--text-mono-sm);
   letter-spacing: 0.02em;
+}
+
+.crumbs a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
 }
 
 /* Home: the most urgent need and the yellow sheet next to it. */
@@ -395,7 +410,6 @@
   grid-template-columns: auto minmax(0, 1fr);
   gap: 0.5rem;
   align-items: start;
-  font-size: 0.9375rem;
 }
 
 .fact .icon {
@@ -419,8 +433,8 @@
   z-index: 30;
   display: none;
   padding: 0.5rem var(--gutter) calc(0.5rem + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--color-perforation);
   background: var(--color-paper);
-  box-shadow: 0 -1px 0 rgb(15 16 20 / 0.16);
 }
 
 .sticky-cta.is-on {
@@ -652,5 +666,9 @@
 @media (max-width: 63.99rem) {
   .has-sticky .site-footer {
     padding-bottom: 6rem;
+  }
+
+  .has-sticky #toast-root {
+    bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
   }
 }

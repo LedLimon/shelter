@@ -141,7 +141,7 @@ function sumTabs(need, wide) {
           preset.rest
             ? `Закрыть сбор — ${formatRub(preset.amount)}`
             : `Помочь на ${formatRub(preset.amount)}`
-        }">${formatRub(preset.amount)}${preset.rest ? "<small>весь остаток</small>" : ""}</button>`,
+        }"><span class="nowrap">${formatRub(preset.amount)}</span>${preset.rest ? "<small>весь остаток</small>" : ""}</button>`,
     )
     .join("");
   return `<div class="tabs" role="group" aria-label="Помочь: выберите сумму">${tabs}</div>`;
@@ -172,7 +172,7 @@ function needFoot(need) {
   if (need.status === "open") {
     return (
       sumTabs(need) ||
-      `<div class="need-foot"><span class="t-caption muted">Осталось ${formatRub(remaining(need))}</span><button type="button" class="btn btn-sm" id="help-${need.id}" data-action="donate" data-need="${need.id}">Помочь</button></div>`
+      `<div class="need-foot"><span class="t-caption muted">Осталось ${formatRub(remaining(need))}</span><button type="button" class="btn" id="help-${need.id}" data-action="donate" data-need="${need.id}">Помочь</button></div>`
     );
   }
   const link = {
@@ -189,13 +189,14 @@ function needFoot(need) {
   return `<div class="need-foot">${mark}<a href="#/needs/${need.id}">${link}</a></div>`;
 }
 
-function needCard(need) {
+/** level: 2 on a list page under its h1, 3 inside a section with its own h2. */
+function needCard(need, level = 3) {
   return `<article class="sheet need">
     <div class="need-body">
       <div class="need-meta"><span class="cat">${CATEGORIES[need.category].label}</span>${
         need.status === "open" ? urgencyBadge(need.urgency) : ""
       }</div>
-      <h3 class="t-title"><a href="#/needs/${need.id}">${esc(need.title)}</a></h3>
+      <h${level} class="t-title"><a href="#/needs/${need.id}">${esc(need.title)}</a></h${level}>
       ${needVisual(need, { link: true })}
       ${need.status === "open" ? `<p class="when">${describeDeadline(need.deadline)}</p>` : ""}
     </div>
@@ -217,22 +218,25 @@ function dogLine(dog) {
   }[dog.status];
 }
 
-function adoptTabs(dog, suffix = "") {
+function adoptTabs(dog, suffix = "", main = false) {
   const tab = `<span class="tab" aria-hidden="true">${icon("paw-print")}Хочу забрать</span>`;
-  return `<button type="button" class="tabs tabs-v" id="adopt-${dog.id}${suffix}" data-action="adopt" data-dog="${dog.id}" aria-label="Хочу забрать ${dog.acc}">${tab.repeat(5)}</button>`;
+  return `<button type="button" class="tabs tabs-v" id="adopt-${dog.id}${suffix}" data-action="adopt" data-dog="${dog.id}"${main ? " data-main-cta" : ""} aria-label="Хочу забрать ${dog.acc}">${tab.repeat(5)}</button>`;
 }
 
-function dogCard(dog) {
-  const label =
-    dog.status === "looking"
-      ? '<span class="t-label">Ищет дом</span>'
-      : dogStatusBadge(dog.status);
+function dogStatusLabel(status) {
+  const item = DOG_STATUS[status];
+  return `<span class="t-label icon-label">${icon(item.icon)}${item.label}</span>`;
+}
+
+function dogCard(dog, level = 3) {
+  const facts = dogFacts(dog);
   return `<article class="sheet dog">
     <div class="dog-body">
-      <div class="row-between">${label}</div>
+      <div class="row-between">${dogStatusLabel(dog.status)}</div>
       ${photo(dog.photo, { ratio: "45", focus: dog.focus, href: `#/dogs/${dog.id}` })}
-      <h3 class="t-name"><a href="#/dogs/${dog.id}">${dog.name}</a></h3>
-      <p class="t-caption">${dog.short}</p>
+      <h${level} class="t-name"><a href="#/dogs/${dog.id}">${dog.name}</a></h${level}>
+      <p class="when dog-meta">${facts.sex.toLowerCase()} · ${facts.age} · ${facts.size}</p>
+      <p class="t-caption dog-short">${dog.short}</p>
       <p class="when">${dogLine(dog)}</p>
     </div>
     ${HAS_TABS.includes(dog.status) ? adoptTabs(dog) : ""}
@@ -262,6 +266,9 @@ const LEDGER_GROUP = {
   from_fund: "move",
   cancel: "move",
 };
+
+/** Entries that bring money into the general fund (the rest take it out). */
+const FUND_IN = ["donation", "guardian", "overpay", "to_fund", "cancel"];
 
 function ledgerView(row) {
   const need = row.needId ? needById(row.needId) : null;
@@ -305,7 +312,7 @@ function ledgerView(row) {
     case "overpay":
       return {
         title: "Переплата → общий фонд",
-        sub: `сверх цели сбора ${needLink}`,
+        sub: `сверх цели сбора «${needLink}»`,
         amount: formatRub(row.amount),
         cls: "",
       };
@@ -339,6 +346,13 @@ function ledgerList(rows, options = {}) {
   const items = rows
     .map((row) => {
       const view = ledgerView(row);
+      if (options.fund) {
+        const into = FUND_IN.includes(row.kind);
+        view.amount = formatRub(into ? row.amount : -row.amount, {
+          sign: into,
+        });
+        view.cls = into ? "is-in" : "";
+      }
       const fresh = row.isNew ? '<span class="ledger-new">новое</span>' : "";
       const number = options.numbers
         ? `<span class="when">№ ${row.id} · ${formatTime(row.when)}</span>`

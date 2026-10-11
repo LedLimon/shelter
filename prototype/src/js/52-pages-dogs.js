@@ -111,13 +111,13 @@ PAGES.dogs = (params, query) => {
       ${note("mvp", "Фильтры живут в адресе: ссылку «небольшие девочки, ладят с детьми» можно отправить знакомым. Собак с сайта не удаляем — меняется только статус.")}
       <div class="sheet filters">
         <div class="row-between">
-          <button type="button" class="btn btn-outline btn-sm filters-toggle" id="filters-toggle" data-action="toggle-filters" aria-expanded="${Boolean(ui.filtersOpen)}" aria-controls="dog-filters">${icon("sliders-horizontal")}Фильтры${chosen ? ` · ${chosen}` : ""}</button>
+          <button type="button" class="btn btn-outline filters-toggle" id="filters-toggle" data-action="toggle-filters" aria-expanded="${Boolean(ui.filtersOpen)}" aria-controls="dog-filters">${icon("sliders-horizontal")}Фильтры${chosen ? ` · ${chosen}` : ""}</button>
           <span class="when">${list.length ? `${formatCount(list.length, ["собака", "собаки", "собак"])} · сначала те, кто ждёт дольше` : "никого не нашлось"}</span>
           ${chosen ? `<a href="#/dogs">Сбросить</a>` : ""}
         </div>
         <div class="filters-body filters-inline${ui.filtersOpen ? " is-open" : ""}" id="dog-filters">${groups}</div>
       </div>
-      ${list.length ? `<div class="grid-dogs">${list.map(dogCard).join("")}</div>` : empty}`,
+      ${list.length ? `<div class="grid-dogs">${list.map((dog) => dogCard(dog, 2)).join("")}</div>` : empty}`,
   };
 };
 
@@ -178,11 +178,12 @@ PAGES.dog = ({ id }) => {
     (need) => need.dogId === dog.id && isPublic(need),
   );
   const canAdopt = HAS_TABS.includes(dog.status);
-  const action = canAdopt
-    ? `<div><button type="button" class="btn btn-lg" id="main-cta" data-action="adopt" data-dog="${dog.id}">Хочу забрать</button></div>`
-    : dog.status === "home"
+  const settled =
+    dog.status === "home"
       ? `<div><span class="stamp">Дома</span></div>`
-      : `<p class="t-caption muted">Семья уже нашлась: ждём переезда.</p>`;
+      : canAdopt
+        ? ""
+        : `<p class="t-caption muted">Семья уже нашлась: ждём переезда.</p>`;
   return {
     title: dog.name,
     sticky: canAdopt
@@ -190,21 +191,21 @@ PAGES.dog = ({ id }) => {
       : null,
     html: `
       <nav class="crumbs" aria-label="Вы здесь"><a href="#/dogs">Собаки</a> / ${DOG_STATUS[dog.status].label}</nav>
+      ${note("mvp", "В настоящем профиле — галерея до десяти фото с точкой фокуса на морде, которую задаёт админ. У каждой собаки своя картинка для репоста в соцсетях.")}
       <div class="split split-narrow-first">
-        <div class="stack">
-          <div class="sheet dog">
-            <div class="gallery">${photo(dog.photo, { ratio: "45", alt: `${dog.name}, ${facts.sex.toLowerCase()}, ${facts.age}`, focus: dog.focus })}</div>
-            ${canAdopt ? adoptTabs(dog, "-profile") : ""}
+        <article class="sheet dog">
+          <div class="dog-body">
+            <div class="row-between">${dogStatusLabel(dog.status)}<span class="when">${dogLine(dog)}</span></div>
+            <h1 class="t-name dog-h1">${dog.name}</h1>
+            ${photo(dog.photo, { ratio: "45", alt: `${dog.name}, ${facts.sex.toLowerCase()}, ${facts.age}`, focus: dog.focus })}
           </div>
-          ${note("mvp", "В настоящем профиле — галерея до десяти фото с точкой фокуса на морде, которую задаёт админ. У каждой собаки своя картинка для репоста в соцсетях.")}
-        </div>
+          ${canAdopt ? adoptTabs(dog, "-profile", true) : ""}
+        </article>
         <div class="stack">
           <article class="sheet sheet-body">
-            <div class="row-between">${dogStatusBadge(dog.status)}<span class="when">${dogLine(dog)}</span></div>
-            <h1 class="t-name dog-h1">${dog.name}</h1>
             <p class="t-lead">${facts.sex}, ${facts.age}, ${facts.size}. Окрас: ${dog.color}.</p>
             <div class="prose">${dog.story.map((text) => `<p>${text}</p>`).join("")}</div>
-            ${action}
+            ${settled}
           </article>
           <div class="grid-2">
             <section class="sheet sheet-body" aria-labelledby="traits-title">

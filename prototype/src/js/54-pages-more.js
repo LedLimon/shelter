@@ -155,7 +155,7 @@ PAGES.help = () => ({
   title: "Как помочь",
   html: `
     ${pageHead("Как помочь", "Четыре способа — выберите тот, что удобен вам. Любой из них виден в отчётах.")}
-    ${waysSheet()}
+    ${waysSheet(false)}
     ${note("mvp", "Деньги — с запуска (MVP). Помощь вещами и опека — второй этап, волонтёрские смены — третий.")}
     <div class="grid-2">
       <section class="sheet sheet-body"><h2 class="t-title">Не знаете, с чего начать?</h2>
@@ -201,7 +201,7 @@ PAGES.guardianship = () => {
                   ${progressBar(dog.guardianKop / dog.monthlyCost, `Опекуны закрывают ${formatRub(dog.guardianKop)} из ${formatRub(dog.monthlyCost)}`, true)}
                   <span class="t-caption muted">${formatRub(dog.guardianKop)} из ${formatRub(dog.monthlyCost)} в месяц${dog.guardianKop >= dog.monthlyCost ? " · закрыто" : ""}</span>
                 </div>
-                <button type="button" class="btn btn-outline btn-sm" id="guard-row-${dog.id}" data-action="donate" data-dog="${dog.id}" aria-label="Стать опекуном: ${dog.name}">Опекать</button>
+                <button type="button" class="btn btn-outline" id="guard-row-${dog.id}" data-action="donate" data-dog="${dog.id}" aria-label="Стать опекуном: ${dog.name}">Опекать</button>
               </li>`,
             )
             .join("")}</ul>
@@ -240,8 +240,8 @@ PAGES.things = () => ({
                 ${mine ? `<p class="ok">${icon("circle-check")}<span>Записали за вами. Ждём посылку до 25 октября.</span></p>` : ""}
               </div>
               <div class="row">
-                <button type="button" class="btn btn-outline btn-sm" ${stub(`Кнопка откроет карточку товара на ${thing.shop} с адресом пункта выдачи приюта.`, "p2")}>${icon("external-link")}${thing.shop}</button>
-                ${mine ? "" : `<button type="button" class="btn btn-sm" id="promise-${thing.id}" data-action="promise" data-thing="${thing.id}">Я закажу</button>`}
+                <button type="button" class="btn btn-outline" ${stub(`Кнопка откроет карточку товара на ${thing.shop} с адресом пункта выдачи приюта.`, "p2")}>${icon("external-link")}${thing.shop}</button>
+                ${mine ? "" : `<button type="button" class="btn" id="promise-${thing.id}" data-action="promise" data-thing="${thing.id}">Я закажу</button>`}
               </div>
             </li>`;
           })
@@ -266,10 +266,10 @@ function shiftRow(shift) {
     (_, index) => `<i${index < taken ? ' class="on"' : ""}></i>`,
   ).join("");
   const button = ui.joined[shift.id]
-    ? `<button type="button" class="btn btn-outline btn-sm" id="shift-${shift.id}" data-action="leave-shift" data-shift="${shift.id}">Отменить запись</button>`
+    ? `<button type="button" class="btn btn-outline" id="shift-${shift.id}" data-action="leave-shift" data-shift="${shift.id}">Отменить запись</button>`
     : full
-      ? `<button type="button" class="btn btn-sm" disabled>Мест нет</button>`
-      : `<button type="button" class="btn btn-sm" id="shift-${shift.id}" data-action="join-shift" data-shift="${shift.id}">Записаться</button>`;
+      ? `<button type="button" class="btn" disabled>Мест нет</button>`
+      : `<button type="button" class="btn" id="shift-${shift.id}" data-action="join-shift" data-shift="${shift.id}">Записаться</button>`;
   return `<li class="slot">
     <div class="stack-xs">
       <span class="when">${WEEKDAYS[shift.when.getDay()]}, ${formatDate(shift.when)} · ${formatTime(shift.when)}–${shift.until}</span>
@@ -298,7 +298,7 @@ PAGES.volunteers = () => ({
             (task) => `<li class="slot">
               <div class="stack-xs"><b class="row">${icon(task.icon)}<span class="grow">${task.title}</span></b><span class="t-caption muted">${task.text}</span>
                 ${ui.taken[task.id] ? `<p class="ok">${icon("circle-check")}<span>Задача за вами. Координатор напишет сегодня.</span></p>` : ""}</div>
-              ${ui.taken[task.id] ? "" : `<button type="button" class="btn btn-outline btn-sm" id="task-${task.id}" data-action="take-task" data-task="${task.id}">Возьму</button>`}
+              ${ui.taken[task.id] ? "" : `<button type="button" class="btn btn-outline" id="task-${task.id}" data-action="take-task" data-task="${task.id}">Возьму</button>`}
             </li>`,
           )
           .join("")}</ul>

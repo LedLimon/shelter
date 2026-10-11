@@ -5,7 +5,7 @@
 
 .admin {
   font-family: var(--font-admin);
-  font-size: 0.9375rem;
+  font-size: var(--text-body);
   line-height: 1.45;
 }
 
@@ -45,6 +45,7 @@
 
 .admin-shell {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--grid);
   padding-block: var(--grid) var(--section);
 }
@@ -86,6 +87,7 @@
 
 .admin-main {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--grid);
   align-content: start;
   min-width: 0;

@@ -110,8 +110,8 @@ PAGES.ledger = (params, query) => {
         ${selectField({ id: "ledger-need", label: "Нужда", model: "ledgerFilter.need", value: need, options: needOptions, change: "ledger-need" })}
         <div class="row">
           <span class="when">Октябрь 2026</span>
-          <button type="button" class="btn btn-outline btn-sm" ${stub("Здесь выбирают месяц или любые две даты.")}>${icon("calendar-days")}Другой период</button>
-          <button type="button" class="btn btn-outline btn-sm" ${stub("Кнопка скачает все строки за выбранный период в файле CSV — его открывает Excel.")}>${icon("download")}Выгрузить CSV</button>
+          <button type="button" class="btn btn-outline" ${stub("Здесь выбирают месяц или любые две даты.")}>${icon("calendar-days")}Другой период</button>
+          <button type="button" class="btn btn-outline" ${stub("Кнопка скачает все строки за выбранный период в файле CSV — его открывает Excel.")}>${icon("download")}Выгрузить CSV</button>
         </div>
       </div>
       <div class="sheet sheet-body">
@@ -150,7 +150,7 @@ PAGES.expense = ({ id }) => {
             <dt>Кто внёс</dt><dd>Ирина, админ</dd>
           </dl>
           ${expense.text ? `<p>${esc(expense.text)}</p>` : ""}
-          <div class="stack-sm"><h2 class="t-title">Проводки</h2>${ledgerList(rows, { numbers: true })}</div>
+          <div class="stack-sm"><h2 class="t-title">Строки в книге операций</h2>${ledgerList(rows, { numbers: true })}</div>
         </article>
         <div class="stack">
           <section class="sheet sheet-body" aria-labelledby="docs-title">
