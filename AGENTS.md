@@ -36,8 +36,6 @@ Next.js (App Router) · TypeScript strict · Tailwind CSS v4 · shadcn/ui · Pri
 
 ## Команды
 
-> Ещё появится: `worker` (FND-5). Если команды ещё нет в `package.json` — значит, её создаёт твоя задача или задача-зависимость.
-
 ```bash
 pnpm install          # зависимости
 cp .env.example .env  # переменные окружения (один раз)
@@ -46,7 +44,7 @@ pnpm dev:down         # остановить контейнеры, данные 
 pnpm dev:reset        # стереть .data/ и поднять заново
 pnpm dev              # Next.js dev server
 pnpm build            # production-сборка (output: standalone)
-pnpm worker           # фоновый воркер (pg-boss)
+pnpm worker           # фоновый воркер: outbox и задачи pg-boss (второй терминал рядом с pnpm dev)
 pnpm db:migrate       # prisma generate + migrate dev (новая миграция: --name <имя>)
 pnpm db:seed          # владелец и настройки по умолчанию; можно запускать повторно
 pnpm db:reset         # стереть БД, миграции и seed заново — только с согласия человека
@@ -83,7 +81,8 @@ pnpm format:check     # prettier --check (для CI)
 - Переменные окружения — только через `getEnv()` из `@/lib/env` (сервер) и `getPublicEnv()` из `@/lib/env/public` (`NEXT_PUBLIC_*`), не через `process.env`. Вызывай внутри функций, не на уровне модуля — иначе `next build` потребует переменные. Новая переменная — в схему `src/lib/env/schema.ts` и в `.env.example` (тест сверяет их).
 - Валидация входа — zod-схемы рядом с action. Формы — react-hook-form + zod, поля — из `@/components/form/form-field`.
 - Админка ([docs/architecture.md#админка](docs/architecture.md#админка)): раздел — `src/app/admin/(staff)/<slug>/page.tsx` с `requireStaff(<право раздела>)`, пункт меню и право уже есть в `src/components/admin/nav-config.ts`; изменение — `adminAction(schema, permission, handler)`; форма — `useActionForm()`; список — `DataTable` с состоянием в адресе (`parseTableQuery()`). Эталон — «Настройки».
-- Публичные страницы — Server Components + ISR, инвалидация по тегам: в server actions админки — `revalidate()` из контекста `adminAction` (после коммита, через `updateTag`), в route handlers и воркере — `revalidateTag`.
+- Публичные страницы — Server Components + ISR, инвалидация по тегам: в server actions админки — `revalidate()` из контекста `adminAction` (после коммита, через `updateTag`), в route handlers — `revalidateTag`. Воркер работает вне Next.js и кеш сбросить не может: `revalidateTag` в нём бросает исключение.
+- Всё, что должно случиться после коммита (письмо, уведомление, обработка файла), — `outbox.enqueue(tx, …)` или `enqueueJob(tx, …)` из `@/server/jobs` в той же транзакции (в `adminAction` — `context.db`), а не вызов из server action. Выполняет воркер, возможно повторно: обработчики идемпотентны, в payload только id. pg-boss импортирует только `src/server/jobs/boss.ts`. Подробно — [docs/architecture.md](docs/architecture.md#фоновые-задачи-worker).
 - Время хранится в UTC, показывается в часовом поясе приюта (настройка).
 - Русские склонения — через общий хелпер `plural()`, а не тернарниками.
 - Новые зависимости — только если без них никак; объясни выбор в PR.
