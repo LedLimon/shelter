@@ -239,3 +239,109 @@ test("form shows errors at the fields and focuses the first one", async ({
   await expect(amount).toHaveValue("50");
   await expect(form.getByText("Минимальная сумма — 100 ₽.")).toBeVisible();
 });
+
+// DataTable of the admin (FND-7): the server sorts, filters and pages, the
+// table only rewrites the URL.
+test.describe("DataTable", () => {
+  async function openTable(page: Page, query = "") {
+    await page.goto(`/dev/ui${query}`);
+    const table = page.getByRole("table", { name: "Операции" });
+    await table.scrollIntoViewIfNeeded();
+    await page.waitForLoadState("networkidle");
+    // Hydrated: see openShowcase().
+    await expect(
+      page.getByRole("checkbox", { name: "Прислать чек на почту" }),
+    ).toBeVisible();
+    return table;
+  }
+
+  const section = (page: Page) =>
+    page.locator("section[aria-labelledby=data-table]");
+
+  /** The «Сумма» column as numbers of rubles, top to bottom. */
+  async function amounts(page: Page) {
+    const cells = await page
+      .getByRole("table", { name: "Операции" })
+      .locator("tbody td:last-child")
+      .allTextContents();
+    return cells.map((text) => Number(text.replace(/[^\d]/g, "")));
+  }
+
+  test("sorts on the server and keeps the order in the URL", async ({
+    page,
+  }) => {
+    const table = await openTable(page);
+    const date = table.getByRole("columnheader", { name: "Дата" });
+    const amount = table.getByRole("columnheader", { name: "Сумма" });
+    await expect(date).toHaveAttribute("aria-sort", "descending");
+    await expect(table.locator("tbody tr").first()).toContainText("8 октября");
+
+    await amount.getByRole("button").click();
+    await expect(page).toHaveURL(/[?&]sort=-amountKop/);
+    await expect(amount).toHaveAttribute("aria-sort", "descending");
+    await expect(date).not.toHaveAttribute("aria-sort");
+    const descending = await amounts(page);
+    expect(descending).toEqual([...descending].sort((a, b) => b - a));
+
+    await amount.getByRole("button").click();
+    await expect(page).toHaveURL(/[?&]sort=amountKop/);
+    await expect(amount).toHaveAttribute("aria-sort", "ascending");
+    const ascending = await amounts(page);
+    expect(ascending).toEqual([...ascending].sort((a, b) => a - b));
+    expect(ascending).not.toEqual(descending);
+  });
+
+  test("walks through the pages and survives a page past the end", async ({
+    page,
+  }) => {
+    await openTable(page);
+    const status = section(page).getByRole("status");
+    const next = section(page).getByRole("button", { name: "Вперёд" });
+    const back = section(page).getByRole("button", { name: "Назад" });
+    await expect(status).toHaveText("Показаны 1–10 из 57");
+    await expect(back).toBeDisabled();
+
+    await next.click();
+    await expect(page).toHaveURL(/[?&]page=2/);
+    await expect(status).toHaveText("Показаны 11–20 из 57");
+
+    await back.click();
+    await expect(page).not.toHaveURL(/page=/);
+    await expect(status).toHaveText("Показаны 1–10 из 57");
+
+    await openTable(page, "?page=99");
+    await expect(status).toHaveText("Показаны 51–57 из 57");
+    await expect(next).toBeDisabled();
+  });
+
+  test("searches, filters and offers a way out of an empty result", async ({
+    page,
+  }) => {
+    const table = await openTable(page);
+    const search = section(page).getByRole("searchbox", { name: "Поиск" });
+    const status = section(page).getByRole("status");
+
+    await search.fill("забор");
+    await expect(page).toHaveURL(/[?&]q=/);
+    await expect(status).toHaveText("Показаны 1–10 из 10");
+    for (const row of await table.locator("tbody tr").all()) {
+      await expect(row).toContainText("Ремонт забора");
+    }
+
+    await section(page).getByRole("combobox", { name: "Тип" }).click();
+    await page.getByRole("option", { name: "Расход" }).click();
+    await expect(page).toHaveURL(/[?&]kind=expense/);
+    await expect(status).toHaveText("Показаны 1–5 из 5");
+
+    await search.fill("такого здесь нет");
+    await expect(section(page).getByText("Ничего не нашлось")).toBeVisible();
+    await expect(table).toHaveCount(0);
+
+    await section(page)
+      .getByRole("button", { name: "Сбросить фильтры" })
+      .click();
+    await expect(page).not.toHaveURL(/[?&](q|kind)=/);
+    await expect(status).toHaveText("Показаны 1–10 из 57");
+    await expect(search).toHaveValue("");
+  });
+});
