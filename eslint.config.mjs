@@ -59,7 +59,9 @@ const eslintConfig = defineConfig([
   // off there, so its classes would silently generate nothing.
   {
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/**/*.test.{ts,tsx}"],
+    // Mail clients know no CSS variables: the letters' palette is the one
+    // file with colour values, checked against the tokens by its test.
+    ignores: ["src/**/*.test.{ts,tsx}", "src/server/email/palette.ts"],
     rules: {
       "no-restricted-syntax": [
         "error",
