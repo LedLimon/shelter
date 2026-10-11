@@ -210,6 +210,24 @@ model Outbox {
   @@index([status, availableAt])
 }
 
+// --- Email --------------------------------------------------------------------
+
+/// An email the SMTP server has accepted: the mark that keeps an outbox event
+/// run again from sending it twice. Written only by sendEmail() of
+/// src/server/email. No address and no content: those stay with the domain
+/// data the email was built from. Append-only.
+model EmailDelivery {
+  id        String   @id @default(cuid(2))
+  /// What the email answers to — the id of the outbox event that sent it. One
+  /// email per key, for good.
+  key       String   @unique
+  /// A key of the email registry, e.g. "donation.thanks".
+  type      String
+  /// The Message-ID header it left with, to find it in the provider's log.
+  messageId String
+  sentAt    DateTime @default(dbgenerated("transaction_timestamp()")) @db.Timestamptz(3)
+}
+
 // --- Ledger -------------------------------------------------------------------
 // Append-only double-entry book: docs/ledger.md, ADR-0003. Only
 // src/server/ledger reads and writes these models (ESLint rule

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isEmailAddress } from "@/lib/mailbox";
 import { formatRub, validateRubInput, type RubInputError } from "@/lib/money";
 import { isTimeZone } from "@/lib/time-zones";
 import { MIN_DONATION_KOP, type Settings } from "@/server/settings/schema";
@@ -106,7 +107,9 @@ const fields = {
       .trim()
       .toLowerCase()
       .refine(
-        (value) => value === "" || EMAIL.test(value),
+        // isEmailAddress: letters use this address (the footer, Reply-To)
+        // and take only one that passes it.
+        (value) => value === "" || (EMAIL.test(value) && isEmailAddress(value)),
         "Проверьте адрес: нужны «@» и домен, например info@priyut.ru.",
       ),
     // Stored as links, so the site can use them as they are.
