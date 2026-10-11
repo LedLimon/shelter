@@ -22,6 +22,7 @@ const EXPECTED: Record<UserRole, Permission[]> = {
     "dogs.view",
     "dogs.edit",
     "content.edit",
+    "media.upload",
     "expenses.draft",
   ],
   ADMIN: [
@@ -31,6 +32,7 @@ const EXPECTED: Record<UserRole, Permission[]> = {
     "dogs.view",
     "dogs.edit",
     "content.edit",
+    "media.upload",
     "expenses.draft",
     "expenses.post",
     "ledger.settle",

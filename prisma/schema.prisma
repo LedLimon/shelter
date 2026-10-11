@@ -153,24 +153,50 @@ enum MediaKind {
   DOCUMENT
 }
 
-/// A file in S3. Receipts and invoices are shown publicly only when redacted.
+enum MediaStatus {
+  /// An upload URL was issued; the file may never arrive.
+  PENDING
+  /// The original is in the bucket and waits for the worker.
+  UPLOADED
+  /// Processed: the variants exist, width, height and blur are set.
+  READY
+  /// The file can't be processed (not an image, too many pixels): `failure`.
+  FAILED
+}
+
+/// An uploaded image (src/server/media). The original stays private in S3;
+/// pages show only the variants the worker makes from it, with EXIF and GPS
+/// removed. Receipts and invoices are shown publicly only when redacted.
+/// Tables that attach media reference it with onDelete: Restrict: an attached
+/// file can't be discarded.
 model Media {
-  id           String    @id @default(cuid(2))
-  storageKey   String    @unique
+  id           String      @id @default(cuid(2))
+  /// Key of the private original in the bucket.
+  storageKey   String      @unique
+  /// Content type declared at upload; the worker checks what the file really is.
   mime         String
   kind         MediaKind
+  status       MediaStatus @default(PENDING)
+  /// Size of the original in bytes as declared: the upload URL takes no other.
+  byteSize     Int
+  /// Of the upright original (EXIF rotation applied); set when READY.
   width        Int?
   height       Int?
-  /// Tiny blurred placeholder (data URL).
+  /// Tiny blurred placeholder (data URL); set when READY.
   blur         String?
+  /// Why processing failed: a MediaFailure code of src/server/media.
+  failure      String?
   /// Personal data on the document is painted over; only then it may be public.
-  redacted     Boolean   @default(false)
+  redacted     Boolean     @default(false)
   uploadedById String?
-  uploadedBy   User?     @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
-  createdAt    DateTime  @default(now()) @db.Timestamptz(3)
-  updatedAt    DateTime  @updatedAt @db.Timestamptz(3)
+  uploadedBy   User?       @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime    @updatedAt @db.Timestamptz(3)
 
-  @@index([uploadedById])
+  // The uploader's hourly quota.
+  @@index([uploadedById, createdAt])
+  // Cleanup of uploads that never arrived or were never processed.
+  @@index([status, createdAt])
 }
 
 // --- Outbox -------------------------------------------------------------------
