@@ -33,8 +33,17 @@
 
 ## Платежи в тестах
 
-- `FakeCloudPayments` — адаптер `PaymentProvider` для dev и CI, без сети.
-- Симулятор подписанных вебхуков: генерирует payload и HMAC так же, как CloudPayments.
+- `FakeCloudPayments` — адаптер `PaymentProvider` для dev и CI, без сети ([payments.md](payments.md#эмулятор-fakecloudpayments)). В тестах он включён сам: `PAYMENT_PROVIDER` в `.env.example` пуст, а `APP_URL` локальный.
+- Симулятор подписанных вебхуков — [`tests/helpers/cloudpayments.ts`](../tests/helpers/cloudpayments.ts): `checkWebhook`, `payWebhook`, `failWebhook`, `refundWebhook`, `recurrentWebhook` собирают тело и заголовки так же, как CloudPayments, и подписывают их для провайдера приложения. `webhookRequest(webhook)` — готовый `Request` для обработчика маршрута, `tamper()` — то же тело с подменой и старой подписью, `rawWebhook()` — подписанное произвольное тело.
+
+  ```ts
+  const webhook = payWebhook({ invoiceId: donation.id, amountKop: 150_000 });
+  const response = await POST(webhookRequest(webhook), { params });
+  // повтор того же уведомления — тот же объект; другое списание — новый payWebhook()
+  ```
+
+- Фикстуры [`tests/fixtures/cloudpayments-webhooks.ts`](../tests/fixtures/cloudpayments-webhooks.ts) — тела всех типов уведомлений с подписями, посчитанными вне нашего кода. На них проверяется адаптер CloudPayments; эмулятор проверяется тем же адаптером, чтобы симулятор и разбор не «соглашались» в общей ошибке.
+- В e2e оплата идёт через страницу эмулятора ([`e2e/fake-cloudpayments.spec.ts`](../e2e/fake-cloudpayments.spec.ts)): она есть и в production-сборке, пока `PAYMENT_PROVIDER=fake`.
 - Staging: тестовый режим CloudPayments на публичном HTTPS, тестовые карты (успех, отказ, 3DS), рекуррент через API.
 
 ## E2E-сценарии MVP

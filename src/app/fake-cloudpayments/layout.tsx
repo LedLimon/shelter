@@ -5,7 +5,7 @@ export const metadata: Metadata = {
 };
 
 /**
- * The CloudPayments emulator of dev and CI (docs/payments.md#эмулятор). Only
+ * The CloudPayments emulator of dev and CI (docs/payments.md#эмулятор-fakecloudpayments). Only
  * a frame here: with a real provider the pages answer 404 inside it, so it
  * must not say what would have been here.
  */
