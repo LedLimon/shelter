@@ -59,7 +59,8 @@ async function failureOf(
   return (error as UnprocessableImageError).failure;
 }
 
-describe("processImage", () => {
+// AVIF is slow on a CI runner with two cores: the default 5 s is not enough.
+describe("processImage", { timeout: 30_000 }, () => {
   it("makes every width in WebP and AVIF", async () => {
     const original = await solid(2000, 1500, { r: 120, g: 90, b: 60 })
       .jpeg()
@@ -236,22 +237,23 @@ describe("processImage", () => {
   });
 
   it("fits a picture too tall for the encoders instead of failing", async () => {
-    // A long screenshot of a receipt: only 17 MP, but WebP stops at 16383 px.
-    const screenshot = await solid(1080, 16_400, { r: 250, g: 250, b: 245 })
+    // A long screenshot of a receipt: few pixels, but WebP stops at 16383 px.
+    const screenshot = await solid(240, 16_400, { r: 250, g: 250, b: 245 })
       .png()
       .toBuffer();
 
     const processed = await processImage(screenshot);
 
-    expect(processed).toMatchObject({ width: 1080, height: 16_400 });
+    expect(processed).toMatchObject({ width: 240, height: 16_400 });
     for (const { data } of processed.variants) {
       const { width, height } = await sharp(data).metadata();
       expect(height).toBeLessThanOrEqual(16_383);
-      expect(width / height).toBeCloseTo(1080 / 16_400, 2);
+      expect(width / height).toBeCloseTo(240 / 16_400, 3);
     }
+    // Narrowed by a pixel at most, not cut down.
     expect(
-      (await sharp(processed.variants.at(-1)!.data).metadata()).width,
-    ).toBeGreaterThan(1070);
+      (await sharp(processed.variants.at(-1)!.data).metadata()).height,
+    ).toBeGreaterThan(16_300);
   });
 
   it("keeps the placeholder tiny for a narrow strip", async () => {
