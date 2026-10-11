@@ -79,7 +79,7 @@ export async function processMedia(
   }
 
   // READY only now: the /media route serves a READY media's versions.
-  await db.media.updateMany({
+  const { count } = await db.media.updateMany({
     where: { id: mediaId, status: "UPLOADED" },
     data: {
       status: "READY",
@@ -88,6 +88,16 @@ export async function processMedia(
       blur: processed.blur,
     },
   });
+  if (count === 1) return;
+
+  // The media was discarded while its versions were being written: its
+  // "media.purge" may have run before they were there. Nothing else would
+  // ever delete them. (A row that still exists was finished by another run.)
+  const exists = await db.media.findUnique({
+    where: { id: mediaId },
+    select: { id: true },
+  });
+  if (!exists) await purgeMediaFiles(mediaId, media.storageKey, signal);
 }
 
 /**

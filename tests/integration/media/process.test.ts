@@ -1,11 +1,11 @@
 import sharp from "sharp";
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { VARIANT_FORMATS, VARIANT_WIDTHS } from "@/lib/media/constraints";
 import type { MediaKind, MediaStatus } from "@/generated/prisma/enums";
 import type { StaffUser } from "@/server/auth/session";
 import { getDb } from "@/server/db";
 import { startWorker } from "@/server/jobs/worker";
-import { completeUpload, requestUpload } from "@/server/media";
+import { completeUpload, discardUpload, requestUpload } from "@/server/media";
 import { cleanupMedia, processMedia } from "@/server/media/jobs";
 import { variantKey } from "@/server/media/keys";
 import { getStorage } from "@/server/storage";
@@ -165,8 +165,28 @@ describe("the media.process job", () => {
     });
   });
 
-  it("does nothing for a media that was discarded meanwhile", async () => {
+  it("does nothing for a media that was discarded before it ran", async () => {
     await expect(processMedia("no-such-media")).resolves.toBeUndefined();
+  });
+
+  it("leaves no files of a media discarded while it was being processed", async () => {
+    const id = await upload();
+    const { storageKey } = (await mediaRow(id))!;
+    // The uploader takes the file back when the first version is being
+    // written: the row goes, and its purge runs before the rest is stored.
+    const put = vi.spyOn(getStorage(), "put");
+    put.mockImplementationOnce(async (...args) => {
+      await discardUpload(getDb(), editor, id);
+      await runWorker();
+      put.mockRestore();
+      return getStorage().put(...args);
+    });
+
+    await processMedia(id);
+
+    expect(await mediaRow(id)).toBeNull();
+    expect(await storedVariants(id)).toEqual([]);
+    expect(await stored(storageKey)).toBeNull();
   });
 
   it("turns a sideways phone photo upright", async () => {
