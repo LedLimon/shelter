@@ -2,7 +2,9 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import {
+  decimalRubToKop,
   formatRub,
+  kopToDecimalRub,
   MAX_AMOUNT_KOP,
   parseRubInput,
   validateRubInput,
@@ -249,6 +251,114 @@ describe("parseRubInput", () => {
         expect(Number.isInteger(kop)).toBe(true);
         expect(kop).toBeGreaterThanOrEqual(0);
         expect(kop).toBeLessThanOrEqual(MAX_AMOUNT_KOP);
+      }),
+    );
+  });
+});
+
+describe("decimalRubToKop", () => {
+  it.each([
+    ["1500.00", 150_000],
+    ["1500.5", 150_050],
+    ["1500", 150_000],
+    ["0.01", 1],
+    ["0.10", 10],
+    ["007.50", 750],
+    ["12.3400", 1234],
+    ["21474836.47", MAX_AMOUNT_KOP],
+    [1500, 150_000],
+    [12.34, 1234],
+    [0.1, 10],
+    [0.07, 7],
+    [1.1, 110],
+    [21_474_836.47, MAX_AMOUNT_KOP],
+  ])("%s → %i kop", (value, expected) => {
+    expect(decimalRubToKop(value)).toBe(expected);
+  });
+
+  it.each([
+    "",
+    " 1500",
+    "1500 ",
+    "1 500",
+    "1500,50",
+    "1500.",
+    ".50",
+    "-1500",
+    "+1500",
+    "1500.505",
+    "1500.001",
+    "1e3",
+    "0x10",
+    "1500.5.0",
+    "1500 ₽",
+    "NaN",
+    "21474836.48",
+    "100000000",
+    "99999999999999999999",
+  ])("rejects the string %j", (value) => {
+    expect(decimalRubToKop(value)).toBeNull();
+  });
+
+  it.each([
+    -1,
+    12.345,
+    0.001,
+    1e21,
+    1e-7,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    21_474_836.48,
+  ])("rejects the number %d", (value) => {
+    expect(decimalRubToKop(value)).toBeNull();
+  });
+
+  it("never rounds: 1.005 stays rejected, 1.10 stays 110", () => {
+    expect(decimalRubToKop(1.005)).toBeNull();
+    expect(decimalRubToKop("1.10")).toBe(110);
+  });
+});
+
+describe("kopToDecimalRub", () => {
+  it.each([
+    [0, "0.00"],
+    [1, "0.01"],
+    [10, "0.10"],
+    [150_000, "1500.00"],
+    [150_050, "1500.50"],
+    [MAX_AMOUNT_KOP, "21474836.47"],
+  ])("%i kop → %s", (kop, expected) => {
+    expect(kopToDecimalRub(kop)).toBe(expected);
+  });
+
+  it.each([-1, 0.5, Number.NaN, Number.POSITIVE_INFINITY])(
+    "throws on %d",
+    (kop) => {
+      expect(() => kopToDecimalRub(kop)).toThrow(RangeError);
+    },
+  );
+});
+
+describe("machine ruble formats", () => {
+  const kopecks = fc.integer({ min: 0, max: MAX_AMOUNT_KOP });
+
+  it("round-trip through the string form", () => {
+    fc.assert(
+      fc.property(kopecks, (kop) => {
+        expect(decimalRubToKop(kopToDecimalRub(kop))).toBe(kop);
+      }),
+    );
+  });
+
+  // A widget or a JSON body carries the amount as a number: the double
+  // nearest to the decimal must read back as the same kopecks.
+  it("round-trip through a JSON number", () => {
+    fc.assert(
+      fc.property(kopecks, (kop) => {
+        const sent: unknown = JSON.parse(
+          JSON.stringify(Number(kopToDecimalRub(kop))),
+        );
+        expect(decimalRubToKop(sent as number)).toBe(kop);
       }),
     );
   });
