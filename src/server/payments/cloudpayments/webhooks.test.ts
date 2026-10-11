@@ -43,6 +43,7 @@ describe("parseWebhook: fixtures of every notification type", () => {
     expect(parseWebhook("check", webhookFixtures.check.body)).toEqual({
       type: "check",
       operation: "payment",
+      hasPayMarker: false,
       dedupeKey: "cp:check:3059300327",
       providerTxId: "3059300327",
       invoiceId: "cm2donation0000000000001",
@@ -673,6 +674,29 @@ describe("parseWebhook: the body must be of the type its URL names", () => {
     expect(parseWebhook("check", body)).toMatchObject({
       type: "check",
       amountKop: 150_000,
+    });
+  });
+
+  // …but says so: with GatewayName in a Check, a Check posted to the Pay
+  // address would parse as a payment, and somebody has to learn that.
+  it("flags a Check that carries the marker of a Pay", () => {
+    const marked = edit(webhookFixtures.check.body, { GatewayName: "Test" });
+
+    expect(parseWebhook("check", marked)).toMatchObject({ hasPayMarker: true });
+    expect(parseWebhook("pay", marked)).toMatchObject({ type: "pay" });
+    for (const body of [
+      webhookFixtures.check.body,
+      edit(webhookFixtures.check.body, { GatewayName: "" }),
+      checkWebhook().body,
+      // A Pay without an authorisation code, read as a Check.
+      edit(webhookFixtures.paySbp.body, { GatewayName: null }),
+    ]) {
+      expect(parseWebhook("check", body)).toMatchObject({
+        hasPayMarker: false,
+      });
+    }
+    expect(parseWebhook("check", webhookFixtures.paySbp.body)).toMatchObject({
+      hasPayMarker: true,
     });
   });
 });

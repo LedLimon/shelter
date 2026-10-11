@@ -308,6 +308,9 @@ function read(
       return {
         type,
         operation: kind,
+        // Not refused, but not silent either: with GatewayName in Checks the
+        // rule that keeps a Check from passing for a Pay is gone.
+        hasPayMarker: n.optional("GatewayName") !== null,
         dedupeKey: `cp:check:${details.providerTxId}`,
         ...details,
       } satisfies PaymentEvent;

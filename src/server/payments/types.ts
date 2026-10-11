@@ -134,7 +134,17 @@ type EventBase = {
 
 /** Asked before the charge: answer whether the payment may go through. */
 export type CheckEvent = EventBase &
-  ChargeDetails & { type: "check"; operation: "payment" | "refund" };
+  ChargeDetails & {
+    type: "check";
+    operation: "payment" | "refund";
+    /**
+     * This Check carries the field by which we tell a Pay from a Check
+     * (CloudPayments' GatewayName). Answer it as usual — the payment is
+     * fine — but raise an alert: if Checks have that field, a signed Check
+     * posted to the Pay address would pass for a payment.
+     */
+    hasPayMarker: boolean;
+  };
 
 /**
  * The money is charged: a fact to record whatever state our donation is in.
