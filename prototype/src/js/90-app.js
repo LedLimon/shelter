@@ -86,7 +86,7 @@ function siteHeader(page, route) {
   ).join("");
   const dark = isDark();
   return `<header class="site-header"><div class="wrap site-header-in">
-    <a class="mark" href="#/home">Мыс доброй надежды</a>
+    <a class="mark" href="#/home">Мыс доброй <br />надежды</a>
     <nav class="site-nav" aria-label="Основная">${nav}</nav>
     <div class="site-tools">
       <button type="button" class="btn btn-outline btn-icon header-theme" id="theme-toggle" data-action="theme" aria-label="${dark ? "Включить светлую тему" : "Включить тёмную тему"}">${icon(dark ? "sun" : "moon")}</button>
