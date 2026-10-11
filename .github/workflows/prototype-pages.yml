@@ -1,0 +1,81 @@
+name: Prototype (GitHub Pages)
+
+# The clickable client prototype (prototype/README.md) as a public page:
+# https://ledlimon.github.io/shelter/. A pull request only builds it; a push
+# to main that touches the prototype builds and deploys it.
+
+on:
+  pull_request:
+    paths:
+      - prototype/**
+      # The build inlines the ₽ glyph and the placeholder icon from the app.
+      - src/app/fonts/**
+      - src/app/icon.svg
+      - mise.toml
+      - .github/workflows/prototype-pages.yml
+  push:
+    branches: [main]
+    # Keep in step with the list above.
+    paths:
+      - prototype/**
+      - src/app/fonts/**
+      - src/app/icon.svg
+      - mise.toml
+      - .github/workflows/prototype-pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # A new push to a PR supersedes its previous build. Deployments share one
+  # group and are never cancelled half-way: the newest waits for the running one.
+  group: prototype-pages-${{ github.event.pull_request.number || 'deploy' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: Build prototype
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Node from mise.toml. The build needs no dependencies, so no `pnpm install`.
+      - name: Install Node (mise.toml)
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          # Skip mise releases younger than a week (supply-chain cooldown).
+          minimum_release_age: 7d
+
+      - name: Build
+        run: node prototype/build.mjs
+
+      - name: Prepare the site
+        run: |
+          mkdir site
+          cp prototype/dist/preview.html site/index.html
+
+      - name: Upload the site
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: ${{ github.event_name != 'pull_request' }}
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

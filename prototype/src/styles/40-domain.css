@@ -1,0 +1,852 @@
+/* Domain components: tear-off tabs, progress, need and dog sheets, ledger, receipts, map. */
+
+/* Printed photo: 1 px toner frame, fixed proportions, no filters. */
+.ph {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 4 / 3;
+  background: var(--color-board);
+  box-shadow: 0 0 0 1px var(--color-toner);
+}
+
+.ph img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ph-45 {
+  aspect-ratio: 4 / 5;
+}
+
+.ph-11 {
+  aspect-ratio: 1;
+}
+
+.ph-empty {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.375rem;
+  padding: 0.75rem;
+  color: var(--color-toner-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-mono-sm);
+  line-height: 1.3;
+  text-align: center;
+}
+
+.ph-empty .icon {
+  font-size: 1.5rem;
+}
+
+.ph .stamp {
+  position: absolute;
+  right: -6px;
+  bottom: 6px;
+  background: var(--color-paper);
+  font-size: 1rem;
+}
+
+.cat,
+.when {
+  color: var(--color-toner-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-mono-sm);
+  line-height: 1.3;
+  letter-spacing: 0.02em;
+}
+
+/* Progress: a printed box hatched with a ballpoint pen. */
+.hatch {
+  position: relative;
+  height: 18px;
+  box-shadow: inset 0 0 0 var(--line) var(--color-toner);
+}
+
+.hatch::after {
+  content: "";
+  position: absolute;
+  inset: 3px auto 3px 3px;
+  width: calc(var(--p, 0) * (100% - 6px));
+  border-right: 2px solid var(--color-pen);
+  background: repeating-linear-gradient(
+    -55deg,
+    var(--color-pen) 0 1.6px,
+    transparent 1.6px 5px
+  );
+  transform-origin: left;
+  animation: scribble 0.9s steps(14) both 0.15s;
+}
+
+.hatch[style*="--p: 0;"]::after,
+.hatch[style*="--p:0;"]::after {
+  border-right: 0;
+}
+
+.hatch-static::after,
+.is-refresh .hatch::after {
+  animation: none;
+}
+
+@keyframes scribble {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* Unit needs: one box per bag; paid ones are crossed out with the pen. */
+.tally {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tally i {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  box-shadow: inset 0 0 0 var(--line) var(--color-toner);
+}
+
+.tally i.on::before,
+.tally i.on::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 2px;
+  left: 2px;
+  height: 2px;
+  margin-top: -1px;
+  background: var(--color-pen);
+  transform: rotate(42deg);
+}
+
+.tally i.on::after {
+  transform: rotate(-38deg);
+}
+
+.big-count {
+  font-family: var(--font-display);
+  font-size: 4rem;
+  font-weight: 1000;
+  line-height: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+
+.big-count small {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 1.375rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+
+/* Signature: tear-off tabs. Always an action, never decoration. */
+.tabs {
+  display: flex;
+  border-top: var(--line) dashed var(--color-perforation);
+}
+
+.tab {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  min-height: var(--tab);
+  padding: 0.625rem 0.25rem;
+  border: 0;
+  border-left: var(--line) dashed var(--color-perforation);
+  background: transparent;
+  color: var(--color-toner);
+  font-family: var(--font-mono);
+  font-size: var(--text-mono);
+  font-stretch: 87%;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  transition:
+    transform 0.25s ease-out,
+    opacity 0.25s ease-out,
+    background-color 0.12s ease-out;
+}
+
+.tab:first-child {
+  border-left: 0;
+}
+
+.tab small {
+  color: var(--color-toner-muted);
+  font-size: var(--text-mono-sm);
+  font-weight: 400;
+}
+
+.tab:hover,
+.tabs-v:hover .tab {
+  background: var(--color-board);
+}
+
+.tab.is-torn {
+  transform: translateY(14px) rotate(5deg);
+  opacity: 0;
+}
+
+.tabs-v {
+  width: 100%;
+  padding: 0;
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.tabs-v .tab {
+  flex-direction: row;
+  gap: 0.375rem;
+  min-height: 6rem;
+  padding: 0.5rem 0;
+  font-size: 0.71875rem;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.tabs-v .tab .icon {
+  font-size: 0.875rem;
+  transform: rotate(90deg);
+}
+
+.tabs-v.is-torn .tab:nth-child(3) {
+  transform: rotate(180deg) translateY(-14px) rotate(-6deg);
+  opacity: 0;
+}
+
+/* «Как помочь»: four big tabs on one sheet. */
+.ways .tabs {
+  flex-wrap: wrap;
+}
+
+.ways .tab {
+  flex: 1 1 50%;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 0.25rem;
+  min-height: 6.75rem;
+  padding: 0.875rem;
+  border-top: var(--line) dashed var(--color-perforation);
+  font-family: var(--font-body);
+  font-stretch: normal;
+  text-align: left;
+  white-space: normal;
+}
+
+.ways .tabs {
+  border-top: 0;
+}
+
+.ways .tab:nth-child(odd) {
+  border-left: 0;
+}
+
+.ways .tab b {
+  font-family: var(--font-display);
+  font-size: 1.625rem;
+  font-weight: 900;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.ways .tab span {
+  color: var(--color-toner-muted);
+  font-size: var(--text-caption);
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+@media (min-width: 48rem) {
+  .ways .tab {
+    flex-basis: 25%;
+    min-height: 8rem;
+    border-left: var(--line) dashed var(--color-perforation);
+  }
+
+  .ways .tab:nth-child(odd) {
+    border-left: var(--line) dashed var(--color-perforation);
+  }
+
+  .ways .tab:first-child {
+    border-left: 0;
+  }
+}
+
+/* NeedCard. */
+.need {
+  display: flex;
+  flex-direction: column;
+}
+
+.need-body {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 0.625rem;
+  align-content: start;
+  padding: var(--card);
+}
+
+.need-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.375rem;
+}
+
+.need .t-title a,
+.dog .t-name a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.need .t-title a:hover,
+.dog .t-name a:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+}
+
+.need-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: var(--tab);
+  padding: 0.5rem var(--card);
+  border-top: 1px solid var(--color-perforation);
+}
+
+.icon-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.icon-label .icon {
+  font-size: 0.9375rem;
+}
+
+/* DogCard. */
+.dog {
+  display: flex;
+  flex-direction: column;
+}
+
+.dog-body {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 0.5rem;
+  align-content: start;
+  padding: var(--card);
+}
+
+.dog .t-name {
+  font-size: clamp(1.75rem, 8.5vw, var(--text-name));
+}
+
+/* In two narrow columns the card keeps facts in one line, the story is on the profile. */
+.dog-meta {
+  display: none;
+}
+
+@media (max-width: 39.99rem) {
+  .grid-dogs .dog-meta {
+    display: block;
+  }
+
+  .grid-dogs .dog-short {
+    display: none;
+  }
+}
+
+/* Yellow sheet «Сегодня помогли»: the only yellow sheet on a screen. */
+.today {
+  display: grid;
+  gap: 0.625rem;
+  align-content: start;
+  padding: var(--sheet);
+  border-radius: var(--radius-sheet);
+  box-shadow: var(--shadow-sheet);
+}
+
+.today h2 {
+  font-size: 1.75rem;
+}
+
+.today ul {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.today li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.625rem;
+  padding-bottom: 0.375rem;
+  border-bottom: 1px dotted var(--color-toner-muted);
+}
+
+.today li span {
+  color: var(--color-toner-muted);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+
+/* Ledger rows: a form with entries. Income is written with the pen. */
+.ledger {
+  display: grid;
+}
+
+.ledger-row {
+  display: grid;
+  grid-template-columns: 3.25rem minmax(0, 1fr) auto;
+  gap: 0.125rem 0.625rem;
+  align-items: baseline;
+  padding: 0.5625rem 0;
+  border-bottom: 1px dotted var(--color-perforation);
+  font-size: var(--text-caption);
+  line-height: 1.45;
+}
+
+.ledger-date {
+  color: var(--color-toner-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-mono-sm);
+}
+
+.ledger-what {
+  display: grid;
+  gap: 0.0625rem;
+  min-width: 0;
+}
+
+.ledger-what .sub {
+  color: var(--color-toner-muted);
+  font-size: 0.8125rem;
+}
+
+.ledger-what a,
+.ledger-what .btn-link {
+  display: inline-block;
+  padding-block: 0.1875rem;
+}
+
+.ledger-amt {
+  font-family: var(--font-display);
+  font-size: 1.1875rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.ledger-amt.is-in {
+  color: var(--color-pen);
+}
+
+.ledger-new {
+  display: inline-block;
+  margin-left: 0.375rem;
+  padding: 0 0.3125rem;
+  box-shadow: inset 0 0 0 1.5px var(--color-pen);
+  color: var(--color-pen);
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Timeline of a need: status changes and events. */
+.timeline {
+  display: grid;
+}
+
+.timeline li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 0.75rem minmax(0, 1fr);
+  gap: 0.75rem;
+  padding-bottom: 0.875rem;
+}
+
+.timeline li::before {
+  content: "";
+  z-index: 1;
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-top: 0.3rem;
+  background: var(--color-paper);
+  box-shadow: inset 0 0 0 var(--line) var(--color-toner);
+}
+
+.timeline li.is-done::before {
+  background: var(--color-toner);
+}
+
+.timeline li::after {
+  content: "";
+  position: absolute;
+  top: 0.5rem;
+  bottom: -0.3rem;
+  left: calc(0.375rem - 0.75px);
+  width: 1.5px;
+  background: var(--color-perforation);
+}
+
+.timeline li:last-child {
+  padding-bottom: 0;
+}
+
+.timeline li:last-child::after {
+  display: none;
+}
+
+/* Receipt stub: a printed slip with personal data blacked out. */
+.receipt {
+  display: grid;
+  gap: 0.25rem;
+  width: 100%;
+  max-width: 15rem;
+  padding: 0.75rem 0.75rem 1rem;
+  background: var(--color-paper);
+  box-shadow: 0 0 0 1px var(--color-toner);
+  font-family: var(--font-mono);
+  font-size: var(--text-mono-sm);
+  font-stretch: 80%;
+  line-height: 1.5;
+}
+
+.receipt hr {
+  width: 100%;
+  height: 1px;
+  margin: 0.25rem 0;
+  border: 0;
+  background: var(--color-perforation);
+}
+
+.receipt-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.receipt b {
+  font-weight: 700;
+}
+
+.redacted {
+  display: inline-block;
+  width: 5.5em;
+  height: 0.9em;
+  background: var(--color-toner);
+  vertical-align: -0.05em;
+}
+
+.docs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: var(--grid);
+  align-items: start;
+}
+
+.doc {
+  display: grid;
+  gap: 0.375rem;
+  justify-items: start;
+}
+
+/* Bars «на что потрачено»: labelled rows, the same pen hatch. */
+.bars {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.25rem 0.75rem;
+  align-items: baseline;
+}
+
+.bar .hatch {
+  grid-column: 1 / -1;
+  height: 14px;
+}
+
+/* Shelter plan: a schematic drawing; zones are buttons. */
+.map {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--color-paper);
+}
+
+.map text {
+  fill: var(--color-toner);
+  font-family: var(--font-display);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.map .map-sub {
+  fill: var(--color-toner-muted);
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.map-outline {
+  fill: none;
+  stroke: var(--color-toner);
+  stroke-width: 2;
+}
+
+.map-detail {
+  fill: none;
+  stroke: var(--color-perforation);
+  stroke-width: 1;
+}
+
+.zone {
+  cursor: pointer;
+}
+
+.zone-shape {
+  fill: var(--color-paper);
+  stroke: var(--color-toner);
+  stroke-width: 1.5;
+  transition: fill 0.15s ease-out;
+}
+
+.zone:hover .zone-shape {
+  fill: var(--color-board);
+}
+
+.zone[aria-pressed="true"] .zone-shape {
+  fill: url("#zone-hatch");
+  stroke: var(--color-pen);
+  stroke-width: 2.5;
+}
+
+.zone:focus-visible {
+  outline: none;
+}
+
+.zone:focus-visible .zone-shape {
+  stroke: var(--color-pen);
+  stroke-width: 4;
+}
+
+.zone-label-bg {
+  fill: var(--color-paper);
+}
+
+.zone-hatch-line {
+  stroke: var(--color-pen);
+  stroke-width: 1.4;
+}
+
+.map-point {
+  fill: var(--color-toner);
+}
+
+.map-point-text {
+  fill: var(--color-paper) !important;
+  font-family: var(--font-mono) !important;
+  font-size: 9px;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+}
+
+.map-road {
+  fill: none;
+  stroke: var(--color-perforation);
+  stroke-width: 7;
+  stroke-linecap: round;
+}
+
+.map-road-thin {
+  stroke-width: 3;
+}
+
+.map-site {
+  fill: var(--color-board);
+  stroke: var(--color-toner);
+  stroke-width: 1.5;
+}
+
+/* Stories «Они дома». */
+.story {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: 0.875rem;
+  align-items: start;
+  padding: var(--card);
+}
+
+.story h3 {
+  font-size: var(--text-title);
+  text-transform: uppercase;
+}
+
+@media (min-width: 48rem) {
+  .story {
+    grid-template-columns: 11.25rem minmax(0, 1fr);
+    gap: 1.25rem;
+    padding: 1rem;
+  }
+}
+
+/* Amount picker: tiles with a pen mark, as in the donate sheet of DS-2. */
+.amounts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.amount {
+  display: grid;
+  gap: 0.5rem;
+  align-content: start;
+  justify-items: start;
+  min-height: 4.5rem;
+  padding: 0.625rem;
+  border: 1px solid var(--color-perforation);
+  background: transparent;
+  color: var(--color-toner);
+  text-align: left;
+}
+
+.amount:hover {
+  border-color: var(--color-toner);
+}
+
+.amount::before {
+  content: "";
+  width: 1.125rem;
+  height: 1.125rem;
+  border: var(--line) solid var(--color-toner);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    var(--mark, transparent) 0 0.28rem,
+    transparent 0.32rem
+  );
+}
+
+.amount[aria-pressed="true"] {
+  --mark: var(--color-pen);
+  border: 2px solid var(--color-toner);
+  padding: calc(0.625rem - 1px);
+}
+
+.amount b {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.amount small {
+  color: var(--color-toner-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-mono-sm);
+  line-height: 1.2;
+}
+
+.amount-wide {
+  grid-column: 1 / -1;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  min-height: 3.25rem;
+}
+
+/* Payment stand-in: a framed box that is clearly not the real widget. */
+.paybox {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.875rem;
+  box-shadow: inset 0 0 0 var(--line) var(--color-toner);
+}
+
+.paybox-methods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.paybox-methods span {
+  padding: 0.125rem 0.5rem;
+  box-shadow: inset 0 0 0 1px var(--color-perforation);
+  color: var(--color-toner-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-mono-sm);
+}
+
+/* Contact channels in «Хочу забрать». */
+.channels {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.channel {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  min-height: 3.5rem;
+  padding: 0.5rem 0.75rem;
+  border: var(--line) solid var(--color-toner);
+  background: transparent;
+  color: var(--color-toner);
+  text-align: left;
+  text-decoration: none;
+}
+
+.channel:hover {
+  background: color-mix(in srgb, var(--color-toner) 12%, transparent);
+}
+
+.channel b {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.channel small {
+  color: var(--color-toner-muted);
+  font-size: 0.8125rem;
+}
+
+.channel .icon {
+  font-size: 1.375rem;
+}
