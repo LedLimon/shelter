@@ -1,5 +1,6 @@
-import type { CSSProperties, ReactNode } from "react";
+import { Children, type CSSProperties, type ReactNode } from "react";
 import { FONT, inked, TEXT_CLASS, type Ink } from "./theme";
+import { NBSP, typeset } from "./typography";
 
 // The building blocks of a letter. Mail clients lay out tables and inline
 // styles and little else, so every block is one of the two. Templates use
@@ -14,6 +15,37 @@ type BlockProps = {
 
 function classes(...names: (string | undefined)[]): string | undefined {
   return names.filter(Boolean).join(" ") || undefined;
+}
+
+/** The words of a block with their line-breaking fixed (./typography.ts). */
+function set(children: ReactNode): ReactNode {
+  return Children.map(children, (child) =>
+    typeof child === "string" ? typeset(child) : child,
+  );
+}
+
+/**
+ * The same for text in the display face. The condensed fonts of the stack
+ * draw a non-breaking space about twice as wide as a plain one, so words
+ * that must stay together are held by a nowrap span around plain spaces.
+ */
+function setDisplay(children: ReactNode): ReactNode {
+  return Children.map(children, (child) =>
+    typeof child === "string"
+      ? typeset(child)
+          .split(" ")
+          .flatMap((chunk, index) => [
+            index > 0 ? " " : null,
+            chunk.includes(NBSP) ? (
+              <span key={index} style={{ whiteSpace: "nowrap" }}>
+                {chunk.replaceAll(NBSP, " ")}
+              </span>
+            ) : (
+              chunk
+            ),
+          ])
+      : child,
+  );
 }
 
 /**
@@ -82,7 +114,7 @@ export function Text({
       className={classes(paragraph.className, className)}
       style={paragraph.style}
     >
-      {children}
+      {set(children)}
     </p>
   );
 }
@@ -114,7 +146,7 @@ export function Title({ children }: { children: ReactNode }) {
   );
   return (
     <h1 className={classes(heading.className, "title")} style={heading.style}>
-      {children}
+      {setDisplay(children)}
     </h1>
   );
 }
@@ -136,7 +168,7 @@ export function Link({ href, children, style, className }: LinkProps) {
       className={classes(link.className, className)}
       style={link.style}
     >
-      {children}
+      {set(children)}
     </a>
   );
 }
@@ -264,7 +296,7 @@ export function Form({ rows }: { rows: FormRow[] }) {
                 {row.label}
               </td>
               <td className={value.className} style={value.style}>
-                {row.value}
+                {row.primary ? setDisplay(row.value) : row.value}
               </td>
             </tr>
           );

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SHELTER_NAME } from "@/lib/shelter";
+import { plain } from "../../../tests/helpers/text";
 import type { EmailContext } from "./context";
 import { emails, isEmailType, type EmailType } from "./registry";
 import { renderEmail } from "./render";
@@ -23,7 +24,15 @@ const samples = (Object.keys(emails) as EmailType[]).flatMap((type) =>
 );
 
 describe.each(samples)("%s, example «%s»", (type, _example, props) => {
-  const letter = () => renderEmail(type, props, context);
+  /** With plain spaces for the non-breaking ones: see plain(). */
+  const letter = async () => {
+    const rendered = await renderEmail(type, props, context);
+    return {
+      subject: plain(rendered.subject),
+      html: plain(rendered.html),
+      text: plain(rendered.text),
+    };
+  };
 
   it("is a whole HTML document in Russian", async () => {
     const { html, subject } = await letter();
@@ -39,7 +48,7 @@ describe.each(samples)("%s, example «%s»", (type, _example, props) => {
     const { html, text, subject } = await letter();
 
     expect(subject).toMatch(/[а-яё]/i);
-    expect(html).toContain(">Спасибо за помощь!<");
+    expect(html).toMatch(/<h1[^>]*>Спасибо.*за помощь!<\/span><\/h1>/);
     // No numeric entities at all: quotes and Cyrillic alike stay literal.
     expect(html).not.toMatch(/&#x?[0-9a-f]+;/i);
     expect(html).not.toMatch(/Ð|Ñ|�/);

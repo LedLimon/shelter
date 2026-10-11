@@ -35,7 +35,9 @@ export function EmailFrame({ html, title, width }: EmailFrameProps) {
       sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
       onLoad={fit}
       style={{ width, height }}
-      className="block max-w-full border border-toner"
+      // No max-width: a 375 px client stays 375 px wide, and a narrower
+      // screen scrolls the frame sideways inside its sheet.
+      className="block border border-toner"
     />
   );
 }

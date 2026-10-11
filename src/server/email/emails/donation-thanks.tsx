@@ -14,6 +14,7 @@ import {
 import { defineEmail, type EmailTemplateProps } from "../definition";
 import { EmailLayout } from "../layout";
 import { FONT } from "../theme";
+import { NBSP } from "../typography";
 
 const DONATIONS: PluralForms = [
   "пожертвование",
@@ -135,7 +136,7 @@ function DonationThanks({ props, context, links }: EmailTemplateProps<Props>) {
     <Text>
       Общий фонд — это деньги на повседневные расходы приюта, на срочные случаи
       и на то, чтобы добавить, если какому-то сбору не хватило. Каждое
-      поступление и каждый расход записаны в{" "}
+      поступление и каждый расход записаны в{NBSP}
       <Link href={ledgerUrl}>книге операций</Link> на сайте.
     </Text>
   );
@@ -210,7 +211,15 @@ function DonationThanks({ props, context, links }: EmailTemplateProps<Props>) {
       <Caption>
         Это письмо — подтверждение пожертвования, а не кассовый чек. Номер
         пожертвования:{" "}
-        <span style={{ fontFamily: FONT.mono, wordBreak: "break-all" }}>
+        <span
+          style={{
+            // Moves to a line of its own rather than break in the middle.
+            display: "inline-block",
+            fontFamily: FONT.mono,
+            fontSize: 13,
+            wordBreak: "break-all",
+          }}
+        >
           {props.donationId}
         </span>{" "}
         — назовите его, если будете писать нам об этом платеже.

@@ -56,15 +56,20 @@ describe("donation.thanks", () => {
     expect(subject).toBe("Спасибо! Мы получили ваше пожертвование — 1 500 ₽");
   });
 
-  it("keeps an amount on one line: its spaces are non-breaking", async () => {
-    const { subject, text } = await renderEmail(
+  it("keeps every amount on one line", async () => {
+    const { subject, html, text } = await renderEmail(
       "donation.thanks",
-      toNeed(),
+      toNeed({ overflowKop: 30_050 }),
       context,
     );
 
+    // In running text — formatRub's non-breaking spaces.
     expect(subject).toContain("\u2014 1\u00A0500\u00A0\u20BD");
-    expect(text).toContain("1\u00A0500\u00A0\u20BD");
+    expect(text).toContain("не\u00A0хватало 1\u00A0199,50\u00A0\u20BD");
+    // The large sum — a nowrap span: the display face draws those too wide.
+    expect(html).toContain(
+      '<span style="white-space:nowrap">1 500 \u20BD</span>',
+    );
   });
 
   it("thanks for a donation that went to the need in full", async () => {

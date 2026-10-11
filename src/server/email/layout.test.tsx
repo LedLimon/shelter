@@ -1,5 +1,6 @@
 import { render, toPlainText } from "@react-email/render";
 import { describe, expect, it } from "vitest";
+import { plain } from "../../../tests/helpers/text";
 import { Text } from "./components";
 import type { EmailContext } from "./context";
 import { EmailLayout, type EmailLinks } from "./layout";
@@ -10,17 +11,20 @@ const context: EmailContext = {
   shelter: { name: "Мыс доброй надежды" },
 };
 
-const letter = (links?: EmailLinks) =>
-  render(
-    <EmailLayout
-      context={context}
-      title="Отчёт за октябрь"
-      preview="Что купили и сколько осталось."
-      reason="Вы получили это письмо, потому что подписались на отчёты приюта."
-      links={links}
-    >
-      <Text>Здравствуйте!</Text>
-    </EmailLayout>,
+/** With plain spaces for the non-breaking ones: see plain(). */
+const letter = async (links?: EmailLinks) =>
+  plain(
+    await render(
+      <EmailLayout
+        context={context}
+        title="Отчёт за октябрь"
+        preview="Что купили и сколько осталось."
+        reason="Вы получили это письмо, потому что подписались на отчёты приюта."
+        links={links}
+      >
+        <Text>Здравствуйте!</Text>
+      </EmailLayout>,
+    ),
   );
 
 describe("EmailLayout", () => {
