@@ -1,15 +1,23 @@
+import { PageHeader } from "@/components/admin/page-header";
+import { Panel } from "@/components/admin/panel";
 import { requireStaff } from "@/server/auth/session";
 
-export default async function AdminHomePage() {
+export default async function AdminDashboardPage() {
   const user = await requireStaff();
 
   return (
-    <main className="flex flex-1 flex-col gap-4 px-gutter py-section">
-      <h1 className="text-section">Здравствуйте, {user.name}</h1>
-      <p className="max-w-prose text-toner-muted">
-        Вход защищён кодом из приложения. Разделы админки — нужды,
-        пожертвования, расходы, собаки — появятся здесь по мере готовности.
-      </p>
-    </main>
+    <>
+      <PageHeader title={`Здравствуйте, ${user.name}`} />
+      <Panel title="Сводка дня" className="max-w-3xl">
+        <p className="max-w-prose">
+          Здесь появится то, что требует внимания сегодня: поступления за день,
+          нужды, которым немного не хватает до цели, неудачные автоплатежи,
+          вещи, которые ждут приёмки, и ошибки платёжных уведомлений.
+        </p>
+        <p className="max-w-prose text-toner-muted">
+          Пока сводки нет — откройте нужный раздел в меню.
+        </p>
+      </Panel>
+    </>
   );
 }

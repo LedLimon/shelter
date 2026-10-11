@@ -7,6 +7,7 @@ import { assertDevelopment } from "../dev-only";
 import { PseudoStates } from "./pseudo-states";
 import { ButtonsSection } from "./sections/buttons";
 import { ChoicesSection } from "./sections/choices";
+import { DataTableSection } from "./sections/data-table";
 import { CardsSection, MarksSection, TabsSection } from "./sections/display";
 import { FeedbackSection } from "./sections/feedback";
 import { FieldsSection } from "./sections/fields";
@@ -34,6 +35,7 @@ const CONTENTS: { title: string; links: [id: string, label: string][] }[] = [
       ["cards", "Карточки"],
       ["marks", "Метки"],
       ["tabs", "Вкладки"],
+      ["data-table", "Таблица"],
     ],
   },
   {
@@ -50,7 +52,9 @@ const CONTENTS: { title: string; links: [id: string, label: string][] }[] = [
   },
 ];
 
-export default function ShowcasePage() {
+export default async function ShowcasePage({
+  searchParams,
+}: PageProps<"/dev/ui">) {
   assertDevelopment();
   return (
     <main className="mx-auto grid max-w-[80rem] grid-cols-[minmax(0,1fr)] gap-section px-gutter py-section">
@@ -108,6 +112,7 @@ export default function ShowcasePage() {
       <CardsSection />
       <MarksSection />
       <TabsSection />
+      <DataTableSection searchParams={await searchParams} />
       <TokenSections />
     </main>
   );

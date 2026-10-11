@@ -1,7 +1,14 @@
 import { z } from "zod";
-import { isTimeZone } from "@/lib/env/schema";
+import { isTimeZone } from "@/lib/time-zones";
 
 const amountKop = z.number().int().positive();
+
+/**
+ * The smallest donation (docs/product.md#пожертвования: about 100 ₽, against
+ * card testing). A preset below it would be a button that cannot be paid; the
+ * donation form must refuse smaller amounts by the same constant.
+ */
+export const MIN_DONATION_KOP = 100_00;
 
 /** Every setting key and the shape of its JSON value. */
 export const settingSchemas = {
@@ -39,11 +46,10 @@ export type SettingKey = keyof typeof settingSchemas;
 export type SettingValue<K extends SettingKey> = z.output<
   (typeof settingSchemas)[K]
 >;
+export type Settings = { [K in SettingKey]: SettingValue<K> };
 
 /** Values the seed writes to a new database; admins fill in the rest. */
-export function defaultSettings(timeZone: string): {
-  [K in SettingKey]: SettingValue<K>;
-} {
+export function defaultSettings(timeZone: string): Settings {
   return {
     "shelter.timezone": timeZone,
     "shelter.requisites": {
