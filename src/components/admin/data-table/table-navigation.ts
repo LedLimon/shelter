@@ -11,16 +11,23 @@ import {
 } from "react";
 import type { TableQuery } from "./table-query";
 
+type Change = (params: URLSearchParams) => void;
+
 export type TableUrl = {
   /** A navigation started by the table is still loading. */
   pending: boolean;
+  /**
+   * The address of the page with the change applied: for the `href` of a
+   * link, so that it also opens in a new tab.
+   */
+  href: (change: Change) => string;
   /**
    * Changes the table's parameters in the URL and loads the page again; the
    * other parameters stay. `replace` is for typing (no history entry per
    * letter); `scroll: false` keeps the list in place after a sort or filter.
    */
   navigate: (
-    change: (params: URLSearchParams) => void,
+    change: Change,
     options?: { replace?: boolean; scroll?: boolean },
   ) => void;
 };
@@ -42,9 +49,7 @@ export function useTableUrl(): TableUrl {
 
   const navigate = useCallback<TableUrl["navigate"]>(
     (change, { replace = false, scroll = true } = {}) => {
-      const params = new URLSearchParams(heading.current ?? current);
-      change(params);
-      const search = params.toString();
+      const search = changed(heading.current ?? current, change);
       heading.current = search;
       const href = search ? `${pathname}?${search}` : pathname;
       startTransition(() => {
@@ -55,7 +60,21 @@ export function useTableUrl(): TableUrl {
     [pathname, router, current],
   );
 
-  return { pending, navigate };
+  const href = useCallback<TableUrl["href"]>(
+    (change) => {
+      const search = changed(current, change);
+      return search ? `${pathname}?${search}` : pathname;
+    },
+    [pathname, current],
+  );
+
+  return { pending, href, navigate };
+}
+
+function changed(search: string, change: Change): string {
+  const params = new URLSearchParams(search);
+  change(params);
+  return params.toString();
 }
 
 export const TableNavigationContext = createContext<

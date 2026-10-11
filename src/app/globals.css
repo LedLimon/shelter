@@ -351,6 +351,40 @@
   color: var(--color-toner-muted);
 }
 
+/*
+ * A sheet that scrolls inside itself (the admin menu, a wide table on a
+ * phone) shows where it continues: a soft shade at the edge with more behind
+ * it, none at the edge it has reached. The first two layers move with the
+ * content and cover the shades at the ends.
+ */
+@utility scroll-shade-y {
+  --shade: color-mix(in oklab, var(--color-toner) 26%, transparent);
+  background:
+    linear-gradient(var(--color-paper) 40%, transparent) top / 100% 2.5rem
+      no-repeat local,
+    linear-gradient(transparent, var(--color-paper) 60%) bottom / 100% 2.5rem
+      no-repeat local,
+    linear-gradient(var(--shade), transparent) top / 100% 0.625rem no-repeat
+      scroll,
+    linear-gradient(transparent, var(--shade)) bottom / 100% 0.625rem no-repeat
+      scroll,
+    var(--color-paper);
+}
+
+@utility scroll-shade-x {
+  --shade: color-mix(in oklab, var(--color-toner) 26%, transparent);
+  background:
+    linear-gradient(to right, var(--color-paper) 40%, transparent) left / 2.5rem
+      100% no-repeat local,
+    linear-gradient(to right, transparent, var(--color-paper) 60%) right /
+      2.5rem 100% no-repeat local,
+    linear-gradient(to right, var(--shade), transparent) left / 0.625rem 100%
+      no-repeat scroll,
+    linear-gradient(to right, transparent, var(--shade)) right / 0.625rem 100%
+      no-repeat scroll,
+    var(--color-paper);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring;

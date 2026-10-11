@@ -21,8 +21,9 @@ export default function StaffError({
       <PageHeader title="Страница не открылась" />
       <Panel className="max-w-3xl">
         <p className="max-w-prose">
-          Что-то сломалось на нашей стороне. Попробуйте ещё раз; если не поможет
-          — напишите разработчикам и назовите, что вы делали.
+          Что-то сломалось на стороне сайта, а не у вас. Попробуйте ещё раз;
+          если не поможет — расскажите владельцу приюта, что вы делали, и
+          передайте код ошибки.
         </p>
         {error.digest && (
           <p className="font-mono text-mono-sm text-toner-muted">

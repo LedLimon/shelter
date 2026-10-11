@@ -10,13 +10,13 @@ export function AdminNav({ groups }: { groups: AdminNavGroup[] }) {
   const id = useId();
 
   return (
-    <ul className="flex flex-col gap-3 lg:gap-2">
+    <ul className="flex flex-col gap-3 lg:gap-1">
       {groups.map(({ title, sections }, index) => (
         <li key={title ?? "dashboard"}>
           {title && (
             <p
               id={`${id}-${index}`}
-              className="px-2.5 pb-1 font-mono text-mono-sm text-toner-muted"
+              className="px-2.5 pb-1 font-mono text-mono-sm text-toner-muted lg:pb-0.5"
             >
               {title}
             </p>

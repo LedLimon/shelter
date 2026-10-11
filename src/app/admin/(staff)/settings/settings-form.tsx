@@ -7,6 +7,7 @@ import {
   ActionFailureAlert,
   useActionForm,
 } from "@/components/admin/action-form";
+import { FormActions } from "@/components/admin/form-actions";
 import { Panel } from "@/components/admin/panel";
 import {
   SelectField,
@@ -150,44 +151,43 @@ export function SettingsForm({
             control={control}
             name="contacts.phone"
             label="Телефон"
+            description="С кодом страны: +7 900 123-45-67."
             type="tel"
             inputMode="tel"
             autoComplete="off"
-            placeholder="+7 900 123-45-67"
           />
           <TextField
             control={control}
             name="contacts.email"
             label="Почта"
+            description="На неё пишут посетители сайта."
             type="email"
             autoComplete="off"
             spellCheck={false}
-            placeholder="info@priyut.ru"
           />
           <TextField
             control={control}
             name="contacts.telegram"
             label="Telegram"
-            description="Ник или ссылка на канал."
+            description="Ник с @ или ссылка на канал."
             autoComplete="off"
             spellCheck={false}
-            placeholder="@priyut"
           />
           <TextField
             control={control}
             name="contacts.vk"
             label="ВКонтакте"
-            description="Ссылка на страницу приюта."
+            description="Ссылка на страницу приюта: vk.com/…"
             autoComplete="off"
             spellCheck={false}
-            placeholder="https://vk.com/priyut"
           />
         </div>
       </Panel>
 
       <Panel
         title="Готовые суммы пожертвования"
-        description={`Кнопки с этими суммами видит донор в форме пожертвования. В каждом списке — от одной до ${MAX_PRESET_AMOUNTS} сумм, в том порядке, как здесь.`}
+        // «Шести» is MAX_PRESET_AMOUNTS in words.
+        description="Кнопки с этими суммами видит донор в форме пожертвования. В каждом списке — от одной до шести сумм, в том же порядке, что и здесь."
       >
         <div className="grid gap-x-4 gap-y-6 md:grid-cols-2">
           <AmountList
@@ -214,7 +214,7 @@ export function SettingsForm({
         />
       </Panel>
 
-      <div className="sticky bottom-3 z-10 grid gap-3 border border-foreground bg-paper p-3 shadow-sheet">
+      <FormActions>
         <ActionFailureAlert failure={failure} />
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <Button type="submit" loading={isSubmitting}>
@@ -226,7 +226,7 @@ export function SettingsForm({
             </p>
           )}
         </div>
-      </div>
+      </FormActions>
     </form>
   );
 }
@@ -260,20 +260,23 @@ function AmountList({
               inputClassName="tabular-nums"
               className="min-w-0 flex-1"
             />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              disabled={fields.length === 1}
-              onClick={() => {
-                remove(index);
-                // The row's button is gone: keep focus inside the list.
-                addButton.current?.focus();
-              }}
-            >
-              <Trash2 aria-hidden />
-              <span className="sr-only">Удалить сумму {index + 1}</span>
-            </Button>
+            {/* The last amount stays: a list can't be empty. */}
+            {fields.length > 1 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  remove(index);
+                  // The row's button is gone: keep focus inside the list.
+                  // After the render: a full list had «Добавить» disabled.
+                  setTimeout(() => addButton.current?.focus());
+                }}
+              >
+                <Trash2 aria-hidden />
+                <span className="sr-only">Удалить сумму {index + 1}</span>
+              </Button>
+            )}
           </li>
         ))}
       </ul>

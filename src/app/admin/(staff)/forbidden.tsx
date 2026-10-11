@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/admin/page-header";
 import { Panel } from "@/components/admin/panel";
+import { buttonVariants } from "@/components/ui/button";
 
 /**
  * 403 for a staff member whose role may not open a section: the menu stays,
@@ -16,11 +17,14 @@ export default function StaffForbidden() {
           Этот раздел закрыт для вашей роли. Если он нужен для работы, попросите
           владельца приюта выдать доступ.
         </p>
-        <p>
-          <Link href="/admin" className="text-pen underline">
+        <div>
+          <Link
+            href="/admin"
+            className={buttonVariants({ variant: "outline" })}
+          >
             На дашборд
           </Link>
-        </p>
+        </div>
       </Panel>
     </>
   );

@@ -152,6 +152,10 @@ test("the owner fills in the settings; they validate and stay saved", async ({
   await expect(page).toHaveURL("/admin/settings");
   const save = page.getByRole("button", { name: "Сохранить" });
 
+  // Nothing changed yet: nothing is sent.
+  await save.click();
+  await expect(page.getByText("Изменений нет")).toBeVisible();
+
   // An invalid field: the error is at the field, which takes the focus, and
   // what was typed stays.
   await page.getByLabel("Название организации").fill("АНО «Островок Надежды»");
@@ -196,7 +200,7 @@ test("a form keeps what was typed while it was being saved", async ({
   await signIn(page, E2E_USERS.owner);
   await page.goto("/admin/settings");
   await page.waitForLoadState("networkidle");
-  // A slow server. Nothing is changed before saving, so nothing is written.
+  // A slow server.
   await page.route("**/admin/settings", async (route) => {
     if (route.request().method() === "POST") {
       await new Promise((resolve) => setTimeout(resolve, 700));
@@ -204,6 +208,10 @@ test("a form keeps what was typed while it was being saved", async ({
     await route.continue();
   });
 
+  // A change that is sent but stores the same amount: this test runs next to
+  // the one that saves the settings and must not write over it.
+  const amount = page.getByLabel("Разово, ₽: сумма 1");
+  await amount.fill(`${await amount.inputValue()} `);
   await page.getByRole("button", { name: "Сохранить" }).click();
   await page.getByLabel("Адрес").fill("Лесная улица, 1");
 

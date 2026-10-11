@@ -12,11 +12,14 @@ export const MAX_PRESET_AMOUNTS = 6;
 const text = (max: number) =>
   z.string().trim().max(max, `Не длиннее ${max} знаков.`);
 
-/** Digits of one of the lengths, or empty; spaces from a pasted value go. */
+/**
+ * Digits of one of the lengths, or empty. Separators of a pasted value go:
+ * spaces, dots and dashes, as in «40703.810.9.3800.0001234».
+ */
 const digits = (lengths: readonly number[], message: string) =>
   z
     .string()
-    .transform((value) => value.replace(/\s+/g, ""))
+    .transform((value) => value.replace(/[\s.\-\u2010-\u2015]/g, ""))
     .refine(
       (value) =>
         value === "" || (/^\d+$/.test(value) && lengths.includes(value.length)),

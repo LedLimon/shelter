@@ -276,14 +276,19 @@ test.describe("DataTable", () => {
     await expect(date).toHaveAttribute("aria-sort", "descending");
     await expect(table.locator("tbody tr").first()).toContainText("8 октября");
 
-    await amount.getByRole("button").click();
+    await amount.getByRole("link").click();
     await expect(page).toHaveURL(/[?&]sort=-amountKop/);
     await expect(amount).toHaveAttribute("aria-sort", "descending");
     await expect(date).not.toHaveAttribute("aria-sort");
     const descending = await amounts(page);
     expect(descending).toEqual([...descending].sort((a, b) => b - a));
 
-    await amount.getByRole("button").click();
+    // A link, so the order also opens in a new tab.
+    await expect(amount.getByRole("link")).toHaveAttribute(
+      "href",
+      /[?&]sort=amountKop/,
+    );
+    await amount.getByRole("link").click();
     await expect(page).toHaveURL(/[?&]sort=amountKop/);
     await expect(amount).toHaveAttribute("aria-sort", "ascending");
     const ascending = await amounts(page);
@@ -296,10 +301,13 @@ test.describe("DataTable", () => {
   }) => {
     await openTable(page);
     const status = section(page).getByRole("status");
-    const next = section(page).getByRole("button", { name: "Вперёд" });
-    const back = section(page).getByRole("button", { name: "Назад" });
+    // Links while there is a page to go to, disabled buttons at the ends.
+    const next = section(page).getByRole("link", { name: "Вперёд" });
+    const back = section(page).getByRole("link", { name: "Назад" });
+    const disabled = (name: string) =>
+      section(page).getByRole("button", { name, disabled: true });
     await expect(status).toHaveText("Показаны 1–10 из 57");
-    await expect(back).toBeDisabled();
+    await expect(disabled("Назад")).toBeVisible();
 
     await next.click();
     await expect(page).toHaveURL(/[?&]page=2/);
@@ -311,7 +319,7 @@ test.describe("DataTable", () => {
 
     await openTable(page, "?page=99");
     await expect(status).toHaveText("Показаны 51–57 из 57");
-    await expect(next).toBeDisabled();
+    await expect(disabled("Вперёд")).toBeVisible();
   });
 
   test("keeps a change made while the previous one is still loading", async ({
@@ -330,7 +338,7 @@ test.describe("DataTable", () => {
     // The search is on its way; sort before it arrives.
     await table
       .getByRole("columnheader", { name: "Сумма" })
-      .getByRole("button")
+      .getByRole("link")
       .click();
 
     await expect(page).toHaveURL(/[?&]sort=-amountKop/);
@@ -369,5 +377,7 @@ test.describe("DataTable", () => {
     await expect(page).not.toHaveURL(/[?&](q|kind)=/);
     await expect(status).toHaveText("Показаны 1–10 из 57");
     await expect(search).toHaveValue("");
+    // The button is gone with the empty state: the focus went on to the search.
+    await expect(search).toBeFocused();
   });
 });

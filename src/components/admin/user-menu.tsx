@@ -61,20 +61,21 @@ export function UserMenu({ name, role }: { name: string; role: string }) {
         render={
           <Button
             variant="ghost"
-            className="min-w-0 gap-1.5 px-2 font-body text-caption normal-case"
+            // The name gives way to the rest of the header and is cut short.
+            className="max-w-full min-w-0 shrink gap-1.5 px-2 font-body text-caption normal-case"
           />
         }
       >
         <CircleUser aria-hidden className="size-5" />
-        {/* The phone header has room for the icon only; the menu repeats both. */}
+        {/* The phone header has room for the icon only; the menu has both in full. */}
         <span className="truncate max-sm:sr-only">{name}</span>
-        <span className="shrink-0 text-toner-muted max-sm:sr-only">
+        <span className="shrink-0 text-toner-muted max-md:sr-only">
           · {role}
         </span>
         <ChevronDown aria-hidden />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-64">
-        <p className="px-3 pt-2 pb-1 text-caption sm:hidden">
+        <p className="px-3 pt-2 pb-1 text-caption">
           <span className="font-bold">{name}</span>
           <span className="text-toner-muted"> · {role}</span>
         </p>

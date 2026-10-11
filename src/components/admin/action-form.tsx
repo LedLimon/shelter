@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRef, useState, type BaseSyntheticEvent } from "react";
+import { useEffect, useRef, useState, type BaseSyntheticEvent } from "react";
 import {
   useForm,
   type DefaultValues,
@@ -90,6 +90,16 @@ export function useActionForm<
   const saved = useRef<Values>(null);
   const busy = useRef(false);
 
+  // Closing or reloading the tab with unsaved changes asks first. Links
+  // inside the admin are not held back.
+  const { isDirty } = form.formState;
+  useEffect(() => {
+    if (!isDirty) return;
+    const ask = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", ask);
+    return () => window.removeEventListener("beforeunload", ask);
+  }, [isDirty]);
+
   /** For the form's onSubmit. Ignores a submit while one is on its way. */
   async function submit(event?: BaseSyntheticEvent) {
     // Enter in a field submits even while the button shows the spinner.
@@ -108,6 +118,10 @@ export function useActionForm<
     // A copy: getValues() shares its nested objects with the live form.
     const sent = snapshot(form.getValues());
     const input = changedOnly ? changesOf(sent, saved.current ?? opened) : sent;
+    if (changedOnly && Object.keys(input).length === 0) {
+      toast.info("Изменений нет: сохранять нечего");
+      return;
+    }
 
     let result: ActionResult<Data>;
     try {

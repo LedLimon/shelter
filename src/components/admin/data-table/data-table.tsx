@@ -2,7 +2,6 @@
 
 import {
   createColumnHelper,
-  functionalUpdate,
   rowSortingFeature,
   tableFeatures,
   useTable,
@@ -16,8 +15,9 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { useMemo, type ReactNode } from "react";
-import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { useMemo, useRef, type ReactNode } from "react";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   isFiltered,
@@ -26,7 +26,11 @@ import {
   TABLE_PARAMS,
   type TableQuery,
 } from "./table-query";
-import { TableNavigationContext, useTableUrl } from "./table-navigation";
+import {
+  TableNavigationContext,
+  useTableUrl,
+  type TableUrl,
+} from "./table-navigation";
 
 /** Per-column presentation: `meta` of a column definition. */
 export type DataTableColumnMeta = {
@@ -71,8 +75,9 @@ export type DataTableEmpty = {
  * the table changes the URL, and the page renders again.
  *
  * Define `columns` outside the component, with dataTableColumns(): TanStack
- * Table needs them stable. A header is a sort button if the column's id is in
- * the query's `sortable` list.
+ * Table needs them stable. A header is a sort link if the column's id is in
+ * the query's `sortable` list. Sorting and pages are links, so they open in a
+ * new tab too; a plain click loads the rows in place.
  */
 export function DataTable<Row extends RowData>({
   caption,
@@ -99,6 +104,7 @@ export function DataTable<Row extends RowData>({
   empty: DataTableEmpty;
 }) {
   const url = useTableUrl();
+  const root = useRef<HTMLDivElement>(null);
   const { page, pageCount, from, to } = pageOf(query, total);
   const sorting = useMemo(
     () => [{ id: query.sort.id, desc: query.sort.desc }],
@@ -114,26 +120,14 @@ export function DataTable<Row extends RowData>({
     enableMultiSort: false,
     // The server always has an order: a third click must not clear it.
     enableSortingRemoval: false,
+    // Read-only for TanStack: the headers are links that change the URL.
     state: { sorting },
-    onSortingChange: (updater) => {
-      const [next] = functionalUpdate(updater, sorting);
-      if (!next) return;
-      url.navigate(
-        (params) => {
-          params.set(TABLE_PARAMS.sort, sortParam(next));
-          params.delete(TABLE_PARAMS.page);
-        },
-        { scroll: false },
-      );
-    },
   });
 
-  function goToPage(target: number) {
-    url.navigate((params) => {
-      if (target === 1) params.delete(TABLE_PARAMS.page);
-      else params.set(TABLE_PARAMS.page, String(target));
-    });
-  }
+  const toPage = (target: number) => (params: URLSearchParams) => {
+    if (target === 1) params.delete(TABLE_PARAMS.page);
+    else params.set(TABLE_PARAMS.page, String(target));
+  };
 
   function resetFilters() {
     url.navigate(
@@ -144,13 +138,17 @@ export function DataTable<Row extends RowData>({
       },
       { scroll: false },
     );
+    // The button goes away with the empty state: hand the focus on.
+    const search =
+      root.current?.querySelector<HTMLElement>("input[type=search]");
+    (search ?? root.current)?.focus();
   }
 
   const filtered = isFiltered(query);
 
   return (
     <TableNavigationContext value={{ ...url, query }}>
-      <div className="grid min-w-0 gap-4">
+      <div ref={root} tabIndex={-1} className="grid min-w-0 gap-4">
         {/* Filters stay while a search finds nothing; an empty list has none. */}
         {toolbar && (total > 0 || filtered) && (
           <div className="flex flex-wrap items-end gap-3">{toolbar}</div>
@@ -176,9 +174,10 @@ export function DataTable<Row extends RowData>({
             <div
               role="region"
               aria-label={caption}
-              // Scrolls sideways on a phone: reachable from the keyboard.
+              // Scrolls sideways on a phone: reachable from the keyboard, and
+              // shaded at the edge it continues past.
               tabIndex={0}
-              className="relative overflow-x-auto"
+              className="relative overflow-x-auto scroll-shade-x"
             >
               <table
                 aria-busy={url.pending || undefined}
@@ -216,18 +215,30 @@ export function DataTable<Row extends RowData>({
                             )}
                           >
                             {canSort ? (
-                              <button
-                                type="button"
-                                onClick={column.getToggleSortingHandler()}
+                              <TableLink
+                                url={url}
+                                scroll={false}
+                                change={(params) => {
+                                  params.set(
+                                    TABLE_PARAMS.sort,
+                                    sortParam({
+                                      id: column.id,
+                                      desc:
+                                        column.getNextSortingOrder() === "desc",
+                                    }),
+                                  );
+                                  params.delete(TABLE_PARAMS.page);
+                                }}
                                 className={cn(
-                                  // Not on the baseline: reversed, the icon would set it.
-                                  "inline-flex items-center gap-1 align-bottom uppercase hover:underline",
+                                  // As tall as the cell, for a finger. Not on
+                                  // the baseline: reversed, the icon would set it.
+                                  "-my-2 inline-flex min-h-9 items-center gap-1 align-bottom uppercase hover:underline",
                                   meta?.align === "end" && "flex-row-reverse",
                                 )}
                               >
                                 {label}
                                 <SortMark sorted={sorted} />
-                              </button>
+                              </TableLink>
                             ) : (
                               label
                             )}
@@ -282,27 +293,20 @@ export function DataTable<Row extends RowData>({
               </p>
               {pageCount > 1 && (
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={page === 1}
-                    onClick={() => goToPage(page - 1)}
-                  >
+                  <PageLink url={url} change={page > 1 && toPage(page - 1)}>
                     <ChevronLeft aria-hidden />
                     Назад
-                  </Button>
+                  </PageLink>
                   <span className="font-mono text-mono-sm tabular-nums">
                     {page} из {pageCount}
                   </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={page === pageCount}
-                    onClick={() => goToPage(page + 1)}
+                  <PageLink
+                    url={url}
+                    change={page < pageCount && toPage(page + 1)}
                   >
                     Вперёд
                     <ChevronRight aria-hidden />
-                  </Button>
+                  </PageLink>
                 </div>
               )}
             </nav>
@@ -310,6 +314,70 @@ export function DataTable<Row extends RowData>({
         )}
       </div>
     </TableNavigationContext>
+  );
+}
+
+type Change = (params: URLSearchParams) => void;
+
+/**
+ * A link to the table in another state. A plain click changes the URL
+ * through the table's transition (the rows fade while the server answers);
+ * a click with Ctrl/Cmd or the middle button is the browser's: a new tab.
+ */
+function TableLink({
+  url,
+  change,
+  scroll = true,
+  className,
+  children,
+}: {
+  url: TableUrl;
+  change: Change;
+  scroll?: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <Link
+      href={url.href(change)}
+      prefetch={false}
+      scroll={scroll}
+      onNavigate={(event) => {
+        event.preventDefault();
+        url.navigate(change, { scroll });
+      }}
+      className={className}
+    >
+      {children}
+    </Link>
+  );
+}
+
+/** «Назад» / «Вперёд»; a button that can't be pressed when there is no page. */
+function PageLink({
+  url,
+  change,
+  children,
+}: {
+  url: TableUrl;
+  change: Change | false;
+  children: ReactNode;
+}) {
+  if (!change) {
+    return (
+      <Button variant="outline" size="sm" disabled>
+        {children}
+      </Button>
+    );
+  }
+  return (
+    <TableLink
+      url={url}
+      change={change}
+      className={buttonVariants({ variant: "outline", size: "sm" })}
+    >
+      {children}
+    </TableLink>
   );
 }
 

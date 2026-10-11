@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/admin/page-header";
 import { Panel } from "@/components/admin/panel";
+import { buttonVariants } from "@/components/ui/button";
 
 export default function StaffNotFound() {
   return (
@@ -12,11 +13,14 @@ export default function StaffNotFound() {
           Такой страницы в админке нет: возможно, ссылка устарела или в адресе
           опечатка. Разделы — в меню.
         </p>
-        <p>
-          <Link href="/admin" className="text-pen underline">
+        <div>
+          <Link
+            href="/admin"
+            className={buttonVariants({ variant: "outline" })}
+          >
             На дашборд
           </Link>
-        </p>
+        </div>
       </Panel>
     </>
   );

@@ -29,7 +29,7 @@ export function AdminShell({
       <div className="flex min-h-dvh flex-col">
         <a
           href="#admin-content"
-          className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:top-2 focus-visible:left-2 focus-visible:z-50 focus-visible:bg-paper focus-visible:px-3 focus-visible:py-2 focus-visible:text-pen focus-visible:underline"
+          className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:top-2 focus-visible:left-2 focus-visible:z-50 focus-visible:border focus-visible:border-foreground focus-visible:bg-paper focus-visible:px-3 focus-visible:py-2 focus-visible:text-pen focus-visible:underline focus-visible:shadow-sheet"
         >
           К содержимому
         </a>
@@ -50,7 +50,10 @@ export function AdminShell({
         <div className="mx-auto grid w-full max-w-[90rem] flex-1 grid-cols-[minmax(0,1fr)] gap-grid px-gutter py-grid lg:grid-cols-[14rem_minmax(0,1fr)]">
           <nav
             aria-label="Разделы админки"
-            className="sticky top-[calc(3.5rem+var(--spacing-grid))] hidden max-h-[calc(100dvh-3.5rem-2*var(--spacing-grid))] self-start overflow-y-auto overscroll-contain rounded-sheet bg-paper p-1.5 shadow-sheet lg:block"
+            data-menu-scroller
+            // Fits 800 px of height with all eighteen sections; a lower
+            // window scrolls it, with a shade at the edge it continues past.
+            className="sticky top-[calc(3.5rem+var(--spacing-grid))] hidden max-h-[calc(100dvh-4.25rem-var(--spacing-grid))] self-start overflow-y-auto overscroll-contain rounded-sheet p-1.5 shadow-sheet scroll-shade-y lg:block"
           >
             {nav}
           </nav>
@@ -61,7 +64,12 @@ export function AdminShell({
             {children}
           </main>
         </div>
-        <Toaster />
+        {/* Under the header: at the bottom a toast would lie on a form's save bar. */}
+        <Toaster
+          position="top-right"
+          offset={{ top: "4.5rem" }}
+          mobileOffset={{ top: "4.5rem" }}
+        />
       </div>
     </TooltipProvider>
   );

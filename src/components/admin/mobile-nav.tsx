@@ -23,7 +23,11 @@ export function MobileNav({ children }: { children: ReactNode }) {
         <Menu aria-hidden className="size-5" />
         <span className="sr-only">Меню</span>
       </SheetTrigger>
-      <SheetContent side="left" className="w-[min(85%,20rem)]">
+      <SheetContent
+        side="left"
+        className="w-[min(85%,20rem)]"
+        data-menu-scroller
+      >
         <SheetHeader>
           <SheetTitle>Разделы</SheetTitle>
         </SheetHeader>
