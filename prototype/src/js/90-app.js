@@ -86,7 +86,7 @@ function siteHeader(page, route) {
   ).join("");
   const dark = isDark();
   return `<header class="site-header"><div class="wrap site-header-in">
-    <a class="mark" href="#/home">Островок Надежды</a>
+    <a class="mark" href="#/home">Мыс доброй надежды</a>
     <nav class="site-nav" aria-label="Основная">${nav}</nav>
     <div class="site-tools">
       <button type="button" class="btn btn-outline btn-icon header-theme" id="theme-toggle" data-action="theme" aria-label="${dark ? "Включить светлую тему" : "Включить тёмную тему"}">${icon(dark ? "sun" : "moon")}</button>
@@ -98,7 +98,7 @@ function siteHeader(page, route) {
 
 function siteFooter() {
   return `<footer class="site-footer surface-footer"><div class="wrap">
-    <a class="mark" href="#/home">Островок Надежды</a>
+    <a class="mark" href="#/home">Мыс доброй надежды</a>
     <div class="footer-cols">
       <p class="muted">${SHELTER.legal} · ИНН 0000000000 · реквизиты и устав — в разделе «Документы». Демо-данные.</p>
       <ul><li><a href="#/about">О приюте</a></li><li><a href="#/documents">Документы</a></li><li><a href="#/contacts">Контакты</a></li><li><a href="#/stories">Они дома</a></li></ul>
@@ -133,7 +133,7 @@ function adminChrome(page, route) {
       `<a href="${href}"${names.includes(route?.name) ? ' aria-current="page"' : ""}>${icon(name)}${title}</a>`,
   ).join("");
   return `<header class="admin-bar admin"><div class="wrap admin-bar-in">
-      <a class="admin-mark" href="#/admin">Островок Надежды · Админка</a>
+      <a class="admin-mark" href="#/admin">Мыс доброй надежды · Админка</a>
       <div class="row">
         <span>${STAFF.name} <span class="muted">· ${STAFF.role}</span></span>
         <button type="button" class="btn btn-outline btn-icon btn-sm" id="theme-toggle" data-action="theme" aria-label="${dark ? "Включить светлую тему" : "Включить тёмную тему"}">${icon(dark ? "sun" : "moon")}</button>
@@ -214,7 +214,7 @@ function render(options = {}) {
   renderedHash = currentHash;
   app.classList.toggle("is-refresh", keepScroll);
   app.innerHTML = shell(page, route);
-  document.title = `${page.title} — Островок Надежды`;
+  document.title = `${page.title} — Мыс доброй надежды`;
   layerRoot.classList.toggle("admin", Boolean(page.admin));
   typograf(app);
   if (keepScroll) {
@@ -404,7 +404,7 @@ function syncThemeButton() {
 
 ACTIONS.theme = (el) => {
   ui.theme = isDark() ? "light" : "dark";
-  remember("ostrovok-theme", ui.theme);
+  remember("mys-theme", ui.theme);
   applyTheme();
   syncThemeButton();
   if (ui.layer?.type === "menu") refresh(el.id);
@@ -412,7 +412,7 @@ ACTIONS.theme = (el) => {
 
 ACTIONS.notes = (el) => {
   ui.notes = el.checked;
-  remember("ostrovok-notes", ui.notes ? "on" : null);
+  remember("mys-notes", ui.notes ? "on" : null);
   document.documentElement.classList.toggle("notes-on", ui.notes);
   if (!ui.notes) return;
   // Say how many notes this screen has: the first one may be below the fold.
@@ -624,8 +624,8 @@ window.protoCheck = protoCheck;
 // ——— Start.
 
 document.documentElement.lang = "ru";
-ui.theme = recall("ostrovok-theme");
-ui.notes = recall("ostrovok-notes") === "on";
+ui.theme = recall("mys-theme");
+ui.notes = recall("mys-notes") === "on";
 document.documentElement.classList.toggle("notes-on", ui.notes);
 applyTheme();
 new MutationObserver(() => {

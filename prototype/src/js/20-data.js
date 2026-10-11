@@ -7,8 +7,8 @@ const at = (day, hour = 12, minute = 0, month = 9) =>
   new Date(2026, month, day, hour, minute);
 
 const SHELTER = {
-  name: "Островок Надежды",
-  legal: "АНО «Островок Надежды»",
+  name: "Мыс доброй надежды",
+  legal: "АНО «Мыс доброй надежды»",
   address: "посёлок Берёзовка, ул. Полевая, 1",
   pickup: "посёлок Берёзовка, ул. Полевая, 3",
   hours: "каждый день с 10:00 до 18:00, по звонку",
@@ -1118,7 +1118,7 @@ const CURATOR = {
   dat: "Ирине",
   role: "куратор",
   channels: [
-    { id: "telegram", label: "Telegram", hint: "@ostrovok_demo", icon: "send" },
+    { id: "telegram", label: "Telegram", hint: "@mys_demo", icon: "send" },
     {
       id: "whatsapp",
       label: "WhatsApp",
