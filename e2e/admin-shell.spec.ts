@@ -179,6 +179,27 @@ test("the owner fills in the settings; they validate and stay saved", async ({
   expect(errors).toEqual([]);
 });
 
+test("a form keeps what was typed when the session has ended", async ({
+  page,
+  context,
+}) => {
+  await signIn(page, E2E_USERS.owner);
+  await page.goto("/admin/settings");
+  await page.getByLabel("Банк").fill("Банк, который не сохранится");
+
+  // The cookie expired while the form was open.
+  await context.clearCookies();
+  await page.getByRole("button", { name: "Сохранить" }).click();
+
+  const alert = page.locator("form").getByRole("alert");
+  await expect(alert).toContainText("Сессия закончилась");
+  await expect(alert.getByRole("link")).toHaveAttribute("target", "_blank");
+  await expect(page).toHaveURL("/admin/settings");
+  await expect(page.getByLabel("Банк")).toHaveValue(
+    "Банк, который не сохранится",
+  );
+});
+
 for (const colorScheme of ["light", "dark"] as const) {
   test(`the frame and the settings form pass WCAG 2.1 AA in the ${colorScheme} theme`, async ({
     page,

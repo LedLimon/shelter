@@ -13,8 +13,10 @@ export default function AdminLayout({ children }: LayoutProps<"/admin">) {
         Operate mode: text is Sofia Sans. Set on :root, not on a wrapper, so
         that layers rendered into <body> (Select lists, menus, sheets, dialogs)
         get it too; the element leaves the page together with this layout.
+        The scroll padding keeps a field that takes the focus clear of the
+        sticky header and of a form's sticky save bar.
       */}
-      <style>{`:root{--font-face-text:${adminTextFace}}`}</style>
+      <style>{`:root{--font-face-text:${adminTextFace};scroll-padding-block:4.5rem 6rem}`}</style>
       {children}
     </>
   );

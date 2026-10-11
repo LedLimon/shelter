@@ -38,7 +38,7 @@ export function AdminShell({
             <MobileNav>{nav}</MobileNav>
             <Link
               href="/admin"
-              className="font-display text-label text-toner uppercase"
+              className="shrink-0 font-display text-label text-toner uppercase"
             >
               Сайт приюта · админка
             </Link>

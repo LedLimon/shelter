@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useRef, useState, type BaseSyntheticEvent } from "react";
 import {
   useForm,
   type DefaultValues,
@@ -62,7 +62,21 @@ export function useActionForm<
   });
   const [failure, setFailure] = useState<ActionFailure | null>(null);
 
-  const submit = form.handleSubmit(onValid, () => setFailure(null));
+  const handle = form.handleSubmit(onValid, () => setFailure(null));
+  const busy = useRef(false);
+
+  /** For the form's onSubmit. Ignores a submit while one is on its way. */
+  async function submit(event?: BaseSyntheticEvent) {
+    // Enter in a field submits even while the button shows the spinner.
+    event?.preventDefault();
+    if (busy.current) return;
+    busy.current = true;
+    try {
+      await handle(event);
+    } finally {
+      busy.current = false;
+    }
+  }
 
   async function onValid() {
     setFailure(null);
