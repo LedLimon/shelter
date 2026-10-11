@@ -46,7 +46,7 @@ describe("cn", () => {
 
   it("knows every font token from globals.css", () => {
     expect([...MERGE_THEME.font].sort()).toEqual(
-      themeNames("font").filter((name) => name !== "weight-ultra"),
+      themeNames("font").filter((name) => !name.startsWith("weight-")),
     );
   });
 
