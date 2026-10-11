@@ -49,6 +49,11 @@ const eslintConfig = defineConfig([
               message:
                 "Only src/server/jobs/boss.ts (the worker) talks to pg-boss. The app starts jobs through the outbox: enqueueJob() from @/server/jobs.",
             },
+            {
+              name: "nodemailer",
+              message:
+                "Only src/server/email/transport.ts talks SMTP. Letters go out of an outbox handler: sendEmail() from @/server/email/send.",
+            },
           ],
         },
       ],
