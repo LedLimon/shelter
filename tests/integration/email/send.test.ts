@@ -93,7 +93,7 @@ describe("a letter sent by an outbox event", () => {
       to: [address],
       replyTo: [],
     });
-    expect(letter!.html).toContain(">Спасибо за помощь!<");
+    expect(letter!.html).toMatch(/<h1[^>]*>Спасибо.*за помощь!<\/span><\/h1>/);
     expect(plain(letter!.html)).toContain("2 124,50 ₽");
     expect(plain(letter!.text)).toContain("В общий фонд   875,50 ₽");
     expect(plain(letter!.text)).toContain(
