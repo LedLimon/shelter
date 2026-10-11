@@ -91,6 +91,14 @@ class Notification {
     }
   }
 
+  /**
+   * Whether the field came with a value. For fields we only look at: unlike
+   * a read, it doesn't mind the field being repeated.
+   */
+  has(name: string): boolean {
+    return Boolean(this.fields.get(name));
+  }
+
   /** An empty value is how CloudPayments sends "none". */
   optional(name: string): string | null {
     // A repeated field would make "which one counts" a guess — but only if
@@ -104,7 +112,7 @@ class Notification {
    * with it, this body was posted to the wrong address.
    */
   forbid(name: string, owner: string): void {
-    if (this.fields.get(name)) {
+    if (this.has(name)) {
       this.unsupported.push(`has ${name}: is this a ${owner} notification?`);
     }
   }
@@ -310,7 +318,7 @@ function read(
         operation: kind,
         // Not refused, but not silent either: with GatewayName in Checks the
         // rule that keeps a Check from passing for a Pay is gone.
-        hasPayMarker: n.optional("GatewayName") !== null,
+        hasPayMarker: n.has("GatewayName"),
         dedupeKey: `cp:check:${details.providerTxId}`,
         ...details,
       } satisfies PaymentEvent;

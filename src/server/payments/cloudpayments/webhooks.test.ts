@@ -684,6 +684,13 @@ describe("parseWebhook: the body must be of the type its URL names", () => {
 
     expect(parseWebhook("check", marked)).toMatchObject({ hasPayMarker: true });
     expect(parseWebhook("pay", marked)).toMatchObject({ type: "pay" });
+    // Looking at the field must not turn its repetition into a refusal.
+    expect(
+      parseWebhook(
+        "check",
+        `${webhookFixtures.check.body}&GatewayName=A&GatewayName=A`,
+      ),
+    ).toMatchObject({ type: "check", hasPayMarker: true });
     for (const body of [
       webhookFixtures.check.body,
       edit(webhookFixtures.check.body, { GatewayName: "" }),
