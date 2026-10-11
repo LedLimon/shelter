@@ -8,26 +8,16 @@ import {
   TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
-import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
-import { ThemeSwitcher } from "@/components/theme/theme-switcher";
-import { Button } from "@/components/ui/button";
+import { formatRub } from "@/lib/money";
 import { cn } from "@/lib/utils";
 
-import { assertDevelopment } from "../dev-only";
-import { ContrastTable } from "./contrast-table";
-import { PaletteSpecimen } from "./palette-specimen";
+import { Paper, Section, SpecLabel } from "../showcase";
+import { ContrastTable } from "../tokens/contrast-table";
+import { PaletteSpecimen } from "../tokens/palette-specimen";
 
-// Metadata is resolved alongside the page, so it needs the same guard.
-export function generateMetadata(): Metadata {
-  assertDevelopment();
-  return { title: "Токены «Объявление»" };
-}
-
-// Temporary DS-1 showcase; DS-2 moves it into /dev/ui.
-
-const NBSP = "\u00a0";
+// Design tokens of DS-1 (src/app/globals.css), moved here from /dev/tokens.
 
 const TYPE_SCALE: { token: string; size: string; sample: ReactNode }[] = [
   {
@@ -59,8 +49,8 @@ const TYPE_SCALE: { token: string; size: string; sample: ReactNode }[] = [
     size: "36 и 28 px, tabular-nums",
     sample: (
       <p className="flex flex-wrap items-baseline gap-x-4 font-display tabular-nums">
-        <span className="text-sum-lg">{`24${NBSP}650${NBSP}₽`}</span>
-        <span className="text-sum">{`2${NBSP}500${NBSP}₽`}</span>
+        <span className="text-sum-lg">{formatRub(24_650_00)}</span>
+        <span className="text-sum">{formatRub(2_500_00)}</span>
       </p>
     ),
   },
@@ -82,7 +72,7 @@ const TYPE_SCALE: { token: string; size: string; sample: ReactNode }[] = [
     sample: (
       <p className="max-w-prose text-body">
         Буран три недели ходит на трёх лапах: перелом сросся неправильно. Хирург
-        готов оперировать 21&nbsp;октября. Каждые 1&nbsp;000&nbsp;₽ — сутки
+        готов оперировать 21&nbsp;октября. Каждые {formatRub(1_000_00)} — сутки
         в&nbsp;стационаре после операции. Ёлочки «»&nbsp;и&nbsp;№&nbsp;17
         на&nbsp;месте.
       </p>
@@ -93,7 +83,7 @@ const TYPE_SCALE: { token: string; size: string; sample: ReactNode }[] = [
     size: "14 px",
     sample: (
       <p className="text-caption text-toner-muted">
-        из 38&nbsp;000&nbsp;₽ · осталось 13&nbsp;350&nbsp;₽
+        из {formatRub(38_000_00)} · осталось {formatRub(13_350_00)}
       </p>
     ),
   },
@@ -102,7 +92,7 @@ const TYPE_SCALE: { token: string; size: string; sample: ReactNode }[] = [
     size: "12,5 и 11 px",
     sample: (
       <p className="flex flex-wrap gap-x-4 font-mono">
-        <span className="text-mono">13&nbsp;350&nbsp;₽ весь остаток</span>
+        <span className="text-mono">{formatRub(13_350_00)} весь остаток</span>
         <span className="text-mono-sm text-toner-muted">
           Лекарства и ветеринария · до 20 октября
         </span>
@@ -228,77 +218,15 @@ const SPACING = [
   },
 ];
 
-function Section({
-  id,
-  title,
-  children,
-}: {
-  id: string;
-  title: string;
-  children: ReactNode;
-}) {
+export function TokenSections() {
   return (
-    <section
-      aria-labelledby={id}
-      className="grid grid-cols-[minmax(0,1fr)] gap-grid"
-    >
-      <h2
-        id={id}
-        className="justify-self-start bg-paper px-3.5 pt-2 pb-1.5 text-section uppercase shadow-sheet"
-      >
-        {title}
-      </h2>
-      {children}
-    </section>
-  );
-}
-
-function Sheet({
-  className,
-  children,
-}: {
-  className?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div
-      className={cn("rounded-sheet bg-paper p-sheet shadow-sheet", className)}
-    >
-      {children}
-    </div>
-  );
-}
-
-function SpecLabel({ children }: { children: ReactNode }) {
-  return <p className="font-mono text-mono-sm text-toner-muted">{children}</p>;
-}
-
-export default function TokensPage() {
-  assertDevelopment();
-  return (
-    <main className="mx-auto grid max-w-[80rem] grid-cols-[minmax(0,1fr)] gap-section px-gutter py-section">
-      <header className="grid gap-sheet rounded-sheet bg-paper p-sheet shadow-sheet md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-        <div className="grid gap-3">
-          <h1 className="text-hero">Токены «Объявление»</h1>
-          <p className="max-w-prose">
-            Временная витрина DS-1, только в&nbsp;development: палитра, шрифты,
-            формы и&nbsp;темы из&nbsp;
-            <code className="font-mono text-mono">src/app/globals.css</code>.
-            Цвета и&nbsp;контраст ниже читаются из&nbsp;CSS в&nbsp;браузере,
-            поэтому показывают то, что действительно в&nbsp;коде. Правила
-            и&nbsp;запреты&nbsp;— в&nbsp;
-            <code className="font-mono text-mono">docs/design.md</code>.
-          </p>
-        </div>
-        <ThemeSwitcher className="md:w-[26rem]" />
-      </header>
-
+    <>
       <Section id="palette" title="Палитра">
         <PaletteSpecimen />
       </Section>
 
       <Section id="contrast" title="Контраст">
-        <Sheet className="grid gap-3">
+        <Paper className="grid gap-3">
           <p className="max-w-prose text-caption text-toner-muted">
             Порог WCAG 2.1 AA: 4,5:1 для текста, 3:1 для рамок, фокуса
             и&nbsp;штриховки. Значения для текущей темы; обе темы проверяет тест{" "}
@@ -308,22 +236,22 @@ export default function TokensPage() {
             .
           </p>
           <ContrastTable />
-        </Sheet>
+        </Paper>
       </Section>
 
       <Section id="type" title="Шрифты">
         <div className="grid gap-grid md:grid-cols-3">
           {FAMILIES.map(({ className, name, role }) => (
-            <Sheet key={name} className="grid content-start gap-2">
+            <Paper key={name} className="grid content-start gap-2">
               <p className={className}>{name}</p>
               <p className="text-caption text-toner-muted">{role}</p>
               <p className={cn(className, "tabular-nums")}>
                 Ёё «» — № ₽ 0123456789
               </p>
-            </Sheet>
+            </Paper>
           ))}
         </div>
-        <Sheet>
+        <Paper>
           <dl className="grid">
             {TYPE_SCALE.map(({ token, size, sample }) => (
               <div
@@ -338,12 +266,12 @@ export default function TokensPage() {
               </div>
             ))}
           </dl>
-        </Sheet>
+        </Paper>
       </Section>
 
       <Section id="shapes" title="Формы">
         <div className="grid gap-grid md:grid-cols-2">
-          <Sheet className="grid content-start gap-5">
+          <Paper className="grid content-start gap-5">
             <div className="grid gap-2">
               <SpecLabel>border · рамка фото 1 px</SpecLabel>
               <div className="grid aspect-[4/3] max-w-64 place-items-center border border-toner bg-board font-mono text-mono-sm text-toner-muted">
@@ -362,8 +290,8 @@ export default function TokensPage() {
               </SpecLabel>
               <div className="border-t-line border-dashed border-perforation" />
             </div>
-          </Sheet>
-          <Sheet className="grid content-start gap-5">
+          </Paper>
+          <Paper className="grid content-start gap-5">
             <div className="grid gap-2">
               <SpecLabel>shadow-sheet · rounded-sheet 1 px</SpecLabel>
               <p className="max-w-prose text-caption">
@@ -377,35 +305,61 @@ export default function TokensPage() {
                 Собрано
               </p>
             </div>
-          </Sheet>
+          </Paper>
         </div>
       </Section>
 
-      <Section id="urgency" title="Срочность">
-        <Sheet className="grid gap-4">
-          <ul className="flex flex-wrap gap-3">
-            {URGENCY.map(({ className, label, icon: Icon, how }) => (
-              <li key={label} className="grid justify-items-start gap-1.5">
-                <span
+      <Section id="urgency" title="Срочность и состояния">
+        <div className="grid gap-grid md:grid-cols-2">
+          <Paper className="grid content-start gap-4">
+            <ul className="flex flex-wrap gap-3">
+              {URGENCY.map(({ className, label, icon: Icon, how }) => (
+                <li key={label} className="grid justify-items-start gap-1.5">
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1.5 py-0.5 pr-2 pl-1.5 font-display text-label uppercase",
+                      className,
+                    )}
+                  >
+                    <Icon aria-hidden className="size-3.5" />
+                    {label}
+                  </span>
+                  <span className="font-mono text-mono-sm text-toner-muted">
+                    {className} · {how}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="max-w-prose text-caption text-toner-muted">
+              Цвет срочность не передаёт: только плашка, рамка или пунктир,
+              иконка и&nbsp;слово.
+            </p>
+          </Paper>
+          <Paper className="grid content-start gap-3">
+            <SpecLabel>
+              Чернила состояний форм: success, danger, warning, info
+            </SpecLabel>
+            <ul className="grid gap-2.5">
+              {STATES.map(({ className, label, icon: Icon, text }) => (
+                <li
+                  key={label}
                   className={cn(
-                    "inline-flex items-center gap-1.5 py-0.5 pr-2 pl-1.5 font-display text-label uppercase",
+                    "flex items-start gap-2 text-caption",
                     className,
                   )}
                 >
-                  <Icon aria-hidden className="size-3.5" />
-                  {label}
-                </span>
-                <span className="font-mono text-mono-sm text-toner-muted">
-                  {className} · {how}
-                </span>
-              </li>
-            ))}
-          </ul>
-          <p className="max-w-prose text-caption text-toner-muted">
-            Цвет срочность не передаёт: только плашка, рамка или пунктир, иконка
-            и&nbsp;слово.
-          </p>
-        </Sheet>
+                  <Icon aria-hidden className="mt-0.5 size-4 shrink-0" />
+                  <span>
+                    <b className="font-display text-label uppercase">
+                      {label}.
+                    </b>{" "}
+                    {text}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Paper>
+        </div>
       </Section>
 
       <Section id="surfaces" title="Поверхности">
@@ -413,17 +367,19 @@ export default function TokensPage() {
           <div className="grid content-start gap-3 rounded-sheet surface-notice p-sheet shadow-sheet">
             <h3 className="text-title">Сегодня помогли</h3>
             <ul className="grid gap-2">
-              {[
-                ["Анна", "1 000", "12 минут назад"],
-                ["Аноним", "500", "40 минут назад"],
-                ["Сергей", "3 000", "2 часа назад"],
-              ].map(([name, sum, when]) => (
+              {(
+                [
+                  ["Анна", 1_000_00, "12 минут назад"],
+                  ["Аноним", 500_00, "40 минут назад"],
+                  ["Сергей", 3_000_00, "2 часа назад"],
+                ] as const
+              ).map(([name, kop, when]) => (
                 <li
                   key={name}
                   className="flex justify-between gap-3 border-b border-dotted pb-1.5"
                 >
                   <b className="tabular-nums">
-                    {name}&nbsp;— {sum?.replace(" ", NBSP)}&nbsp;₽
+                    {name}&nbsp;— {formatRub(kop)}
                   </b>
                   <span className="text-caption text-muted-foreground">
                     {when}
@@ -457,96 +413,8 @@ export default function TokensPage() {
         </div>
       </Section>
 
-      <Section id="controls" title="Кнопки и поля">
-        <div className="grid gap-grid md:grid-cols-2">
-          <Sheet className="grid content-start gap-5">
-            <div className="grid gap-2">
-              <SpecLabel>«Помочь»: жёлтая бумага, рамка 2 px</SpecLabel>
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  className="inline-flex min-h-cta items-center justify-center border-2 border-notice-foreground bg-notice px-6 font-display text-button text-notice-foreground uppercase transition-[translate,box-shadow] duration-150 ease-out hover:-translate-y-px hover:shadow-sheet active:translate-y-px active:shadow-none"
-                >
-                  Помочь Бурану
-                </button>
-                <button
-                  type="button"
-                  disabled
-                  className="inline-flex min-h-cta cursor-not-allowed items-center justify-center border-2 border-dashed border-perforation px-6 font-display text-button text-toner-muted uppercase"
-                >
-                  Собрано
-                </button>
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <SpecLabel>shadcn Button до DS-2: primary = тонер</SpecLabel>
-              <div className="flex flex-wrap gap-2">
-                <Button>Сохранить</Button>
-                <Button variant="outline">Отмена</Button>
-                <Button variant="secondary">Черновик</Button>
-                <Button variant="ghost">Ещё</Button>
-                <Button variant="destructive">Удалить</Button>
-                <Button variant="link">Ссылка</Button>
-              </div>
-            </div>
-            <p className="max-w-prose">
-              Ссылка в&nbsp;тексте —{" "}
-              <a href="#controls" className="text-pen underline">
-                отчёт за&nbsp;сентябрь
-              </a>
-              . Нажмите Tab: кольцо фокуса&nbsp;— ручкой, 3&nbsp;px. Выделите
-              текст: заливка ручкой, буквы цветом бумаги.
-            </p>
-          </Sheet>
-          <Sheet className="grid content-start gap-5">
-            <div className="grid gap-1.5">
-              <label
-                htmlFor="tokens-email"
-                className="font-display text-label uppercase"
-              >
-                Почта для чека
-              </label>
-              <input
-                id="tokens-email"
-                type="email"
-                defaultValue="anna@gmial.com"
-                aria-invalid
-                aria-describedby="tokens-email-error"
-                className="h-11 border border-input bg-paper px-3 text-body aria-invalid:border-danger"
-              />
-              <p
-                id="tokens-email-error"
-                className="flex items-start gap-1.5 text-caption text-danger"
-              >
-                <CircleX aria-hidden className="mt-0.5 size-4 shrink-0" />
-                Проверьте адрес: похоже на опечатку в&nbsp;домене.
-              </p>
-            </div>
-            <ul className="grid gap-2.5">
-              {STATES.map(({ className, label, icon: Icon, text }) => (
-                <li
-                  key={label}
-                  className={cn(
-                    "flex items-start gap-2 text-caption",
-                    className,
-                  )}
-                >
-                  <Icon aria-hidden className="mt-0.5 size-4 shrink-0" />
-                  <span>
-                    <b className="font-display text-label uppercase">
-                      {label}.
-                    </b>{" "}
-                    {text}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </Sheet>
-        </div>
-      </Section>
-
       <Section id="spacing" title="Отступы">
-        <Sheet>
+        <Paper>
           <dl className="grid">
             {SPACING.map(({ token, className, value, use }) => (
               <div
@@ -569,8 +437,8 @@ export default function TokensPage() {
               </div>
             ))}
           </dl>
-        </Sheet>
+        </Paper>
       </Section>
-    </main>
+    </>
   );
 }

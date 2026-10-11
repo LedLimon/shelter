@@ -29,6 +29,8 @@
 - **Триггеры:** блокируют UPDATE/DELETE в `Ledger*`, несбалансированную транзакцию, запись в закрытый месяц.
 - **Возврат после выполнения нужды** списывается из общего фонда.
 
+Пример — [`tests/integration/ledger/`](../tests/integration/ledger/): триггеры книги (их тесты пишут в таблицы `Ledger*` напрямую, в обход модуля, поэтому каталог исключён из правила `shelter/ledger-boundary`), повторы и параллельные `post`/`reverse`, property-тесты балансов. Тесты одного файла делят базу и общий фонд: проверяйте изменение баланса или заводите свежие счета нужд, а не абсолютные значения. Публикация `MonthlyReport` необратима — тесты закрытого месяца держите в отдельном файле.
+
 ## Платежи в тестах
 
 - `FakeCloudPayments` — адаптер `PaymentProvider` для dev и CI, без сети.
@@ -47,4 +49,4 @@
 - Тесты лежат рядом с кодом (`*.test.ts`) для unit; `tests/integration/` — для интеграционных; `e2e/` — Playwright.
 - Тестовые данные — фабрики, а не копипаста; seed для dev — отдельно (`prisma/seed.ts`).
 - Ни один тест не ходит в реальные внешние сервисы.
-- CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)): job `Checks` — format → typecheck → lint → unit и integration → build; интеграционные тесты и в CI поднимают Postgres через Testcontainers (Docker есть на раннере), как локально. Параллельно job `E2E smoke` — Playwright по production-сборке (`node .next/standalone/server.js`), desktop и mobile. Локально `pnpm e2e` поднимает `next dev` на порту 3100.
+- CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)): job `Checks` — format → typecheck → lint → unit и integration → build; интеграционные тесты и в CI поднимают Postgres через Testcontainers (Docker есть на раннере), как локально. Параллельно job `E2E smoke` — Playwright по production-сборке (`node .next/standalone/server.js`), desktop и mobile. Локально `pnpm e2e` поднимает `next dev` на порту 3100. Проект `showcase` (`e2e/dev-ui.spec.ts`) проверяет витрину `/dev/ui`: axe по WCAG 2.1 AA в обеих темах, Esc и возврат фокуса у Dialog и Sheet, ошибки формы. Витрина есть только в `next dev`, поэтому в CI рядом с production-сервером Playwright поднимает `next dev` на порту 3101.
