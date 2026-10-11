@@ -257,7 +257,12 @@ describe("seedDatabase: legal documents", () => {
     const db = getDb();
     // The owner has started on the offer: it is theirs to publish.
     const offer = await legalDraft(db, "OFFER");
-    await saveLegalDraft(db, offer!.id, "Оферта, которую правит владелец");
+    await saveLegalDraft(
+      db,
+      offer!.id,
+      "Оферта, которую правит владелец",
+      offer!.sha256,
+    );
 
     const result = await seedDatabase(db, {
       ...options,

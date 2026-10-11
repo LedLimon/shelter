@@ -26,6 +26,11 @@ export async function publishVersion(
   const db = getDb();
   const draft =
     (await legalDraft(db, type)) ?? (await createLegalDraft(db, type));
-  const { draft: saved } = await saveLegalDraft(db, draft.id, body);
+  const { draft: saved } = await saveLegalDraft(
+    db,
+    draft.id,
+    body,
+    draft.sha256,
+  );
   return publishLegalDraft(db, saved.id, saved.sha256);
 }

@@ -16,8 +16,11 @@ import { UnsubscribeButton } from "./unsubscribe-button";
 export const metadata: Metadata = {
   title: "Отписка от рассылки",
   robots: { index: false },
-  // The address is a secret: don't hand it to the sites this page links to.
-  referrer: "no-referrer",
+  // The address is a secret: don't hand it to other sites in the Referer.
+  // Not "no-referrer": the form's own POST would then come with
+  // `Origin: null`, which a server action refuses — and without JavaScript
+  // (or before it loads) the button would answer 500.
+  referrer: "same-origin",
 };
 
 // The answer depends on the consent's state right now.

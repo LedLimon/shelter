@@ -1,7 +1,11 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import { giveEachTestItsOwnIp, signIn } from "./support/sign-in";
-import { E2E_USERS } from "./support/users";
+import {
+  E2E_USERS,
+  UNSUBSCRIBE_VARIANTS,
+  unsubscribeToken,
+} from "./support/users";
 
 // Legal documents (LEGAL-1): the owner publishes a new version and the
 // public page shows it; nobody else gets into the section.
@@ -74,6 +78,15 @@ test("the owner publishes a new version and the document's page shows it", async
   await expect(publish).toBeDisabled();
   await page.getByRole("button", { name: "Сохранить черновик" }).click();
   await expect(page.getByText("Черновик сохранён")).toBeVisible();
+
+  // Left and reached again through the browser's history, the editor has
+  // the saved text — not the page as it was loaded before the save, from
+  // which the next save would drop this one.
+  await page.getByRole("link", { name: "Все документы" }).click();
+  await expect(page).toHaveURL("/admin/legal");
+  await page.goBack();
+  await expect(editor).toHaveValue(new RegExp(marker));
+  await expect(publish).toBeEnabled();
 
   // The preview shows the text the way the site will.
   await page.getByRole("tab", { name: "Предпросмотр" }).click();
@@ -177,6 +190,49 @@ test("an unknown document, version or unsubscribe link says so", async ({
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Отписаться" })).toHaveCount(0);
 });
+
+// The link at the bottom of a newsletter. Without JavaScript too: the form
+// is posted by the browser itself when the button is pressed before the
+// page's scripts have loaded.
+for (const variant of UNSUBSCRIBE_VARIANTS) {
+  test.describe(`unsubscribing (${variant})`, () => {
+    test.use({ javaScriptEnabled: variant === "js" });
+
+    test("opening the link changes nothing; the button withdraws the consent", async ({
+      page,
+    }, testInfo) => {
+      const project = testInfo.project.name === "mobile" ? "mobile" : "desktop";
+      const link = `/unsubscribe/${unsubscribeToken(project, testInfo.retry, variant)}`;
+      const asked = page.getByRole("heading", {
+        level: 1,
+        name: "Отписаться от новостей приюта?",
+      });
+      const done = page.getByRole("heading", {
+        level: 1,
+        name: "Вы отписаны",
+      });
+
+      // A mail scanner follows the link, the person opens it twice: still
+      // subscribed. The address is shown so that it can't be read off.
+      await page.goto(link);
+      await expect(asked).toBeVisible();
+      await page.reload();
+      await expect(asked).toBeVisible();
+      await expect(page.getByText("e•••@shelter.localhost")).toBeVisible();
+      await expect(page.getByText(/e2e-subscriber/)).toHaveCount(0);
+
+      await page.getByRole("button", { name: "Отписаться" }).click();
+      await expect(done).toBeVisible();
+
+      // For good: the link now only says so.
+      await page.goto(link);
+      await expect(done).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "Отписаться" }),
+      ).toHaveCount(0);
+    });
+  });
+}
 
 for (const colorScheme of ["light", "dark"] as const) {
   test(`the legal pages and the admin section pass WCAG 2.1 AA in the ${colorScheme} theme`, async ({

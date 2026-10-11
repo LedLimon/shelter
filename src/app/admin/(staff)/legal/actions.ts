@@ -32,13 +32,19 @@ const REFUSALS: Record<LegalErrorCode, string> = {
     "Текст не отличается от действующей версии — публиковать нечего. Измените текст или удалите черновик.",
 };
 
-/** Turns a refusal of src/server/legal into a message for the owner. */
-async function refusing<Result>(work: () => Promise<Result>): Promise<Result> {
+/**
+ * Turns a refusal of src/server/legal into a message for the owner;
+ * `messages` replaces the texts that depend on what was being done.
+ */
+async function refusing<Result>(
+  work: () => Promise<Result>,
+  messages: Partial<typeof REFUSALS> = {},
+): Promise<Result> {
   try {
     return await work();
   } catch (error) {
     if (error instanceof LegalError) {
-      throw new ActionError(REFUSALS[error.code]);
+      throw new ActionError(messages[error.code] ?? REFUSALS[error.code]);
     }
     throw error;
   }
@@ -60,13 +66,21 @@ export const createDraft = adminAction(
   },
 );
 
-/** Saves the draft's text; returns it as stored, with its hash. */
+/**
+ * Saves the draft's text over the one the editor was opened with (`sha256`);
+ * returns it as stored, with its new hash.
+ */
 export const saveDraft = adminAction(
   draftFormSchema,
   "legal.edit",
-  async ({ id, body }, { db, audit }) => {
-    const { draft, previousSha256 } = await refusing(() =>
-      saveLegalDraft(db, id, body),
+  async ({ id, sha256, body }, { db, audit }) => {
+    const { draft, previousSha256 } = await refusing(
+      () => saveLegalDraft(db, id, body, sha256),
+      {
+        // Reloading drops what was typed: say how to keep it.
+        STALE:
+          "Этот черновик уже сохранили заново — в другой вкладке или до того, как вы вернулись на страницу. Чтобы не потерять правки, скопируйте свой текст, обновите страницу и внесите их в свежий черновик.",
+      },
     );
     if (draft.sha256 !== previousSha256) {
       // The texts are public, but long: the hashes tell what changed.

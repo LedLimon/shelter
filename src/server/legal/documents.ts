@@ -167,25 +167,35 @@ export type SavedLegalDraft = {
   previousSha256: string;
 };
 
-/** Replaces the text of a draft. A published version is never touched. */
+/**
+ * Replaces the text of a draft. A published version is never touched.
+ * `baseSha256` is the hash of the text the caller started editing from: if
+ * the draft was saved again since (another tab, an editor restored from the
+ * browser's history), this save would silently undo that one — it is refused.
+ */
 export async function saveLegalDraft(
   db: Db,
   id: string,
   body: string,
+  baseSha256: string,
 ): Promise<SavedLegalDraft> {
   const text = checkedBody(body);
   const before = await draftOrThrow(db, id);
+  if (before.sha256 !== baseSha256) throw staleError(before);
   const sha256 = sha256Of(text);
   if (sha256 === before.sha256) {
     return { draft: before, previousSha256: before.sha256 };
   }
 
-  // The condition repeats the check: published in between, it stays as it is.
+  // The condition repeats the checks for what happened in between.
   const [draft] = await db.legalDocument.updateManyAndReturn({
-    where: { id, effectiveAt: null },
+    where: { id, effectiveAt: null, sha256: baseSha256 },
     data: { body: text, sha256 },
   });
-  if (!draft) throw publishedError(before);
+  if (!draft) {
+    const now = await db.legalDocument.findUnique({ where: { id } });
+    throw now?.effectiveAt ? publishedError(before) : staleError(before);
+  }
   return { draft, previousSha256: before.sha256 };
 }
 

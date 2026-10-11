@@ -81,6 +81,7 @@ describe("recordConsents", () => {
     const recorded = await recordConsents(getDb(), {
       consents: { OFFER: offer.id, PD_CONSENT: pdConsent.id, MARKETING: "" },
       required: ["OFFER", "PD_CONSENT"],
+      optional: ["MARKETING"],
       subject: { email: ` ${email.toUpperCase()} ` },
       context: "donation:don_1",
       evidence,
@@ -210,6 +211,7 @@ describe("recordConsents", () => {
         recordConsents(getDb(), {
           consents: { OFFER: offer.id, PRIVACY: id },
           required: ["OFFER"],
+          optional: ["PRIVACY"],
           subject: { email },
           context: "donation:don_5",
           evidence,
@@ -219,6 +221,37 @@ describe("recordConsents", () => {
 
     // Not even the consent that was fine: the form is sent again as a whole.
     expect(await recordsOf(email)).toEqual([]);
+  });
+
+  it("records only what the form asked for: a box it no longer shows gives no consent", async () => {
+    const email = newEmail();
+    const recurring = await publishVersion("RECURRING");
+
+    // The donor ticked the monthly box, then switched back to a one-time
+    // donation: the form's state still carries the tick, the form doesn't
+    // ask for it any more.
+    const recorded = await recordConsents(getDb(), {
+      consents: {
+        OFFER: offer.id,
+        PD_CONSENT: pdConsent.id,
+        RECURRING: recurring.id,
+        MARKETING: marketing.id,
+      },
+      required: ["OFFER", "PD_CONSENT"],
+      optional: ["MARKETING"],
+      subject: { email },
+      context: "donation:don_16",
+      evidence,
+    });
+
+    expect(recorded.map(({ type }) => type)).toEqual([
+      "OFFER",
+      "PD_CONSENT",
+      "MARKETING",
+    ]);
+    expect(
+      (await recordsOf(email)).map(({ document }) => document.type),
+    ).not.toContain("RECURRING");
   });
 
   it("needs someone to record the consent for", async () => {
@@ -238,6 +271,7 @@ describe("recordConsents", () => {
       recordConsents(getDb(), {
         consents: { MARKETING: "" },
         required: [],
+        optional: ["MARKETING"],
         subject: { email: newEmail() },
         context: "donation:don_7",
         evidence,
@@ -268,6 +302,50 @@ describe("the consent log in the database", () => {
         data: { ...data, email: "Donor@Example.ru" },
       }),
     ).rejects.toThrow(/ConsentRecord_email_lowercase/);
+  });
+
+  it("dates a consent itself: it can't be backdated or recorded as withdrawn", async () => {
+    const data = { documentId: offer.id, email: newEmail(), context: "test" };
+
+    await expect(
+      getDb().consentRecord.create({
+        data: { ...data, givenAt: new Date("2020-01-01T00:00:00Z") },
+      }),
+    ).rejects.toThrow(/legal: "givenAt" is set by the database/);
+    await expect(
+      getDb().$executeRaw`
+        INSERT INTO "ConsentRecord" ("id", "documentId", "email", "context", "withdrawnAt")
+        VALUES ('backdated', ${offer.id}, ${data.email}, 'test', transaction_timestamp())`,
+    ).rejects.toThrow(/legal: a consent is recorded as given/);
+
+    // And a withdrawal is dated by the database too.
+    const { id } = await getDb().consentRecord.create({ data });
+    await expect(
+      getDb().consentRecord.update({
+        where: { id },
+        data: { withdrawnAt: new Date(Date.now() + 86_400_000) },
+      }),
+    ).rejects.toThrow(/legal: "withdrawnAt" is the moment of withdrawal/);
+  });
+
+  it("is never deleted: the log is evidence", async () => {
+    const email = newEmail();
+    const { id } = await getDb().consentRecord.create({
+      data: { documentId: offer.id, email, context: "donation:don_17" },
+    });
+    const kept = /legal: consent \w+ can't be deleted/;
+
+    await expect(
+      getDb().consentRecord.delete({ where: { id } }),
+    ).rejects.toThrow(kept);
+    await expect(
+      getDb().consentRecord.deleteMany({ where: { email } }),
+    ).rejects.toThrow(kept);
+    await expect(getDb().$executeRaw`TRUNCATE "ConsentRecord"`).rejects.toThrow(
+      /legal: TRUNCATE on "ConsentRecord" is forbidden/,
+    );
+
+    expect(await getDb().consentRecord.count({ where: { id } })).toBe(1);
   });
 
   it("keeps the version, context and time of a consent", async () => {
@@ -311,6 +389,7 @@ describe("withdrawing the newsletter consent", () => {
     const [recorded] = await recordConsents(getDb(), {
       consents: { MARKETING: marketing.id, PD_CONSENT: pdConsent.id },
       required: [],
+      optional: ["MARKETING", "PD_CONSENT"],
       subject: { email },
       context,
       evidence,
@@ -324,7 +403,7 @@ describe("withdrawing the newsletter consent", () => {
     const first = await subscribe(email, "donation:don_9");
     await subscribe(email, "donation:don_10");
     const othersConsent = await subscribe(other, "donation:don_11");
-    expect(await marketingConsentOf(getDb(), email)).not.toBeNull();
+    expect(await marketingConsentOf(getDb(), { email })).not.toBeNull();
     expect(await marketingConsentState(getDb(), first)).toEqual({
       status: "given",
       email,
@@ -349,12 +428,12 @@ describe("withdrawing the newsletter consent", () => {
       records.filter(({ document }) => document.type === "MARKETING"),
     ).toHaveLength(2);
     // No more newsletters to this address; the other subscriber stays.
-    expect(await marketingConsentOf(getDb(), email)).toBeNull();
+    expect(await marketingConsentOf(getDb(), { email })).toBeNull();
     expect(await marketingConsentState(getDb(), first)).toEqual({
       status: "withdrawn",
       email,
     });
-    expect(await marketingConsentOf(getDb(), other)).toEqual({
+    expect(await marketingConsentOf(getDb(), { email: other })).toEqual({
       id: othersConsent,
     });
   });
@@ -385,6 +464,49 @@ describe("withdrawing the newsletter consent", () => {
     }
   });
 
+  it("finds and withdraws a consent given by an account, whatever the address", async () => {
+    const user = await getDb().user.create({
+      data: { email: newEmail(), name: "Опекун" },
+    });
+    // Ticked in the account, where the form has the user and no address…
+    const [byAccount] = await recordConsents(getDb(), {
+      consents: { MARKETING: marketing.id },
+      required: [],
+      optional: ["MARKETING"],
+      subject: { userId: user.id },
+      context: "account",
+      evidence,
+    });
+    // …and with a donation made while signed in.
+    const [byBoth] = await recordConsents(getDb(), {
+      consents: { MARKETING: marketing.id },
+      required: [],
+      optional: ["MARKETING"],
+      subject: { userId: user.id, email: user.email },
+      context: "donation:don_18",
+      evidence,
+    });
+    expect(await marketingConsentOf(getDb(), { userId: user.id })).toEqual({
+      id: byBoth!.consentId,
+    });
+    expect(await marketingConsentOf(getDb(), {})).toBeNull();
+
+    // The link of the letter sent on the second consent stops both.
+    expect(await withdrawMarketingConsent(getDb(), byBoth!.consentId)).toBe(2);
+
+    expect(
+      await marketingConsentOf(getDb(), {
+        userId: user.id,
+        email: user.email,
+      }),
+    ).toBeNull();
+    expect(
+      await getDb().consentRecord.findUniqueOrThrow({
+        where: { id: byAccount!.consentId },
+      }),
+    ).toMatchObject({ withdrawnAt: expect.any(Date) as Date });
+  });
+
   it("consenting again after a withdrawal is a new consent", async () => {
     const email = newEmail();
     await withdrawMarketingConsent(
@@ -394,7 +516,7 @@ describe("withdrawing the newsletter consent", () => {
 
     const again = await subscribe(email, "donation:don_14");
 
-    expect(await marketingConsentOf(getDb(), email)).toEqual({ id: again });
+    expect(await marketingConsentOf(getDb(), { email })).toEqual({ id: again });
   });
 
   it("does nothing for an unknown link or a consent of another kind", async () => {
@@ -402,6 +524,7 @@ describe("withdrawing the newsletter consent", () => {
     const [recorded] = await recordConsents(getDb(), {
       consents: { PD_CONSENT: pdConsent.id },
       required: [],
+      optional: ["PD_CONSENT"],
       subject: { email },
       context: "donation:don_15",
       evidence,

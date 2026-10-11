@@ -55,7 +55,7 @@ ALTER TABLE "ConsentRecord" ADD CONSTRAINT "ConsentRecord_documentId_fkey" FOREI
 --   DROP TABLE "ConsentRecord", "LegalDocument";
 --   DROP TYPE "LegalDocumentType";
 --   DROP FUNCTION legal_document_guard(), legal_document_forbid_truncate(),
---     consent_record_guard();
+--     consent_record_guard(), consent_record_forbid_truncate();
 -- =============================================================================
 
 -- Documents ---------------------------------------------------------------------
@@ -134,11 +134,17 @@ ALTER TABLE "ConsentRecord"
     CHECK ("withdrawnAt" >= "givenAt");
 
 -- A consent is evidence of what was agreed to and when: it is given to a
--- published version and stays with it. Who gave it (email, userId, ip,
--- userAgent) may still change: deleting an account pseudonymizes its records.
+-- published version at the database's time, stays with it, and is never
+-- deleted. Withdrawing it sets "withdrawnAt", once. What identifies the
+-- person (email, userId, ip, userAgent) may still be updated.
 CREATE FUNCTION consent_record_guard() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'legal: consent % can''t be deleted: the log of consents is kept as evidence',
+      OLD."id";
+  END IF;
+
   IF TG_OP = 'UPDATE' THEN
     IF NEW."id" IS DISTINCT FROM OLD."id"
        OR NEW."documentId" IS DISTINCT FROM OLD."documentId"
@@ -147,14 +153,26 @@ BEGIN
       RAISE EXCEPTION 'legal: consent % keeps the version, context and time it was given with',
         OLD."id";
     END IF;
-    IF OLD."withdrawnAt" IS NOT NULL
-       AND NEW."withdrawnAt" IS DISTINCT FROM OLD."withdrawnAt" THEN
-      RAISE EXCEPTION 'legal: consent % is withdrawn for good; consenting again is a new record',
-        OLD."id";
+    IF NEW."withdrawnAt" IS DISTINCT FROM OLD."withdrawnAt" THEN
+      IF OLD."withdrawnAt" IS NOT NULL THEN
+        RAISE EXCEPTION 'legal: consent % is withdrawn for good; consenting again is a new record',
+          OLD."id";
+      END IF;
+      IF NEW."withdrawnAt" IS DISTINCT FROM transaction_timestamp()::timestamptz(3) THEN
+        RAISE EXCEPTION 'legal: "withdrawnAt" is the moment of withdrawal, set it to transaction_timestamp()';
+      END IF;
     END IF;
     RETURN NEW;
   END IF;
 
+  -- Given now, by this database's clock: the same one that dates the
+  -- publication of the version, so the two can be compared.
+  IF NEW."givenAt" IS DISTINCT FROM transaction_timestamp()::timestamptz(3) THEN
+    RAISE EXCEPTION 'legal: "givenAt" is set by the database, don''t pass it';
+  END IF;
+  IF NEW."withdrawnAt" IS NOT NULL THEN
+    RAISE EXCEPTION 'legal: a consent is recorded as given; withdrawing it is a separate step';
+  END IF;
   -- A draft can still change, so there is nothing to consent to yet. A
   -- published version never goes back to a draft: no lock is needed.
   IF NOT EXISTS (
@@ -169,5 +187,17 @@ END
 $$;
 
 CREATE TRIGGER "ConsentRecord_guard"
-  BEFORE INSERT OR UPDATE ON "ConsentRecord"
+  BEFORE INSERT OR UPDATE OR DELETE ON "ConsentRecord"
   FOR EACH ROW EXECUTE FUNCTION consent_record_guard();
+
+-- TRUNCATE skips row triggers.
+CREATE FUNCTION consent_record_forbid_truncate() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'legal: TRUNCATE on "ConsentRecord" is forbidden: the log of consents is kept as evidence';
+END
+$$;
+
+CREATE TRIGGER "ConsentRecord_no_truncate"
+  BEFORE TRUNCATE ON "ConsentRecord"
+  FOR EACH STATEMENT EXECUTE FUNCTION consent_record_forbid_truncate();

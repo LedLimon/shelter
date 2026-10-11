@@ -27,5 +27,21 @@ export const E2E_PROJECTS = ["desktop", "mobile"] as const;
 /** CI retries a failed test once (playwright.config.ts); one spare attempt. */
 export const E2E_ATTEMPTS = 3;
 
+/** A consent to the newsletter that a test withdraws; see unsubscribeToken(). */
+export const UNSUBSCRIBE_VARIANTS = ["js", "no-js"] as const;
+
+/**
+ * The token of an unsubscribe link (the id of a newsletter consent) made for
+ * one attempt of one test. A withdrawn consent can't be given back, so every
+ * run — E2E_RUN_ID, set by e2e/global-setup.ts — has its own.
+ */
+export function unsubscribeToken(
+  project: string,
+  retry: number,
+  variant: (typeof UNSUBSCRIBE_VARIANTS)[number],
+): string {
+  return `e2e-${process.env.E2E_RUN_ID ?? "run"}-${project}-${retry}-${variant}`;
+}
+
 /** Dev and test databases: the seed's owner is at this domain (.env.example). */
 export const LOCAL_EMAIL_DOMAIN = "@shelter.localhost";

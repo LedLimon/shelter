@@ -1,6 +1,11 @@
 // `pnpm db:seed` (prisma db seed) runs this with tsx; prisma.config.ts has
 // already loaded .env.
-import { EnvValidationError, parseEnv, seedEnvSchema } from "@/lib/env/schema";
+import {
+  EnvValidationError,
+  isLocalUrl,
+  parseEnv,
+  seedEnvSchema,
+} from "@/lib/env/schema";
 import { createAuth } from "@/server/auth/config";
 import { createPrismaClient } from "@/server/db/client";
 import {
@@ -41,10 +46,18 @@ async function main() {
     );
   }
 
-  // Placeholder texts must never be the offer a real donor accepts.
-  if (env.SEED_PUBLISH_LEGAL_STUBS && process.env.NODE_ENV === "production") {
+  // Placeholder texts must never be the offer a real donor accepts, and a
+  // published version can't be taken back. NODE_ENV is not enough of a
+  // guard — `pnpm db:seed` doesn't set it — so the site itself has to be a
+  // local one, as for the payment emulator.
+  if (
+    env.SEED_PUBLISH_LEGAL_STUBS &&
+    (process.env.NODE_ENV === "production" || !isLocalUrl(env.APP_URL))
+  ) {
     throw new Error(
-      "SEED_PUBLISH_LEGAL_STUBS is for dev and tests only; in production the owner publishes the legal documents in the admin.",
+      "SEED_PUBLISH_LEGAL_STUBS publishes placeholder legal texts for good: " +
+        "it works only with a local APP_URL and never under NODE_ENV=production. " +
+        "Remove it; the owner publishes the legal documents in the admin.",
     );
   }
 

@@ -55,7 +55,9 @@ e2e/                      # Playwright
 Правила:
 
 - Страницы и server actions — тонкие: проверка прав (`can()`) → валидация (zod) → вызов `src/server/<домен>` → сброс кеша. В админке этот порядок держит `adminAction()` — см. [«Админка»](#админка).
-- Публичные страницы — Server Components + ISR, теги вида `need:{id}`, `dog:{id}`, `needs`, `dogs`, `ledger`, `legal`, `settings`. Страница с параметром в адресе экспортирует `generateStaticParams()` с пустым списком: при сборке ничего не рендерится (базы там нет), страница собирается при первом заходе и хранится до сброса тега. Данные читает функция, обёрнутая в `unstable_cache(…, { tags })`; она возвращает JSON, поэтому время — строкой ISO. Пример — [`src/app/legal`](../src/app/legal).
+- Публичные страницы — Server Components + ISR, теги вида `need:{id}`, `dog:{id}`, `needs`, `dogs`, `ledger`, `legal`, `settings`. Страница с параметром в адресе экспортирует `generateStaticParams()` с пустым списком: при сборке ничего не рендерится (базы там нет), страница собирается при первом заходе и хранится до сброса тега или перезапуска процесса. Данные читает функция, обёрнутая в `unstable_cache(…, { tags })`; она возвращает JSON, поэтому время — строкой ISO. Пример — [`src/app/legal`](../src/app/legal).
+  - **Кеш — только в памяти процесса** (`isrFlushToDisk: false` в `next.config.ts`, [ADR-0009](adr/0009-isr-cache-in-memory.md)). Время сброса тегов Next.js хранит в памяти, поэтому кеш на диске после перезапуска отдавал бы сброшенные страницы как свежие. Приложение — один процесс: у второго экземпляра был бы свой кеш, и сброс тега до него не дошёл бы.
+  - Кешируются и ответы 404, поэтому адрес проверяется до обращения к данным: неизвестный документ не доходит до базы.
 - Побочные эффекты (письма, уведомления) — через **outbox**: запись в таблицу `Outbox` в той же транзакции, что и бизнес-данные, воркер отправляет. Как — в разделе [«Фоновые задачи»](#фоновые-задачи-worker).
 
 ## Модель данных
@@ -131,7 +133,7 @@ e2e/                      # Playwright
 ### Комплаенс и контент
 
 - `LegalDocument`: type (`OFFER | PRIVACY | PD_CONSENT | RECURRING | MARKETING`), version, body, sha256, effectiveAt. Строка — одна версия документа: `effectiveAt` пуст — черновик (один на тип), задан — версия опубликована и действует с этого момента, пока не выйдет следующая. Опубликованную строку триггер не даёт ни изменить, ни удалить; `sha256` сверяется с `body` CHECK-ом. Пишет только `src/server/legal`. Подробно — [legal.md](legal.md#как-это-устроено-в-коде), [ADR-0008](adr/0008-legal-documents-and-consents.md).
-- `ConsentRecord`: email | userId, documentId, context, ip, userAgent, givenAt, withdrawnAt. Согласие с конкретной опубликованной версией; `documentId`, `context` и `givenAt` не меняются (триггер), отзыв — `withdrawnAt`. `ip` и `userAgent` — ПДн. Пишет только `recordConsents()`.
+- `ConsentRecord`: email | userId, documentId, context, ip, userAgent, givenAt, withdrawnAt. Согласие с конкретной опубликованной версией. Журнал — доказательство: триггер не даёт удалить строку и сменить `documentId`, `context` и `givenAt`; время согласия и отзыва (`withdrawnAt`, один раз) ставит БД. `ip` и `userAgent` — ПДн. Пишет только `recordConsents()`.
 - `AuditLog`: actorId, action, entity, entityId, diff, ip, at.
 - `Post` (новости, истории «Они дома»), `Page`.
 
@@ -148,7 +150,7 @@ e2e/                      # Playwright
 - `/transparency` · `/transparency/ledger` · `/transparency/reports/[yyyy-mm]` · `/transparency/expenses/[id]`
 - `/news` · `/news/[slug]` · `/stories` · `/about` · `/documents` · `/contacts` · `/how-to-help`
 - `/legal/offer` · `/legal/privacy` · `/legal/consent` · `/legal/recurring` · `/legal/marketing` — действующая версия документа и список прежних; `/legal/[slug]/[version]` — постоянный адрес версии
-- `/unsubscribe/[id]` — отписка от рассылки по ссылке из письма
+- `/unsubscribe/[token]` — отписка от рассылки по ссылке из письма; токен — id записи о согласии
 - `/volunteer` · `/volunteer/shifts` · `/volunteer/tasks`
 - `/account` (вход) · `/account/donations` · `/account/subscriptions` · `/account/wards` · `/account/volunteer` · `/account/settings`
 - `/subscriptions/manage?token=…` — управление подпиской без аккаунта

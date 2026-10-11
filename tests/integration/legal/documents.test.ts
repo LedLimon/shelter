@@ -71,6 +71,7 @@ describe("a draft", () => {
       db,
       draft.id,
       "\r\n## Условия  \r\nСписание раз в месяц.\t\n\n",
+      draft.sha256,
     );
 
     expect(saved.body).toBe("## Условия\nСписание раз в месяц.");
@@ -83,13 +84,37 @@ describe("a draft", () => {
     });
   });
 
+  it("is not saved over a text that was saved meanwhile", async () => {
+    const db = getDb();
+    const opened = await legalDraft(db, "RECURRING");
+    // Another tab — or this one before the browser's «Назад» brought the
+    // old editor back — saves a clause.
+    const { draft: theirs } = await saveLegalDraft(
+      db,
+      opened!.id,
+      "Пункт, который нельзя потерять",
+      opened!.sha256,
+    );
+
+    // The stale editor still holds the text it was opened with.
+    await expect(
+      saveLegalDraft(db, opened!.id, "Правка поверх старого", opened!.sha256),
+    ).rejects.toEqual(refusal("STALE"));
+
+    expect(await legalDraft(db, "RECURRING")).toEqual(theirs);
+    // From the text as it is now, saving works again.
+    await expect(
+      saveLegalDraft(db, opened!.id, "Условия, версия три", theirs.sha256),
+    ).resolves.toMatchObject({ previousSha256: theirs.sha256 });
+  });
+
   it("can't be saved empty or with a hash of another text", async () => {
     const db = getDb();
     const draft = await legalDraft(db, "RECURRING");
 
-    await expect(saveLegalDraft(db, draft!.id, " \n\t")).rejects.toEqual(
-      refusal("INVALID_BODY"),
-    );
+    await expect(
+      saveLegalDraft(db, draft!.id, " \n\t", draft!.sha256),
+    ).rejects.toEqual(refusal("INVALID_BODY"));
     await expect(
       db.legalDocument.update({
         where: { id: draft!.id },
@@ -161,7 +186,12 @@ describe("publishing", () => {
       refusal("UNCHANGED"),
     );
 
-    const { draft: edited } = await saveLegalDraft(db, draft.id, uniqueBody());
+    const { draft: edited } = await saveLegalDraft(
+      db,
+      draft.id,
+      uniqueBody(),
+      draft.sha256,
+    );
     const second = await publishLegalDraft(db, edited.id, edited.sha256);
 
     expect(await currentLegalDocument(db, "PD_CONSENT")).toEqual(second);
@@ -180,9 +210,14 @@ describe("publishing", () => {
   it("refuses a draft that was saved again since it was read", async () => {
     const db = getDb();
     const draft = await createLegalDraft(db, "PD_CONSENT");
-    const { draft: shown } = await saveLegalDraft(db, draft.id, uniqueBody());
+    const { draft: shown } = await saveLegalDraft(
+      db,
+      draft.id,
+      uniqueBody(),
+      draft.sha256,
+    );
     // Another tab saves a different text before «Опубликовать» is pressed.
-    await saveLegalDraft(db, draft.id, uniqueBody());
+    await saveLegalDraft(db, draft.id, uniqueBody(), shown.sha256);
 
     await expect(publishLegalDraft(db, draft.id, shown.sha256)).rejects.toEqual(
       refusal("STALE"),
@@ -242,7 +277,7 @@ describe("a published version", () => {
     const published = await publishVersion("MARKETING");
 
     await expect(
-      saveLegalDraft(db, published.id, "Исправленный текст"),
+      saveLegalDraft(db, published.id, "Исправленный текст", published.sha256),
     ).rejects.toEqual(refusal("PUBLISHED"));
     await expect(deleteLegalDraft(db, published.id)).rejects.toEqual(
       refusal("PUBLISHED"),
@@ -296,7 +331,12 @@ describe("a published version", () => {
   it("is published at the moment of publication, never backdated", async () => {
     const db = getDb();
     const draft = await createLegalDraft(db, "MARKETING");
-    const { draft: edited } = await saveLegalDraft(db, draft.id, uniqueBody());
+    const { draft: edited } = await saveLegalDraft(
+      db,
+      draft.id,
+      uniqueBody(),
+      draft.sha256,
+    );
 
     await expect(
       db.legalDocument.update({

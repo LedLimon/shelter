@@ -59,8 +59,13 @@ describe("the owner's actions", () => {
     const { id, version } = created.data;
     expect(version).toBe(1);
 
+    const opened = await legalDraft(getDb(), "OFFER");
     const body = uniqueBody("Оферта");
-    const saved = await saveDraft({ id, body: `${body}  \r\n` });
+    const saved = await saveDraft({
+      id,
+      sha256: opened!.sha256,
+      body: `${body}  \r\n`,
+    });
     if (!saved.ok) throw new Error(saved.error.message);
     // As stored: the form shows the normalized text.
     expect(saved.data.body).toBe(body);
@@ -92,7 +97,11 @@ describe("the owner's actions", () => {
     const published = await publishVersion("PRIVACY");
 
     for (const result of [
-      await saveDraft({ id: published.id, body: "Исправленный текст" }),
+      await saveDraft({
+        id: published.id,
+        sha256: published.sha256,
+        body: "Исправленный текст",
+      }),
       await deleteDraft({ id: published.id }),
       await publishDraft({ id: published.id, sha256: published.sha256 }),
     ]) {
@@ -127,13 +136,32 @@ describe("the owner's actions", () => {
     });
 
     // Saved again in another tab after this one showed the text.
-    await saveDraft({ id, body: uniqueBody() });
+    const theirs = uniqueBody();
+    await saveDraft({ id, sha256: draft!.sha256, body: theirs });
     expect(await publishDraft({ id, sha256: draft!.sha256 })).toMatchObject({
       ok: false,
       error: {
         code: "failed",
         message: expect.stringContaining("Черновик изменился") as string,
       },
+    });
+    // Nor does this tab's editor, still on the old text, save over it: the
+    // other tab's clause would be gone without a word.
+    expect(
+      await saveDraft({
+        id,
+        sha256: draft!.sha256,
+        body: "Правка из старой вкладки",
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: {
+        code: "failed",
+        message: expect.stringContaining("скопируйте свой текст") as string,
+      },
+    });
+    expect(await legalDraft(getDb(), "RECURRING")).toMatchObject({
+      body: theirs,
     });
     expect(await currentLegalDocument(getDb(), "RECURRING")).toMatchObject({
       version: 1,
@@ -161,7 +189,10 @@ describe("the owner's actions", () => {
     if (!created.ok) throw new Error(created.error.message);
     const { id } = created.data;
 
-    expect(await saveDraft({ id, body: "  \n " })).toMatchObject({
+    const draft = await legalDraft(getDb(), "PD_CONSENT");
+    expect(
+      await saveDraft({ id, sha256: draft!.sha256, body: "  \n " }),
+    ).toMatchObject({
       ok: false,
       error: {
         code: "validation",
@@ -187,7 +218,11 @@ describe("everyone else", () => {
 
       for (const result of [
         await createDraft({ type: "OFFER" }),
-        await saveDraft({ id: draft!.id, body: "Чужая правка" }),
+        await saveDraft({
+          id: draft!.id,
+          sha256: draft!.sha256,
+          body: "Чужая правка",
+        }),
         await publishDraft({ id: draft!.id, sha256: draft!.sha256 }),
         await deleteDraft({ id: draft!.id }),
       ]) {
@@ -221,7 +256,7 @@ describe("the unsubscribe link's action", () => {
     const marketing = await currentLegalDocument(getDb(), "MARKETING");
     const [consent] = await recordConsents(getDb(), {
       consents: { MARKETING: marketing!.id },
-      required: [],
+      required: ["MARKETING"],
       subject: { email },
       context: "donation:don_1",
       evidence: { ip: null, userAgent: null },
@@ -229,7 +264,7 @@ describe("the unsubscribe link's action", () => {
 
     await unsubscribe(consent!.consentId);
 
-    expect(await marketingConsentOf(getDb(), email)).toBeNull();
+    expect(await marketingConsentOf(getDb(), { email })).toBeNull();
     expect(mocks.refresh).toHaveBeenCalledOnce();
 
     // Pressed again, an unknown token, not a token at all: nothing happens.

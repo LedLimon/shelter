@@ -36,21 +36,30 @@ type Draft = { id: string; version: number; body: string; sha256: string };
  */
 export function DraftForm({ draft, title }: { draft: Draft; title: string }) {
   const router = useRouter();
-  // The hash of the text as last saved: publishing names the text by it.
-  const [savedSha256, setSavedSha256] = useState(draft.sha256);
   const [confirming, setConfirming] = useState<"publish" | "delete" | null>(
     null,
   );
   const { form, submit, failure } = useActionForm({
     schema: draftFormSchema,
-    defaultValues: { id: draft.id, body: draft.body },
+    // `sha256` names the stored text this editor works on: a save sends it,
+    // so it can't overwrite a text saved elsewhere meanwhile, and publishing
+    // names the saved text by it.
+    defaultValues: { id: draft.id, sha256: draft.sha256, body: draft.body },
     action: saveDraft,
     success: "Черновик сохранён",
-    savedValues: (saved) => ({ id: draft.id, body: saved.body }),
-    onSuccess: (saved) => setSavedSha256(saved.sha256),
+    savedValues: (saved) => ({
+      id: draft.id,
+      sha256: saved.sha256,
+      body: saved.body,
+    }),
+    // The page's own copy of the draft is old now: without this, coming
+    // back to the page through the browser's history shows the text as it
+    // was before the save.
+    onSuccess: () => router.refresh(),
   });
   const { isDirty, isSubmitting } = form.formState;
   const body = useWatch({ control: form.control, name: "body" });
+  const savedSha256 = useWatch({ control: form.control, name: "sha256" });
   // Typing stays quick in a long text: the preview catches up.
   const previewBody = useDeferredValue(body);
 

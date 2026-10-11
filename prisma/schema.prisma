@@ -217,8 +217,9 @@ model LegalDocument {
 }
 
 /// A box someone ticked: consent to exactly this version of a document. Kept
-/// as evidence (152-ФЗ, ст. 9); withdrawing sets withdrawnAt, giving consent
-/// again is a new record. A trigger keeps documentId, context and givenAt.
+/// as evidence (152-ФЗ, ст. 9): a trigger rejects DELETE and keeps
+/// documentId, context and givenAt. Withdrawing sets withdrawnAt, once;
+/// giving consent again is a new record.
 model ConsentRecord {
   id          String        @id @default(cuid(2))
   /// Who consented: the address typed into the form (stored lowercased), the
@@ -234,7 +235,8 @@ model ConsentRecord {
   /// Evidence of the consent. Personal data: never logged.
   ip          String?
   userAgent   String?
-  /// The database's clock, like LegalDocument.effectiveAt.
+  /// Both by the database's clock, like LegalDocument.effectiveAt: a trigger
+  /// rejects any other value.
   givenAt     DateTime      @default(dbgenerated("transaction_timestamp()")) @db.Timestamptz(3)
   withdrawnAt DateTime?     @db.Timestamptz(3)
 

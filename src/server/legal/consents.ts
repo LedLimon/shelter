@@ -44,6 +44,12 @@ export type RecordConsentsInput = {
   consents: Partial<Record<LegalDocumentType, ConsentValue>>;
   /** Consents this form can't go without. */
   required: readonly LegalDocumentType[];
+  /**
+   * Consents the form asked for and can go without. A value for a document
+   * in neither list is ignored: a box the form no longer shows (RECURRING
+   * after the donor switched back to a one-time donation) gives no consent.
+   */
+  optional?: readonly LegalDocumentType[];
   subject: ConsentSubject;
   /** Where the boxes were: "donation:{id}", "account". No personal data. */
   context: string;
@@ -69,13 +75,20 @@ export type RecordedConsent = ConsentDocument & {
  */
 export async function recordConsents(
   db: Db,
-  { consents, required, subject, context, evidence }: RecordConsentsInput,
+  {
+    consents,
+    required,
+    optional = [],
+    subject,
+    context,
+    evidence,
+  }: RecordConsentsInput,
 ): Promise<RecordedConsent[]> {
-  const email = subject.email?.trim().toLowerCase() || null;
-  const userId = subject.userId ?? null;
+  const { email, userId } = normalizedSubject(subject);
   if (!email && !userId) throw new ConsentError("NO_SUBJECT");
 
-  const given = (Object.keys(consents) as LegalDocumentType[]).filter(
+  const asked = [...new Set([...required, ...optional])];
+  const given = asked.filter(
     (type) => (consents[type] ?? NOT_GIVEN) !== NOT_GIVEN,
   );
   for (const type of required) {
@@ -110,23 +123,33 @@ export async function recordConsents(
 }
 
 /**
- * The newsletter consent of an address that is still in force, or null: no
- * newsletter goes to an address without one. Its id is the token of the
- * unsubscribe link (unsubscribeUrl()).
+ * The newsletter consent of a person that is still in force — given with
+ * this address or by this account — or null: no newsletter goes to someone
+ * without one. Its id is the token of the unsubscribe link (unsubscribeUrl()).
  */
 export async function marketingConsentOf(
   db: Db,
-  email: string,
+  subject: ConsentSubject,
 ): Promise<{ id: string } | null> {
+  const { email, userId } = normalizedSubject(subject);
+  if (!email && !userId) return null;
   return db.consentRecord.findFirst({
     where: {
-      email: email.trim().toLowerCase(),
+      OR: [...(email ? [{ email }] : []), ...(userId ? [{ userId }] : [])],
       withdrawnAt: null,
       document: { type: "MARKETING" },
     },
     orderBy: { givenAt: "desc" },
     select: { id: true },
   });
+}
+
+/** The address as it is stored: trimmed and lowercased. */
+function normalizedSubject({ email, userId }: ConsentSubject) {
+  return {
+    email: email?.trim().toLowerCase() || null,
+    userId: userId ?? null,
+  };
 }
 
 export type MarketingConsentState =
@@ -153,9 +176,10 @@ export async function marketingConsentState(
 
 /**
  * Withdraws the newsletter consent behind an unsubscribe link — and every
- * other newsletter consent of the same person still in force: they ticked
- * the box with several donations, and want no more letters. Other consents
- * (personal data, the offer) are not touched.
+ * other newsletter consent of the same person still in force, by the
+ * address and by the account: they ticked the box with several donations,
+ * and want no more letters. Other consents (personal data, the offer) are
+ * not touched.
  *
  * Returns how many consents were withdrawn: 0 if the link is unknown or was
  * used already, so a repeated click changes nothing.

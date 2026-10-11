@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -138,6 +139,8 @@ export function FormDemo() {
     form.reset(DEFAULT_VALUES);
   }
 
+  // The real form gets a new version from the server (router.refresh()).
+  const [offerVersion, setOfferVersion] = useState(3);
   const comment = useWatch({ control: form.control, name: "comment" }) ?? "";
   const frequency = useWatch({ control: form.control, name: "frequency" });
   const amount = useWatch({ control: form.control, name: "amount" }) ?? "";
@@ -280,9 +283,32 @@ export function FormDemo() {
           name="consents"
           documents={CONSENT_DOCUMENTS.filter(
             ({ type }) => type !== "RECURRING" || frequency === "monthly",
+          ).map((document) =>
+            document.type === "OFFER"
+              ? {
+                  ...document,
+                  id: `demo-offer-v${offerVersion}`,
+                  version: offerVersion,
+                }
+              : document,
           )}
           recurringTerms={`${monthlySum} каждый месяц`}
         />
+        <div className="grid gap-1.5">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="justify-self-start"
+            onClick={() => setOfferVersion((version) => version + 1)}
+          >
+            Пример: вышла новая версия оферты
+          </Button>
+          <p className="text-caption text-muted-foreground">
+            Сейчас форма показывает версию {offerVersion}. Отметка оферты при
+            этом снимается: согласие давали с&nbsp;прежним текстом.
+          </p>
+        </div>
       </FieldGroup>
 
       <div className="flex flex-wrap gap-3">

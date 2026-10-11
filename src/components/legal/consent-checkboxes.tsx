@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import {
   Controller,
   type Control,
@@ -41,13 +41,17 @@ type ConsentCheckboxesProps<
   /**
    * The versions in force — consentDocuments() on the server. One box per
    * document, in this order; the form leaves out what it doesn't ask for
-   * (RECURRING for a one-time donation).
+   * (RECURRING for a one-time donation). A box that leaves the form loses
+   * its tick, and so does a box whose document got a newer version: when
+   * the action answers that a consent is outdated (ConsentError OUTDATED),
+   * the form calls router.refresh() to get the versions in force.
    */
   documents: readonly ConsentDocument[];
   /**
    * What a monthly donor agrees to be charged, for the RECURRING box:
    * «1 500 ₽ каждый месяц» (docs/legal.md: the sum and the period are part
-   * of that consent).
+   * of that consent). When it changes, the box loses its tick: the consent
+   * was given to another sum.
    */
   recurringTerms?: string;
   className?: string;
@@ -127,13 +131,35 @@ function ConsentBox({
 }) {
   const id = useId();
   const { label, hint } = consentText(document, recurringTerms);
-
-  // The form now shows a newer version than the one the box was ticked
-  // for: that tick was not given to this text.
-  const outdated = value !== NOT_GIVEN && value !== document.id;
+  // What the box was ticked for: this version, and for RECURRING this sum.
+  const terms = document.type === "RECURRING" ? recurringTerms : undefined;
+  const tickedFor = useRef({ id: document.id, terms });
+  const latest = useRef({ value, onChange });
   useEffect(() => {
-    if (outdated) onChange(NOT_GIVEN);
-  }, [outdated, onChange]);
+    latest.current = { value, onChange };
+  });
+
+  // The tick is a consent to one text. The form now shows a newer version,
+  // or another sum to charge every month: it was not given to those.
+  useEffect(() => {
+    const ticked = tickedFor.current;
+    tickedFor.current = { id: document.id, terms };
+    const changed = ticked.id !== document.id || ticked.terms !== terms;
+    if (changed && latest.current.value !== NOT_GIVEN) {
+      latest.current.onChange(NOT_GIVEN);
+    }
+  }, [document.id, terms]);
+
+  // A box that leaves the form (the donor switched back to a one-time
+  // donation) takes its tick along: it must not come back ticked.
+  useEffect(
+    () => () => {
+      if (latest.current.value !== NOT_GIVEN) {
+        latest.current.onChange(NOT_GIVEN);
+      }
+    },
+    [],
+  );
 
   return (
     <Field orientation="horizontal" data-invalid={invalid || undefined}>
