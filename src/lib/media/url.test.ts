@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import nextConfig from "../../../next.config";
 import { VARIANT_WIDTHS, variantWidthFor } from "./constraints";
 import mediaImageLoader from "./image-loader";
 import { mediaIdOf, mediaSrc, mediaUrl } from "./url";
@@ -55,5 +56,13 @@ describe("mediaImageLoader", () => {
 
   it("leaves other images alone", () => {
     expect(mediaImageLoader({ src: "/icon.svg", width: 64 })).toBe("/icon.svg");
+  });
+});
+
+describe("next.config.ts", () => {
+  it("lets next/image ask only for the widths the worker makes", () => {
+    const { imageSizes = [], deviceSizes = [] } = nextConfig.images ?? {};
+
+    expect([...imageSizes, ...deviceSizes]).toEqual([...VARIANT_WIDTHS]);
   });
 });

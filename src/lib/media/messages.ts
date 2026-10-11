@@ -40,3 +40,11 @@ export const MEDIA_FAILURE_MESSAGES: Record<MediaFailure, string> = {
   stuck:
     "Не получилось обработать файл. Загрузите его заново, а если не поможет — напишите разработчикам.",
 };
+
+/** The message for a failure code, also one a newer server may send. */
+export function mediaFailureMessage(failure: string | null): string {
+  return (
+    (MEDIA_FAILURE_MESSAGES as Record<string, string>)[failure ?? "stuck"] ??
+    MEDIA_FAILURE_MESSAGES.stuck
+  );
+}

@@ -27,13 +27,15 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLinkItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Spinner } from "@/components/ui/spinner";
-import { MAX_UPLOAD_MB } from "@/lib/media/constraints";
-import { MEDIA_FAILURE_MESSAGES } from "@/lib/media/messages";
+import { MAX_UPLOAD_MB, VARIANT_WIDTHS } from "@/lib/media/constraints";
+import { mediaFailureMessage } from "@/lib/media/messages";
+import { mediaUrl } from "@/lib/media/url";
 import { needsRedaction } from "@/lib/media/visibility";
 import { formatCount, type PluralForms } from "@/lib/plural";
 import { cn } from "@/lib/utils";
@@ -141,6 +143,8 @@ const POLL_MS = 1_500;
 const SLOW_POLL_MS = 5_000;
 /** Processing takes seconds; after this something is off with the worker. */
 const SLOW_AFTER_MS = 30_000;
+
+const LARGEST_WIDTH = VARIANT_WIDTHS[VARIANT_WIDTHS.length - 1]!;
 
 /** How wide a tile is shown, for the browser's choice of image width. */
 const TILE_SIZES = "(min-width: 48rem) 12rem, 45vw";
@@ -252,7 +256,8 @@ export function MediaUploader({
     };
   }, [pendingKey]);
 
-  const busy = uploads.some(({ phase }) => phase !== "failed") || !!pendingKey;
+  const sending = uploads.some(({ phase }) => phase !== "failed");
+  const busy = sending || !!pendingKey;
   const reportBusy = useRef(onBusyChange);
   useEffect(() => {
     reportBusy.current = onBusyChange;
@@ -260,6 +265,14 @@ export function MediaUploader({
   useEffect(() => {
     reportBusy.current?.(busy);
   }, [busy]);
+
+  // A file still on its way is lost with the page: closing the tab asks first.
+  useEffect(() => {
+    if (!sending) return;
+    const ask = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", ask);
+    return () => window.removeEventListener("beforeunload", ask);
+  }, [sending]);
 
   // --- Picking and dropping files.
   const input = useRef<HTMLInputElement>(null);
@@ -360,6 +373,8 @@ export function MediaUploader({
     );
   }
 
+  // Dragging a tile with the mouse: the others make room as it passes over
+  // them, and letting go anywhere in the list keeps the new order.
   const reorder = (item: MediaItem) => ({
     draggable: finePointer && !disabled && value.length > 1,
     onDragStart(event: DragEvent) {
@@ -368,12 +383,19 @@ export function MediaUploader({
       event.dataTransfer.effectAllowed = "move";
       event.dataTransfer.setData("text/plain", item.id);
     },
-    onDragEnter(event: DragEvent) {
+    onDragEnter() {
       if (!draggedId || draggedId === item.id) return;
-      event.preventDefault();
-      // The tiles make room as the dragged one passes over them.
-      emit(moveTo(latest.current, draggedId, latest.current.indexOf(item)));
+      const to = latest.current.findIndex(({ id }) => id === item.id);
+      emit(moveTo(latest.current, draggedId, to));
     },
+    onDragEnd() {
+      // Dropped outside the list or cancelled with Esc: as it was.
+      if (dragStart.current) emit(dragStart.current);
+      dragStart.current = null;
+      setDraggedId(null);
+    },
+  });
+  const reorderTarget = {
     onDragOver(event: DragEvent) {
       if (!draggedId) return;
       event.preventDefault();
@@ -384,13 +406,7 @@ export function MediaUploader({
       event.preventDefault();
       dragStart.current = null;
     },
-    onDragEnd() {
-      // Dropped outside the list or cancelled with Esc: as it was.
-      if (dragStart.current) emit(dragStart.current);
-      dragStart.current = null;
-      setDraggedId(null);
-    },
-  });
+  };
 
   const pickButton = {
     type: "button" as const,
@@ -402,7 +418,10 @@ export function MediaUploader({
   const coverId = value.find(({ isCover }) => isCover)?.id ?? null;
 
   const tiles = (
-    <ul className="grid grid-cols-2 items-start gap-3 sm:grid-cols-3 md:grid-cols-4">
+    <ul
+      className="grid grid-cols-1 items-start gap-3 min-[20rem]:grid-cols-2 sm:grid-cols-3 md:grid-cols-4"
+      {...reorderTarget}
+    >
       {value.map((item, index) => (
         <li
           key={item.id}
@@ -414,67 +433,39 @@ export function MediaUploader({
           )}
           {...reorder(item)}
         >
-          <Frame documents={documents}>
-            <Picture
-              item={item}
-              previewUrl={previews[item.id]}
-              contain={documents}
-            />
-            {item.status === "UPLOADED" && (
-              <Plate>
-                <Spinner aria-hidden />
-                Обрабатываем…
-              </Plate>
+          <div
+            className={cn(
+              "relative",
+              finePointer && !disabled && value.length > 1 && "cursor-grab",
             )}
-            {item.status === "FAILED" && (
-              <Plate tone="danger">
-                <CircleAlert aria-hidden />
-                Не обработано
-              </Plate>
-            )}
-          </Frame>
-
-          {item.status === "FAILED" ? (
-            <Failure
-              message={MEDIA_FAILURE_MESSAGES[item.failure ?? "stuck"]}
-              disabled={disabled}
-              onRemove={() => remove(item)}
-            />
-          ) : (
-            <div className="flex min-h-11 items-center justify-between gap-1 sm:min-h-9">
-              {cover ? (
-                <label className="flex min-w-0 items-center gap-2 py-1 text-caption">
-                  <RadioGroupItem value={item.id} disabled={disabled} />
-                  Обложка
-                </label>
-              ) : documents ? (
-                <label className="flex min-w-0 items-start gap-2 py-1 text-caption">
-                  <Checkbox
-                    className="mt-0.5"
-                    checked={item.redacted}
-                    disabled={disabled}
-                    onCheckedChange={(redacted) =>
-                      emit(
-                        value.map((other) =>
-                          other.id === item.id ? { ...other, redacted } : other,
-                        ),
-                      )
-                    }
-                  />
-                  Личные данные закрашены
-                </label>
-              ) : (
-                <span className="font-mono text-mono text-muted-foreground tabular-nums">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
+          >
+            <Frame documents={documents}>
+              <Picture
+                item={item}
+                previewUrl={previews[item.id]}
+                contain={documents}
+              />
+              {item.status === "UPLOADED" && (
+                <Plate>
+                  <Spinner aria-hidden />
+                  Обрабатываем…
+                </Plate>
               )}
+              {item.status === "FAILED" && (
+                <Plate tone="danger">
+                  <CircleAlert aria-hidden />
+                  Не обработано
+                </Plate>
+              )}
+            </Frame>
+            {item.status !== "FAILED" && (
               <DropdownMenu>
                 <DropdownMenuTrigger
                   render={
                     <Button
-                      variant="ghost"
-                      size="icon"
-                      className="shrink-0 sm:size-9"
+                      variant="outline"
+                      // A paper corner of the picture; the tap area is 44 px.
+                      className="absolute top-0 right-0 size-8 min-h-0 border p-0 after:absolute after:-inset-1.5"
                       disabled={disabled}
                       aria-label={`${words.one} ${index + 1}: действия`}
                     />
@@ -483,6 +474,18 @@ export function MediaUploader({
                   <EllipsisVertical aria-hidden />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-auto min-w-56">
+                  {item.status === "READY" && (
+                    <>
+                      <DropdownMenuLinkItem
+                        href={mediaUrl(item.id, LARGEST_WIDTH)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Открыть в новой вкладке
+                      </DropdownMenuLinkItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
                   <DropdownMenuItem
                     disabled={index === 0}
                     onClick={() => move(item.id, "first")}
@@ -510,7 +513,38 @@ export function MediaUploader({
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            </div>
+            )}
+          </div>
+
+          {item.status === "FAILED" ? (
+            <Failure
+              message={mediaFailureMessage(item.failure)}
+              disabled={disabled}
+              onRemove={() => remove(item)}
+            />
+          ) : cover ? (
+            <label className="flex min-h-11 items-center gap-2 text-caption sm:min-h-9">
+              <RadioGroupItem value={item.id} disabled={disabled} />
+              Обложка
+            </label>
+          ) : (
+            documents && (
+              <label className="flex min-h-11 items-start gap-2 py-1 text-caption sm:min-h-9">
+                <Checkbox
+                  className="mt-0.5"
+                  checked={item.redacted}
+                  disabled={disabled}
+                  onCheckedChange={(redacted) =>
+                    emit(
+                      value.map((other) =>
+                        other.id === item.id ? { ...other, redacted } : other,
+                      ),
+                    )
+                  }
+                />
+                Личные данные закрашены
+              </label>
+            )
           )}
         </li>
       ))}
@@ -544,7 +578,7 @@ export function MediaUploader({
                 className="absolute inset-x-0 bottom-0 h-2 border-t border-foreground bg-background"
               >
                 <span
-                  className="block h-full bg-pen transition-[width] duration-150 ease-out"
+                  className="block h-full bg-pen transition-[width] duration-150 ease-out forced-colors:bg-[Highlight]"
                   style={{ width: `${upload.progress * 100}%` }}
                 />
               </span>
@@ -580,7 +614,7 @@ export function MediaUploader({
             <Button
               variant="ghost"
               size="sm"
-              className="min-h-11 justify-start px-0 sm:min-h-9"
+              className="-ml-3 min-h-11 justify-self-start sm:min-h-9"
               onClick={() => queue.remove(upload.key)}
             >
               <X aria-hidden />
@@ -678,6 +712,13 @@ export function MediaUploader({
             Добавлено: {value.length + uploads.length} из&nbsp;{max}.
           </>
         )}
+        {value.length > 1 && (
+          <>
+            {" "}
+            Порядок меняют в&nbsp;меню на&nbsp;снимке
+            <span className="pointer-coarse:hidden"> или перетаскиванием</span>.
+          </>
+        )}
       </p>
 
       {rejected.length > 0 && (
@@ -692,7 +733,7 @@ export function MediaUploader({
           <ul className="grid gap-1.5">
             {rejected.map(({ name: fileName, reason }, index) => (
               <li key={`${fileName}-${index}`} className="wrap-anywhere">
-                <span className="font-mono text-mono">{fileName}</span>
+                <span className="font-bold">{fileName}</span>
                 {" — "}
                 {reason}
               </li>
@@ -838,32 +879,33 @@ function Failure({
   onRemove: () => void;
 }) {
   return (
-    <div className="grid gap-2">
+    <div className="grid justify-items-start gap-1">
       <p role="alert" className="text-caption text-destructive">
         {message}
       </p>
-      <div className="flex flex-wrap gap-2">
-        {onRetry && (
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={disabled}
-            onClick={onRetry}
-          >
-            <RotateCw aria-hidden />
-            Повторить
-          </Button>
-        )}
+      {onRetry && (
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
+          className="mt-1"
           disabled={disabled}
-          onClick={onRemove}
+          onClick={onRetry}
         >
-          <X aria-hidden />
-          Убрать
+          <RotateCw aria-hidden />
+          Повторить
         </Button>
-      </div>
+      )}
+      <Button
+        variant="ghost"
+        size="sm"
+        // The icon lines up with the picture's edge.
+        className="-ml-3 min-h-11 sm:min-h-9"
+        disabled={disabled}
+        onClick={onRemove}
+      >
+        <X aria-hidden />
+        Убрать
+      </Button>
     </div>
   );
 }

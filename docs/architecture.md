@@ -12,8 +12,8 @@
 | БД                | PostgreSQL 16 + Prisma                                                                     | Денежные инварианты — триггерами в raw SQL миграции                                  |
 | Auth              | Better Auth + Prisma adapter                                                               | Сотрудники: пароль + TOTP. Доноры: код на email                                      |
 | Фоновые задачи    | Outbox + pg-boss (на Postgres, без Redis)                                                  | Отдельный процесс `worker` из того же репо ([ADR-0007](adr/0007-outbox-and-jobs.md)) |
-| Файлы             | S3-совместимое: MinIO (dev), Yandex Object Storage + CDN (prod)                            | Загрузка по presigned URL                                                            |
-| Картинки          | sharp в воркере                                                                            | WebP/AVIF, размеры, blur, удаление EXIF/GPS                                          |
+| Файлы             | S3-совместимое: MinIO (dev), Yandex Object Storage (prod); `aws4fetch`                     | Закрытый бакет, загрузка по presigned URL, см. [«Медиа»](#медиа)                     |
+| Картинки          | sharp в воркере, `next/image` со своим loader                                              | WebP/AVIF, размеры, blur, удаление EXIF/GPS ([ADR-0008](adr/0008-media-pipeline.md)) |
 | Email             | React Email + Unisender Go или Yandex Cloud Postbox                                        | Mailpit в dev                                                                        |
 | Платежи           | CloudPayments                                                                              | За интерфейсом `PaymentProvider` ([ADR-0002](adr/0002-cloudpayments.md))             |
 | Тесты             | Vitest, Testcontainers (Postgres), Playwright, fast-check                                  | См. [testing.md](testing.md)                                                         |
@@ -36,6 +36,8 @@ src/
     ledger/               # ЕДИНСТВЕННЫЙ модуль, который пишет в Ledger* и читает их
     payments/             # PaymentProvider, cloudpayments, fake
     needs/ dogs/ donations/ subscriptions/ inkind/ volunteer/ content/ legal/
+    media/                # загрузки: presign, обработка sharp, отдача версий
+    storage/              # S3-хранилище: getStorage()
     jobs/                 # outbox (enqueue и диспетчер), задачи pg-boss, сборка воркера
     email/                # шаблоны React Email, отправка
     audit/                # запись AuditLog
@@ -43,8 +45,9 @@ src/
     ui/                   # shadcn
     form/                 # поля форм: react-hook-form + Field
     admin/                # каркас админки, меню, DataTable, useActionForm
+    media/                # MediaUploader, MediaImage
     <домен>/              # доменные компоненты (NeedCard, DogCard, ...)
-  lib/                    # общие утилиты: money.ts, plural.ts, dates.ts
+  lib/                    # общие утилиты: money.ts, plural.ts, dates.ts, media/
 worker/                   # точка входа фонового процесса (pnpm worker)
 prisma/                   # schema.prisma, migrations/, seed.ts
 eslint/                   # свои правила ESLint (shelter/ledger-boundary)
@@ -105,8 +108,8 @@ e2e/                      # Playwright
 
 ### Медиа
 
-- `Media`: storageKey, mime, width, height, blur, kind (`PHOTO | RECEIPT | INVOICE | DOCUMENT`), redacted, uploadedById.
-- Join-таблицы с `position`: `DogMedia` (isCover), `NeedMedia`, `ExpenseMedia` (role `RECEIPT | INVOICE | RESULT`), `DogUpdateMedia`.
+- `Media`: storageKey (ключ приватного оригинала), mime и byteSize (как заявлены при загрузке), kind (`PHOTO | RECEIPT | INVOICE | DOCUMENT`), status (`PENDING | UPLOADED | READY | FAILED`), width, height и blur (появляются при `READY`), failure (код причины при `FAILED`), redacted, uploadedById. Как файл проходит эти состояния — [«Медиа»](#медиа).
+- Join-таблицы с `position`: `DogMedia` (isCover), `NeedMedia`, `ExpenseMedia` (role `RECEIPT | INVOICE | RESULT`), `DogUpdateMedia`. На `Media` они ссылаются с `onDelete: Restrict`: по этой ссылке код понимает, что файл прикреплён и удалять его нельзя.
 
 ### Нужды
 
@@ -150,13 +153,15 @@ e2e/                      # Playwright
 - `/volunteer` · `/volunteer/shifts` · `/volunteer/tasks`
 - `/account` (вход) · `/account/donations` · `/account/subscriptions` · `/account/wards` · `/account/volunteer` · `/account/settings`
 - `/subscriptions/manage?token=…` — управление подпиской без аккаунта
-- API: `/api/webhooks/cloudpayments/[type]` · `/api/track/adopt` · `/api/upload/presign` · `/api/donations/[id]/status`
+- API: `/api/webhooks/cloudpayments/[type]` · `/api/track/adopt` · `/api/upload/presign` · `/api/upload/complete` · `/api/upload/status` · `/api/upload/discard` · `/api/donations/[id]/status`
+- `/media/[id]/[width]` — обработанные версии загруженных картинок ([«Медиа»](#отдача-mediaidширина))
 - `/fake-cloudpayments` · `/fake-cloudpayments/checkout/[id]` — эмулятор виджета CloudPayments, только при `PAYMENT_PROVIDER=fake` ([payments.md](payments.md#эмулятор-fakecloudpayments)); иначе 404
 - `sitemap.xml`, `robots.txt`, OG-картинки (`next/og`)
 
 **Админка** `/admin`
 
 - дашборд · `needs` · `dogs` · `donations` (+ `manual`) · `subscriptions` · `expenses` · `ledger` · `reports` · `in-kind` · `volunteers` · `shifts` · `tasks` · `content` · `legal` · `users` · `settings` · `audit` · `webhooks`
+- `dev/media` — проверочная страница поля загрузки, только в `next dev`
 
 ## Админка
 
@@ -209,7 +214,7 @@ export const publishNeed = adminAction(
 - Схема zod лежит рядом с action (`schema.ts`) и общая для формы и сервера. Она описывает путь «что набрано» → «что хранится» (строки → копейки, ник → ссылка); форма отправляет в action значения как набраны, сервер разбирает их той же схемой — поэтому путь ошибки с сервера совпадает с именем поля.
 - `useActionForm({ schema, defaultValues, action })` из `@/components/admin/action-form` связывает react-hook-form с action и одинаково во всех формах разбирает ответ: успех — тост и «чистое» состояние формы, ошибки полей — в поля, остальное — в `ActionFailureAlert` рядом с кнопкой (туда же попадает ошибка, у которой нет поля на экране, — например, списка целиком). Если action возвращает сохранённые значения, `savedValues` сразу показывает их в форме в нормализованном виде. Набранное, пока запрос был в пути, остаётся в форме и помечено несохранённым; повторная отправка во время первой игнорируется.
 - **Форма, которая правит несколько независимых записей** (настройки), ставит `changedOnly`: в action уходят только изменённые группы полей верхнего уровня, и схема action принимает частичный ввод (`.partial()`). Иначе вкладка, открытая до чужой правки, записала бы поверх неё свою старую копию. В ответ такой action отдаёт форму целиком, как она сейчас хранится.
-- Поля — `TextField`, `TextareaField`, `SelectField` и `FormField` из `@/components/form/form-field`; кнопки формы — в `FormActions` (`@/components/admin/form-actions`): липкий листок, который сообщает странице свою высоту для отступа прокрутки.
+- Поля — `TextField`, `TextareaField`, `SelectField` и `FormField` из `@/components/form/form-field`, поле загрузки — `MediaField` из `@/components/form/media-field` ([«Поле загрузки»](#поле-загрузки-mediauploader)); кнопки формы — в `FormActions` (`@/components/admin/form-actions`): липкий листок, который сообщает странице свою высоту для отступа прокрутки.
 - Пока в форме есть несохранённое, `useActionForm` вешает `beforeunload`. Переходы по ссылкам внутри админки он не удерживает.
 - Эталон — «Настройки»: `src/app/admin/(staff)/settings/` (`page.tsx`, `schema.ts`, `actions.ts`, `settings-form.tsx`).
 
@@ -231,6 +236,86 @@ return <NeedsTable rows={rows} total={total} query={query} />;
 - Столбцы описывает клиентский компонент раздела (`dataTableColumns<Row>()`, вне компонента — TanStack Table нужны стабильные ссылки) и отдаёт их в `<DataTable>` вместе со строками и запросом. Заголовок становится ссылкой сортировки, если идентификатор столбца есть в `sortable`. Сортировка и страницы — ссылки с настоящим адресом (открываются в новой вкладке), а обычный клик меняет адрес через общий переход таблицы: пока сервер отвечает, строки бледнеют, и следующее изменение строится от адреса, к которому таблица уже идёт, а не от того, что ещё на экране. Элементы управления — `DataTableSearch` и `DataTableFilter` в пропе `toolbar`.
 - Строки — простые сериализуемые объекты: время — строкой ISO, деньги — копейками; форматирует ячейка (`formatRub`, `formatDate` с часовым поясом приюта).
 - Живой пример с «базой» из выдуманных операций — раздел «Таблица» на витрине `/dev/ui` (`src/app/dev/ui/sections/data-table/`).
+
+## Медиа
+
+Фото собак и нужд, чеки, счета, фото результата. Код — [`src/server/media`](../src/server/media) (сервер), [`src/lib/media`](../src/lib/media) (общее для браузера и сервера), [`src/components/media`](../src/components/media) (поле загрузки и картинка), хранилище — [`src/server/storage`](../src/server/storage). Почему устроено так — [ADR-0008](adr/0008-media-pipeline.md).
+
+### Путь файла
+
+1. **Браузер готовит файл.** Что это за файл, определяют его первые байты (`sniffImageType()`), а не расширение и не `File.type`: у HEIC на Windows и Android тип пустой. JPEG, PNG и WebP идут как есть. HEIC декодирует `libheif-js` в Web Worker — он подгружается, только когда выбран такой файл, — и в хранилище уходит JPEG. Пустой файл, файл больше 15 МБ и любой другой формат отклоняются сразу, с причиной.
+2. **`POST /api/upload/presign`** с `{ kind, mime, byteSize }`. Сессия сотрудника и право `media.upload`, тип из `UPLOAD_MIME_TYPES`, размер до `MAX_UPLOAD_BYTES` ([`constraints.ts`](../src/lib/media/constraints.ts)), не больше 300 загрузок в час на человека. В ответ — `Media` в состоянии `PENDING` и URL для `PUT` прямо в хранилище на 15 минут. Тип и длина файла входят в подпись: хранилище отклонит другой файл.
+3. **`PUT` в хранилище** делает браузер, мимо приложения; отсюда прогресс в процентах.
+4. **`POST /api/upload/complete`** проверяет, что объект на месте, переводит `Media` в `UPLOADED` и в той же транзакции ставит задачу `media.process` (`enqueueJob`). Повторный вызов ничего не меняет.
+5. **Воркер** ([`jobs.ts`](../src/server/media/jobs.ts), [`process.ts`](../src/server/media/process.ts)) открывает оригинал в sharp: поворачивает по EXIF, переводит цвета в sRGB (снимки iPhone — в Display P3) и пишет версии шириной 320, 640, 1024 и 1600 px в WebP и AVIF. Оригинал меньшей ширины не увеличивается. Метаданные — EXIF с геометкой, XMP, IPTC — в версии не попадают. В `Media` записываются `width` и `height` оригинала после поворота, размытая заглушка `blur` (data URL в несколько сотен байт) и статус `READY`.
+6. Файл, который не открывается как JPEG, PNG или WebP (что бы ни было заявлено при загрузке) или больше 100 Мп, получает `FAILED` и код причины в `failure`; повторов нет. Ошибка хранилища или базы — исключение, задачу повторит pg-boss.
+7. **Поле загрузки** опрашивает `GET /api/upload/status?id=…`, пока файлы не станут `READY` или `FAILED`.
+
+Обработка идемпотентна: версии пишутся по тем же ключам теми же байтами, а строку меняет только переход из `UPLOADED`. Тексты всех отказов — в [`messages.ts`](../src/lib/media/messages.ts): «что случилось и что сделать».
+
+### Хранилище
+
+- `getStorage()` из `@/server/storage` — бакет `S3_BUCKET`: подписанная ссылка на загрузку, чтение, запись, удаление. Запросы подписывает `aws4fetch`, остальное — обычный `fetch`.
+- **Бакет закрыт целиком**: без подписи из него ничего не прочитать. Ключи — `originals/{uuid}` (оригинал, как пришёл, с EXIF) и `variants/{mediaId}/{ширина}.{webp|avif}`. Оригиналы хранятся, чтобы когда-нибудь переобработать их с другими размерами.
+- **Yandex Object Storage:** бакету нужно правило CORS — метод `PUT` с адреса сайта, заголовок `Content-Type` (браузер загружает напрямую). В MinIO CORS открыт по умолчанию. Браузер должен достучаться до `S3_ENDPOINT`: с телефона в локальной сети `localhost` из `.env` не подойдёт.
+
+### Отдача: `/media/{id}/{ширина}`
+
+Единственный путь файла наружу — [`serveVariant()`](../src/server/media/serve.ts). Он отдаёт только версии; у оригинала адреса нет.
+
+- Ширина — одна из четырёх; формат выбирается по заголовку `Accept`: AVIF, если браузер его принимает, иначе WebP (`Vary: Accept`).
+- **Кто видит.** Правило — в `isPublicMedia()` ([`visibility.ts`](../src/lib/media/visibility.ts)): фото — все, как только оно `READY`; чек, счёт и документ — только с отметкой `redacted`. Без неё их видят сотрудники с правом `media.upload` (по сессии), остальные получают 404. Страницы спрашивают то же правило, прежде чем показать файл.
+- **Кеш.** Фото — `public, max-age=31536000, immutable`: версии не меняются. Опубликованный документ — `private, max-age=300`: отметку могут снять, поэтому общие кеши его не хранят. Документ без отметки — `private, no-store`.
+- Отметку ставит форма раздела: `setMediaRedacted(db, id, redacted)` в её server action, с записью в аудит.
+
+### Картинки на страницах
+
+```tsx
+import { MediaImage } from "@/components/media/media-image";
+
+<MediaImage
+  media={photo}
+  alt="Бублик смотрит в камеру"
+  sizes="(min-width: 48rem) 30rem, 100vw"
+/>;
+```
+
+- `MediaImage` — `next/image` с настоящими `width` и `height` (нет сдвига вёрстки) и заглушкой `blur`; работает в Server Components. `media` — `{ id, width, height, blur }` файла в состоянии `READY`; для необработанного компонент ничего не рисует.
+- **Loader** — [`image-loader.ts`](../src/lib/media/image-loader.ts), подключён в `next.config.ts` (`images.loaderFile`) для всего приложения. `src={mediaSrc(id)}` он превращает в адрес готовой ширины; `deviceSizes` и `imageSizes` в конфиге совпадают с `VARIANT_WIDTHS`, поэтому `srcset` состоит ровно из них. Встроенный оптимизатор Next.js выключен: картинке не из медиа (логотип, статический файл) ставьте `unoptimized`.
+- Пропорции карточек задаёт вёрстка (`aspect-[4/3]` и `object-cover`, [design.md](design.md#фото)); `sizes` пишите по реальной ширине картинки на странице — по нему браузер выбирает версию.
+
+### Поле загрузки: `MediaUploader`
+
+```tsx
+<MediaField
+  control={control}
+  name="photos"
+  label="Фото"
+  kind="PHOTO"
+  cover
+  max={12}
+/>
+```
+
+- `MediaField` (`@/components/form/media-field`) — поле формы react-hook-form; значение — `MediaItem[]` в порядке показа на странице: состояние файла плюс `isCover`. Схема поля — `mediaItemsSchema({ max })` из [`items.ts`](../src/lib/media/items.ts), общая для формы и action: она не пропускает форму, пока файлы обрабатываются или есть необработанные.
+- Сами файлы загружаются сразу, по одному и в порядке выбора ([`upload-queue.ts`](../src/components/media/upload-queue.ts)). Всё остальное — порядок, обложка, отметка «Личные данные закрашены» у документов — обычное значение поля и сохраняется вместе с формой.
+- Из значения action берёт только `id`, порядок и отметки; статус и размеры читает из базы сам. `toMediaItems(states, coverId)` собирает значение для уже сохранённой записи, `mediaStateOf(row)` — состояние из строки `Media`.
+- `onBusyChange` сообщает, что файлы ещё в пути или в обработке: на это время форма выключает «Сохранить».
+- Проверочная страница — `/admin/dev/media` (только в `next dev`): фото с обложкой, чеки с отметкой, предпросмотр «как на сайте».
+
+### Удаление и уборка
+
+- `deleteMedia(tx, media)` — удалить файл: строка сразу, объекты в хранилище — после коммита (событие outbox `media.purge`). Раздел сначала открепляет файл в той же транзакции.
+- `deleteMediaIfUnused(db, media)` — то же для файла, который может быть где-то прикреплён: прикреплённый не трогает. Проверка — сама ссылка `onDelete: Restrict` из join-таблицы, поэтому новая таблица не требует правок здесь.
+- Файл, который сотрудник убрал из поля до сохранения, удаляется сразу (`POST /api/upload/discard`): только свой и только неприкреплённый.
+- **Ночная задача `media.cleanup`** (03:30 по времени приюта): удаляет загрузки, которые не дошли (`PENDING`) или не обработались (`FAILED`), через сутки; обработку, застрявшую в `UPLOADED` дольше часа, запускает заново, а через три дня ставит `FAILED`.
+
+### Чего пока нет
+
+- **PDF** не принимается: sharp его не читает, и версий без метаданных не получится. Счёт в PDF пока загружают как фото или скриншот.
+- **Файлы, загруженные и нигде не сохранённые** (форму закрыли без «Сохранить»), остаются в бакете: убирать их можно будет, когда появятся таблицы, которые прикрепляют медиа.
+- **Сброс кеша страницы из воркера.** `revalidateTag` вне Next.js не работает, поэтому форма ждёт `READY` до сохранения — тогда страница сразу строится с готовым фото.
+- **Точка фокуса** для обрезки по морде ([design.md](design.md#что-не-зависит-от-направления)).
 
 ## Фоновые задачи (worker)
 
@@ -302,7 +387,9 @@ await db.$transaction(async (tx) => {
 | Задача                                            | Когда               | Механизм |
 | ------------------------------------------------- | ------------------- | -------- |
 | Отправка писем                                    | по событию          | outbox   |
-| Обработка загруженных картинок (sharp)            | по событию загрузки | outbox   |
+| Обработка загруженных картинок (`media.process`)  | по событию загрузки | pg-boss  |
+| Удаление файлов убранного медиа (`media.purge`)   | по событию          | outbox   |
+| Уборка брошенных загрузок (`media.cleanup`)       | еженощно            | pg-boss  |
 | Сверка с реестром CloudPayments, импорт комиссий  | ежедневно           | pg-boss  |
 | Проверка целостности книги и кэшей `collectedKop` | еженощно            | pg-boss  |
 | Напоминание о списании за 3 дня                   | ежедневно           | pg-boss  |
@@ -326,7 +413,7 @@ await db.$transaction(async (tx) => {
 - Сотрудники — TOTP обязателен; `/admin` закрыт в proxy и в layout. Подробно — [«Вход сотрудников»](#вход-сотрудников).
 - Rate limit (на Postgres) для форм доната, входа, upload.
 - Вебхуки — проверка HMAC по **сырому** телу (`await req.text()`), Node runtime: `receiveWebhook()` провайдера проверяет подпись до разбора тела ([payments.md](payments.md#правила-для-обработчиков)).
-- Загрузки: лимит размера, проверка MIME, удаление EXIF/GPS, HEIC конвертируется в браузере.
+- Загрузки: только сотрудники с правом `media.upload`, список типов, лимит 15 МБ и 300 файлов в час на человека, удаление EXIF/GPS, HEIC конвертируется в браузере; бакет закрыт, наружу выходят только обработанные версии — [«Медиа»](#медиа).
 - Каналы куратора: телефон раскрывается по клику (против скрейпинга).
 
 ### Вход сотрудников
