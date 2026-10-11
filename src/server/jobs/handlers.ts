@@ -7,11 +7,20 @@
 // itself; what it throws is logged and stored, so no personal data in errors.
 import { sendTestEmail } from "@/server/email/test-email";
 import type { Mailer } from "@/server/email/transport";
+import {
+  cleanupMedia,
+  processMedia,
+  purgeMediaFiles,
+} from "@/server/media/jobs";
 import { jobIdOf, type JobHandlers } from "./boss";
 import type { OutboxHandlers } from "./outbox/dispatcher";
 
 export const jobHandlers: JobHandlers = {
   noop: () => Promise.resolve(),
+  "media.process": ({ mediaId }, { signal }) => processMedia(mediaId, signal),
+  "media.cleanup": async () => {
+    await cleanupMedia();
+  },
 };
 
 export type OutboxDependencies = {
@@ -39,5 +48,7 @@ export function outboxHandlers({
     },
     "email.test": (payload, context) =>
       sendTestEmail(payload, context, { mailer }),
+    "media.purge": ({ mediaId, storageKey }, { signal }) =>
+      purgeMediaFiles(mediaId, storageKey, signal),
   };
 }

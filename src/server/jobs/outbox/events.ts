@@ -30,6 +30,15 @@ export const outboxEvents = {
     example: z.string(),
     userId: z.string(),
   }),
+  /**
+   * Deletes the files of a media whose row was removed in the same
+   * transaction (deleteMedia() of src/server/media). The row is gone, so the
+   * key of the original travels in the payload.
+   */
+  "media.purge": z.object({
+    mediaId: z.string().min(1),
+    storageKey: z.string().min(1),
+  }),
 } satisfies Record<string, z.ZodType>;
 
 export type OutboxEventType = keyof typeof outboxEvents;

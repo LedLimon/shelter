@@ -59,7 +59,7 @@ describe("startWorker", () => {
       });
       expect(logged(logger, "info")).toEqual(
         expect.arrayContaining([
-          "[worker] started: outbox, jobs: noop",
+          `[worker] started: outbox, jobs: ${Object.keys(jobs).join(", ")}`,
           `[outbox] noop ${eventId}: done (attempt 1)`,
           `[outbox] job.run ${jobEventId}: done (attempt 1)`,
           `[jobs] noop ${jobIdOf(jobEventId)}: done (attempt 1)`,
@@ -97,12 +97,18 @@ describe("startWorker schedules", () => {
     });
     await worker.stop(5_000);
 
+    // Next to the schedules of the real jobs, in the same zone.
     expect(
       await getDb().$queryRaw`
-        SELECT "name", "cron", "timezone" FROM pgboss.schedule`,
+        SELECT "name", "cron", "timezone" FROM pgboss.schedule
+        WHERE "name" = 'test.nightly'`,
     ).toEqual([
       { name: "test.nightly", cron: "0 4 * * *", timezone: "Asia/Novosibirsk" },
     ]);
+    expect(
+      await getDb().$queryRaw`
+        SELECT DISTINCT "timezone" FROM pgboss.schedule`,
+    ).toEqual([{ timezone: "Asia/Novosibirsk" }]);
   });
 });
 

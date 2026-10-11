@@ -44,6 +44,10 @@ Object.assign(process.env, example, {
   // listens on the port of .env.example.
   SMTP_HOST: mailpit.smtpHost,
   SMTP_PORT: String(mailpit.smtpPort),
+  // The run's MinIO (./storage.ts) and a bucket for this file alone. Nothing
+  // creates it here: tests that store files do (media/helpers.ts).
+  S3_ENDPOINT: inject("s3Endpoint"),
+  S3_BUCKET: database.replace("_", "-"),
 });
 
 // The payment emulator posts its notifications to APP_URL — into a dev

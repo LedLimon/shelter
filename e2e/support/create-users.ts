@@ -120,6 +120,12 @@ async function main() {
       });
     }
 
+    // The upload demo opens with a staff member's last uploads: none of the
+    // previous run's. Their files stay in the dev bucket; nothing lists them.
+    await db.media.deleteMany({
+      where: { uploadedBy: { email: { in: Object.values(E2E_USERS) } } },
+    });
+
     // Newsletter consents for the unsubscribe tests: one per attempt, since
     // withdrawing is for good. A database seeded without published legal
     // texts gets the placeholder of that consent published first.

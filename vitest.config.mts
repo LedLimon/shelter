@@ -31,6 +31,7 @@ export default defineConfig({
           globalSetup: [
             "tests/integration/setup/postgres.ts",
             "tests/integration/setup/mailpit.ts",
+            "tests/integration/setup/storage.ts",
           ],
           setupFiles: ["tests/integration/setup/database.ts"],
           // A fresh process per file: the setup points DATABASE_URL at the

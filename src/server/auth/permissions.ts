@@ -32,6 +32,11 @@ export const PERMISSIONS = {
   "dogs.edit": CONTENT,
   /** Site news and «Они дома» stories. */
   "content.edit": CONTENT,
+  /**
+   * Upload photos and documents, and see documents not yet published
+   * (docs/architecture.md#медиа).
+   */
+  "media.upload": CONTENT,
 
   /** Expense drafts with receipts and invoices. */
   "expenses.draft": CONTENT,
