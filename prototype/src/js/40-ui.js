@@ -14,7 +14,7 @@ const ui = {
   promised: {},
   login: {
     step: 1,
-    email: "irina@ostrovok.example",
+    email: "irina@mys.example",
     password: "demo-demo",
     code: "",
     error: null,
