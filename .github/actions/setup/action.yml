@@ -9,6 +9,10 @@ runs:
       with:
         # Skip mise releases younger than a week (supply-chain cooldown).
         minimum_release_age: 7d
+        # Not the default `mise-v1`: caches saved under it by mise-action v4 have
+        # no record of their mise version, and v5 reinstalls such a mise after
+        # every mise release. Same prefix as in prototype-pages.yml.
+        cache_key_prefix: mise-v2
 
     - name: Locate pnpm store
       id: pnpm-store
