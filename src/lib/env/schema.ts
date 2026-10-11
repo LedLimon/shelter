@@ -175,6 +175,9 @@ export const seedEnvSchema = z.object({
     .string()
     .min(16, "must be at least 16 characters")
     .optional(),
+  // Dev and tests only: publish the placeholder legal texts, so the site has
+  // an offer to accept. The seed refuses it under NODE_ENV=production.
+  SEED_PUBLISH_LEGAL_STUBS: flag().default(false),
 });
 
 /**

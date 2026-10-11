@@ -3,6 +3,14 @@ import { getAuth } from "@/server/auth";
 import { adminAccessOf } from "@/server/auth/access";
 import { getDb } from "@/server/db";
 import { seedDatabase } from "@/server/db/seed";
+import {
+  currentLegalDocument,
+  LEGAL_DOCUMENT_TYPES,
+  legalDocumentStates,
+  legalDraft,
+  saveLegalDraft,
+} from "@/server/legal";
+import { LEGAL_STUB_MARK } from "@/server/legal/stubs";
 import { getSetting, setSetting } from "@/server/settings";
 import { defaultSettings } from "@/server/settings/schema";
 import { totp } from "../support/totp";
@@ -29,6 +37,8 @@ describe("seedDatabase", () => {
       ownerPassword: "none",
       ownerTotp: "none",
       settingsCreated: Object.keys(defaultSettings("UTC")).length,
+      legalDraftsCreated: LEGAL_DOCUMENT_TYPES.length,
+      legalStubsPublished: 0,
     });
     expect(
       await db.user.findUniqueOrThrow({ where: { email: "owner@example.ru" } }),
@@ -43,6 +53,8 @@ describe("seedDatabase", () => {
       ownerPassword: "none",
       ownerTotp: "none",
       settingsCreated: 0,
+      legalDraftsCreated: 0,
+      legalStubsPublished: 0,
     });
     expect(await db.user.count({ where: { email: "owner@example.ru" } })).toBe(
       1,
@@ -215,5 +227,69 @@ describe("seedDatabase", () => {
     expect(
       await db.user.findUniqueOrThrow({ where: { id: former.id } }),
     ).toMatchObject({ twoFactorEnabled: false });
+  });
+});
+
+// Published versions stay for good, so these two run in this order.
+describe("seedDatabase: legal documents", () => {
+  const options = { ownerEmail: "legal@example.ru", timeZone: "Europe/Moscow" };
+
+  it("gives every legal document a placeholder draft and publishes none", async () => {
+    const db = getDb();
+    await db.legalDocument.deleteMany({ where: { effectiveAt: null } });
+
+    const result = await seedDatabase(db, options);
+
+    expect(result).toMatchObject({
+      legalDraftsCreated: LEGAL_DOCUMENT_TYPES.length,
+      legalStubsPublished: 0,
+    });
+    for (const type of LEGAL_DOCUMENT_TYPES) {
+      const draft = await legalDraft(db, type);
+      expect(draft).toMatchObject({ version: 1 });
+      expect(draft?.body.startsWith(LEGAL_STUB_MARK), type).toBe(true);
+      // Nothing is public until the owner (or a dev seed) publishes it.
+      expect(await currentLegalDocument(db, type)).toBeNull();
+    }
+  });
+
+  it("publishes placeholders nobody edited when asked to, once", async () => {
+    const db = getDb();
+    // The owner has started on the offer: it is theirs to publish.
+    const offer = await legalDraft(db, "OFFER");
+    await saveLegalDraft(db, offer!.id, "Оферта, которую правит владелец");
+
+    const result = await seedDatabase(db, {
+      ...options,
+      publishLegalStubs: true,
+    });
+
+    expect(result).toMatchObject({
+      legalDraftsCreated: 0,
+      legalStubsPublished: LEGAL_DOCUMENT_TYPES.length - 1,
+    });
+    const states = await legalDocumentStates(db, LEGAL_DOCUMENT_TYPES);
+    expect(
+      states.map(({ type, current, draft }) => ({
+        type,
+        current: current?.version ?? null,
+        draft: draft?.version ?? null,
+      })),
+    ).toEqual(
+      LEGAL_DOCUMENT_TYPES.map((type) =>
+        type === "OFFER"
+          ? { type, current: null, draft: 1 }
+          : { type, current: 1, draft: null },
+      ),
+    );
+    expect((await currentLegalDocument(db, "PRIVACY"))?.body).toContain(
+      LEGAL_STUB_MARK,
+    );
+
+    // Again: nothing to add, nothing to publish, no second version.
+    expect(
+      await seedDatabase(db, { ...options, publishLegalStubs: true }),
+    ).toMatchObject({ legalDraftsCreated: 0, legalStubsPublished: 0 });
+    expect(await legalDocumentStates(db, LEGAL_DOCUMENT_TYPES)).toEqual(states);
   });
 });

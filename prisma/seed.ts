@@ -41,11 +41,19 @@ async function main() {
     );
   }
 
+  // Placeholder texts must never be the offer a real donor accepts.
+  if (env.SEED_PUBLISH_LEGAL_STUBS && process.env.NODE_ENV === "production") {
+    throw new Error(
+      "SEED_PUBLISH_LEGAL_STUBS is for dev and tests only; in production the owner publishes the legal documents in the admin.",
+    );
+  }
+
   const db = createPrismaClient(env.DATABASE_URL);
   try {
     const result = await seedDatabase(db, {
       ownerEmail: env.SEED_OWNER_EMAIL,
       timeZone: env.SHELTER_TIMEZONE,
+      publishLegalStubs: env.SEED_PUBLISH_LEGAL_STUBS,
       ownerCredentials: {
         auth: createAuth(db, {
           secret: env.BETTER_AUTH_SECRET,
@@ -60,7 +68,9 @@ async function main() {
         `Seed: ${OWNER_MESSAGES[result.owner]}`,
         PASSWORD_MESSAGES[result.ownerPassword],
         TOTP_MESSAGES[result.ownerTotp],
-        `settings added: ${result.settingsCreated}.`,
+        `settings added: ${result.settingsCreated}`,
+        `legal drafts added: ${result.legalDraftsCreated}, ` +
+          `placeholders published: ${result.legalStubsPublished}.`,
       ]
         .filter(Boolean)
         .join("; "),
