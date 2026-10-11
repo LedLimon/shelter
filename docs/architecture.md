@@ -149,6 +149,7 @@ e2e/                      # Playwright
 - `/account` (вход) · `/account/donations` · `/account/subscriptions` · `/account/wards` · `/account/volunteer` · `/account/settings`
 - `/subscriptions/manage?token=…` — управление подпиской без аккаунта
 - API: `/api/webhooks/cloudpayments/[type]` · `/api/track/adopt` · `/api/upload/presign` · `/api/donations/[id]/status`
+- `/fake-cloudpayments` · `/fake-cloudpayments/checkout/[id]` — эмулятор виджета CloudPayments, только при `PAYMENT_PROVIDER=fake` ([payments.md](payments.md#эмулятор-fakecloudpayments)); иначе 404
 - `sitemap.xml`, `robots.txt`, OG-картинки (`next/og`)
 
 **Админка** `/admin`
@@ -249,12 +250,13 @@ return <NeedsTable rows={rows} total={total} query={query} />;
 - `NEXT_PUBLIC_*` вшиваются в сборку. Значения, которые различаются между staging и prod (ключи, ID счётчиков), передаём из Server Components, а не через `NEXT_PUBLIC_*`.
 - Новая переменная — в схему и в `.env.example` (unit-тест сверяет их). Пустое значение (`FOO=`) считается незаданным.
 - Локальные сервисы (Postgres, MinIO, Mailpit) — `docker-compose.yml`, порты и доступы — в [README](../README.md#dev-окружение).
+- Платёжный провайдер — `PAYMENT_PROVIDER`: `cloudpayments` (с `CLOUDPAYMENTS_PUBLIC_ID` и `CLOUDPAYMENTS_API_SECRET`) или `fake` — эмулятор. Пустое значение означает `fake` только в разработке и тестах; production-сборка (`NODE_ENV=production`) требует назвать провайдера. С `fake` проверка при старте пропускает только локальный `APP_URL`. `CLOUDPAYMENTS_ACCEPT_TEST_PAYMENTS=true` — только там, где терминал тестовый (staging) ([payments.md](payments.md#платёжный-слой)).
 
 ## Безопасность
 
 - Сотрудники — TOTP обязателен; `/admin` закрыт в proxy и в layout. Подробно — [«Вход сотрудников»](#вход-сотрудников).
 - Rate limit (на Postgres) для форм доната, входа, upload.
-- Вебхуки — проверка HMAC по **сырому** телу (`await req.text()`), Node runtime.
+- Вебхуки — проверка HMAC по **сырому** телу (`await req.text()`), Node runtime: `receiveWebhook()` провайдера проверяет подпись до разбора тела ([payments.md](payments.md#правила-для-обработчиков)).
 - Загрузки: лимит размера, проверка MIME, удаление EXIF/GPS, HEIC конвертируется в браузере.
 - Каналы куратора: телефон раскрывается по клику (против скрейпинга).
 

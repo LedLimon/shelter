@@ -89,3 +89,41 @@ export function parseRubInput(input: string): number | null {
   const result = validateRubInput(input);
   return result.ok ? result.kop : null;
 }
+
+// Machine formats (payment provider API and webhooks): rubles with a dot.
+const DECIMAL_RUB = /^(\d+)(?:\.(\d{1,2})0*)?$/;
+
+/**
+ * Kopecks from a ruble amount in a machine format: `"1500.00"`, `"1500.5"`,
+ * `1500` → `150000`. Unlike `parseRubInput` it takes no spaces, commas or
+ * signs. A JSON number is read through its shortest decimal form, which is
+ * exactly what was sent for any amount an `Int` holds. Returns null for
+ * anything else, including more than two decimals and amounts over
+ * `MAX_AMOUNT_KOP`: a caller must fail, not round.
+ */
+export function decimalRubToKop(value: string | number): number | null {
+  const text = typeof value === "number" ? String(value) : value;
+  const match = DECIMAL_RUB.exec(text);
+  if (!match) return null;
+
+  const [, rubles = "", fraction = ""] = match;
+  // Longer than any amount an Int holds; also keeps Number() exact.
+  if (rubles.replace(/^0+/, "").length > 8) return null;
+  const kop = Number(rubles + fraction.padEnd(2, "0"));
+  return kop > MAX_AMOUNT_KOP ? null : kop;
+}
+
+/**
+ * Rubles with a dot and two decimals, as payment APIs expect: `150050` →
+ * `"1500.50"`. Throws a RangeError on anything but non-negative integer
+ * kopecks.
+ */
+export function kopToDecimalRub(kop: number): string {
+  if (!Number.isSafeInteger(kop) || kop < 0) {
+    throw new RangeError(
+      `kopToDecimalRub expects non-negative integer kopecks, got ${kop}`,
+    );
+  }
+  const digits = String(kop).padStart(3, "0");
+  return `${digits.slice(0, -2)}.${digits.slice(-2)}`;
+}

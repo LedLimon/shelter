@@ -26,6 +26,26 @@ const timeZone = () =>
 const authSecret = () =>
   z.string().min(32, "must be at least 32 characters: openssl rand -base64 32");
 
+/** Whether the URL points at this machine: localhost, *.localhost, loopback. */
+export function isLocalUrl(url: string): boolean {
+  const { hostname } = new URL(url);
+  return (
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    hostname === "127.0.0.1" ||
+    hostname === "[::1]"
+  );
+}
+
+/** The same for a Host header: "localhost:3000", "[::1]", "priyut.example". */
+export function isLocalHost(host: string): boolean {
+  try {
+    return isLocalUrl(`http://${host}`);
+  } catch {
+    return false;
+  }
+}
+
 const portError = "must be a port number (1-65535)";
 const port = () =>
   z.coerce
@@ -34,49 +54,100 @@ const port = () =>
     .min(1, portError)
     .max(65_535, portError);
 
-/** Server-only variables. Never import their values into client code. */
-export const serverEnvSchema = z
-  .object({
-    // Public origin of the site: links in emails, redirects, OG tags. Sign-in
-    // requests from any other origin are rejected (CSRF check).
-    APP_URL: appUrl(),
-    // Fallback until the shelter.timezone setting exists (the seed copies
-    // this value there). Times are stored in UTC.
-    SHELTER_TIMEZONE: timeZone(),
-
-    DATABASE_URL: databaseUrl(),
-
-    BETTER_AUTH_SECRET: authSecret(),
-
-    S3_ENDPOINT: httpUrl(),
-    S3_REGION: required(),
-    S3_BUCKET: required(),
-    S3_ACCESS_KEY_ID: required(),
-    S3_SECRET_ACCESS_KEY: required(),
-    // MinIO needs path-style URLs (endpoint/bucket/key).
-    S3_FORCE_PATH_STYLE: flag().default(false),
-
-    SMTP_HOST: required(),
-    SMTP_PORT: port(),
-    // true = TLS from the start (port 465); false = plain or STARTTLS.
-    SMTP_SECURE: flag().default(false),
-    SMTP_USER: z.string().optional(),
-    SMTP_PASSWORD: z.string().optional(),
-    SMTP_FROM: required(),
-
-    // Empty in dev; PAY-1 adds the fake provider and the provider switch.
-    CLOUDPAYMENTS_PUBLIC_ID: z.string().optional(),
-    CLOUDPAYMENTS_API_SECRET: z.string().optional(),
-  })
-  .superRefine((env, ctx) => {
-    if (Boolean(env.SMTP_USER) !== Boolean(env.SMTP_PASSWORD)) {
-      ctx.addIssue({
-        code: "custom",
-        path: [env.SMTP_USER ? "SMTP_PASSWORD" : "SMTP_USER"],
-        message: "SMTP_USER and SMTP_PASSWORD must be set together",
-      });
-    }
+const paymentProvider = () =>
+  z.enum(["cloudpayments", "fake"], {
+    error: 'must be "cloudpayments" or "fake"',
   });
+
+type PaymentProviderSchema = z.ZodType<
+  "cloudpayments" | "fake",
+  "cloudpayments" | "fake" | undefined
+>;
+
+const serverEnv = (provider: PaymentProviderSchema) =>
+  z
+    .object({
+      // Public origin of the site: links in emails, redirects, OG tags. Sign-in
+      // requests from any other origin are rejected (CSRF check).
+      APP_URL: appUrl(),
+      // Fallback until the shelter.timezone setting exists (the seed copies
+      // this value there). Times are stored in UTC.
+      SHELTER_TIMEZONE: timeZone(),
+
+      DATABASE_URL: databaseUrl(),
+
+      BETTER_AUTH_SECRET: authSecret(),
+
+      S3_ENDPOINT: httpUrl(),
+      S3_REGION: required(),
+      S3_BUCKET: required(),
+      S3_ACCESS_KEY_ID: required(),
+      S3_SECRET_ACCESS_KEY: required(),
+      // MinIO needs path-style URLs (endpoint/bucket/key).
+      S3_FORCE_PATH_STYLE: flag().default(false),
+
+      SMTP_HOST: required(),
+      SMTP_PORT: port(),
+      // true = TLS from the start (port 465); false = plain or STARTTLS.
+      SMTP_SECURE: flag().default(false),
+      SMTP_USER: z.string().optional(),
+      SMTP_PASSWORD: z.string().optional(),
+      SMTP_FROM: required(),
+
+      // Who takes the money (src/server/payments). "fake" is the emulator for
+      // dev and CI: it charges nothing, so it is refused unless APP_URL is
+      // this machine. Staging and production set "cloudpayments".
+      PAYMENT_PROVIDER: provider,
+      // The terminal's Public ID and API Secret (CloudPayments account). The
+      // secret also signs webhooks.
+      CLOUDPAYMENTS_PUBLIC_ID: z.string().optional(),
+      CLOUDPAYMENTS_API_SECRET: z.string().optional(),
+      // true only where the terminal is a test one (staging): payments of a
+      // test terminal are not money and elsewhere are refused.
+      CLOUDPAYMENTS_ACCEPT_TEST_PAYMENTS: flag().default(false),
+    })
+    .superRefine((env, ctx) => {
+      if (env.PAYMENT_PROVIDER === "fake" && !isLocalUrl(env.APP_URL)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["PAYMENT_PROVIDER"],
+          message:
+            "the fake provider charges no money and works only with a local APP_URL; set PAYMENT_PROVIDER=cloudpayments",
+        });
+      }
+      if (env.PAYMENT_PROVIDER === "cloudpayments") {
+        for (const key of [
+          "CLOUDPAYMENTS_PUBLIC_ID",
+          "CLOUDPAYMENTS_API_SECRET",
+        ] as const) {
+          if (env[key]) continue;
+          ctx.addIssue({
+            code: "custom",
+            path: [key],
+            message: "is required with PAYMENT_PROVIDER=cloudpayments",
+          });
+        }
+      }
+      if (Boolean(env.SMTP_USER) !== Boolean(env.SMTP_PASSWORD)) {
+        ctx.addIssue({
+          code: "custom",
+          path: [env.SMTP_USER ? "SMTP_PASSWORD" : "SMTP_USER"],
+          message: "SMTP_USER and SMTP_PASSWORD must be set together",
+        });
+      }
+    });
+
+/**
+ * Server-only variables. Never import their values into client code.
+ * Without PAYMENT_PROVIDER the provider is the emulator — in dev and tests.
+ */
+export const serverEnvSchema = serverEnv(paymentProvider().default("fake"));
+
+/**
+ * A production build names its provider: a server must not end up with the
+ * emulator because a variable was forgotten.
+ */
+const productionServerEnvSchema = serverEnv(paymentProvider());
 
 /** Variables of `pnpm db:seed` (prisma/seed.ts); the app doesn't read them. */
 export const seedEnvSchema = z.object({
@@ -142,10 +213,10 @@ export function parseEnv<Schema extends z.ZodObject>(
 
   const lines = result.error.issues.map((issue) => {
     const key = issue.path.join(".");
+    const typeIssue =
+      issue.code === "invalid_type" || issue.code === "invalid_value";
     const message =
-      issue.code === "invalid_type" && input[key] === undefined
-        ? "is not set"
-        : issue.message;
+      typeIssue && input[key] === undefined ? "is not set" : issue.message;
     return `  - ${key}: ${message}`;
   });
 
@@ -156,4 +227,14 @@ export function parseEnv<Schema extends z.ZodObject>(
       "Copy .env.example to .env and fill in the values (see README, «Dev-окружение»).",
     ].join("\n"),
   );
+}
+
+/** The server environment of a process running with this NODE_ENV. */
+export function parseServerEnv(
+  source: EnvSource,
+  nodeEnv: string | undefined,
+): ServerEnv {
+  const schema =
+    nodeEnv === "production" ? productionServerEnvSchema : serverEnvSchema;
+  return parseEnv(schema, source, "server");
 }

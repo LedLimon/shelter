@@ -64,7 +64,14 @@ export default defineConfig({
             : `pnpm dev --port ${port}`,
           url: baseURL,
           // APP_URL is the only origin Better Auth accepts sign-in from.
-          env: { PORT: String(port), HOSTNAME: host, APP_URL: baseURL },
+          // Payments go through the emulator, whatever .env says: e2e never
+          // talks to a real provider.
+          env: {
+            PORT: String(port),
+            HOSTNAME: host,
+            APP_URL: baseURL,
+            PAYMENT_PROVIDER: "fake",
+          },
           // Never reuse: another worktree's server on the same port would be tested instead.
           reuseExistingServer: false,
           timeout: 120_000,
