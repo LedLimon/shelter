@@ -173,7 +173,7 @@ e2e/                      # Playwright
 - `NEXT_PUBLIC_*` вшиваются в сборку. Значения, которые различаются между staging и prod (ключи, ID счётчиков), передаём из Server Components, а не через `NEXT_PUBLIC_*`.
 - Новая переменная — в схему и в `.env.example` (unit-тест сверяет их). Пустое значение (`FOO=`) считается незаданным.
 - Локальные сервисы (Postgres, MinIO, Mailpit) — `docker-compose.yml`, порты и доступы — в [README](../README.md#dev-окружение).
-- Платёжный провайдер — `PAYMENT_PROVIDER`: `cloudpayments` (с `CLOUDPAYMENTS_PUBLIC_ID` и `CLOUDPAYMENTS_API_SECRET`) или `fake` — эмулятор, значение по умолчанию. С `fake` проверка при старте пропускает только локальный `APP_URL` ([payments.md](payments.md#платёжный-слой)).
+- Платёжный провайдер — `PAYMENT_PROVIDER`: `cloudpayments` (с `CLOUDPAYMENTS_PUBLIC_ID` и `CLOUDPAYMENTS_API_SECRET`) или `fake` — эмулятор. Пустое значение означает `fake` только в разработке и тестах; production-сборка (`NODE_ENV=production`) требует назвать провайдера. С `fake` проверка при старте пропускает только локальный `APP_URL`. `CLOUDPAYMENTS_ACCEPT_TEST_PAYMENTS=true` — только там, где терминал тестовый (staging) ([payments.md](payments.md#платёжный-слой)).
 
 ## Безопасность
 

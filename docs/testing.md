@@ -42,8 +42,9 @@
   // повтор того же уведомления — тот же объект; другое списание — новый payWebhook()
   ```
 
-- Фикстуры [`tests/fixtures/cloudpayments-webhooks.ts`](../tests/fixtures/cloudpayments-webhooks.ts) — тела всех типов уведомлений с подписями, посчитанными вне нашего кода. На них проверяется адаптер CloudPayments; эмулятор проверяется тем же адаптером, чтобы симулятор и разбор не «соглашались» в общей ошибке.
-- В e2e оплата идёт через страницу эмулятора ([`e2e/fake-cloudpayments.spec.ts`](../e2e/fake-cloudpayments.spec.ts)): она есть и в production-сборке, пока `PAYMENT_PROVIDER=fake`.
+- Уведомления, которые эмулятор шлёт сам (после `refund()`, `cancelSubscription()`, оплаты на его странице), в тестах в сеть не уходят: setup интеграционных тестов вызывает `interceptFakeWebhooks()`, иначе они постучались бы в `pnpm dev`, запущенный на `APP_URL`. Чтобы они дошли до обработчика, передайте его: `const sent = interceptFakeWebhooks((webhook) => POST(webhookRequest(webhook), { params }))`, затем `await provider.settled()`. Пример — [`tests/integration/payments.test.ts`](../tests/integration/payments.test.ts).
+- Фикстуры [`tests/fixtures/cloudpayments-webhooks.ts`](../tests/fixtures/cloudpayments-webhooks.ts) — тела всех типов уведомлений с подписями, посчитанными вне нашего кода. На них проверяется адаптер CloudPayments (в том числе матрицей «тело одного типа, присланное на адрес другого, — отказ»); эмулятор проверяется тем же адаптером, чтобы симулятор и разбор не «соглашались» в общей ошибке.
+- В e2e оплата идёт через страницу эмулятора ([`e2e/fake-cloudpayments.spec.ts`](../e2e/fake-cloudpayments.spec.ts)): Playwright всегда запускает сервер с `PAYMENT_PROVIDER=fake`, страница есть и в production-сборке.
 - Staging: тестовый режим CloudPayments на публичном HTTPS, тестовые карты (успех, отказ, 3DS), рекуррент через API.
 
 ## E2E-сценарии MVP
