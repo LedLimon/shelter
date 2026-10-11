@@ -73,7 +73,7 @@ const LEDGER_TYPES = {
 };
 
 PAGES.ledger = (params, query) => {
-  const type = LEDGER_TYPES[query.type] ? query.type : "all";
+  const type = own(LEDGER_TYPES, query.type) ? query.type : "all";
   const need = needById(query.need) ? query.need : "all";
   const link = (next) => {
     const merged = { type, need, ...next };
