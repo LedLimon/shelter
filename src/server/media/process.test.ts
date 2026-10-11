@@ -235,6 +235,37 @@ describe("processImage", () => {
     expect(metadata).toMatchObject({ format: "webp", width: 16 });
   });
 
+  it("fits a picture too tall for the encoders instead of failing", async () => {
+    // A long screenshot of a receipt: only 17 MP, but WebP stops at 16383 px.
+    const screenshot = await solid(1080, 16_400, { r: 250, g: 250, b: 245 })
+      .png()
+      .toBuffer();
+
+    const processed = await processImage(screenshot);
+
+    expect(processed).toMatchObject({ width: 1080, height: 16_400 });
+    for (const { data } of processed.variants) {
+      const { width, height } = await sharp(data).metadata();
+      expect(height).toBeLessThanOrEqual(16_383);
+      expect(width / height).toBeCloseTo(1080 / 16_400, 2);
+    }
+    expect(
+      (await sharp(processed.variants.at(-1)!.data).metadata()).width,
+    ).toBeGreaterThan(1070);
+  });
+
+  it("keeps the placeholder tiny for a narrow strip", async () => {
+    const strip = await solid(2, 4200, { r: 0, g: 0, b: 0 }).png().toBuffer();
+
+    const { blur, variants } = await processImage(strip);
+
+    expect(blur.length).toBeLessThan(1000);
+    expect(
+      await sharp(Buffer.from(blur.split(",")[1]!, "base64")).metadata(),
+    ).toMatchObject({ height: 16 });
+    expect(variants).toHaveLength(8);
+  });
+
   it("refuses what is not a JPEG, PNG or WebP image", async () => {
     const svg = Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10"/></svg>',

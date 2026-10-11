@@ -18,7 +18,14 @@ const INPUT_FORMATS: ReadonlySet<string> = new Set(["jpeg", "png", "webp"]);
  */
 export const MAX_INPUT_PIXELS = 100_000_000;
 
-const BLUR_WIDTH = 16;
+/**
+ * The longest side WebP can hold (AVIF allows a little more). A long
+ * screenshot of a receipt is taller: its versions are fitted into this,
+ * which narrows them by a few pixels at most.
+ */
+const MAX_SIDE = 16_383;
+
+const BLUR_SIZE = 16;
 
 export type Variant = {
   width: VariantWidth;
@@ -30,7 +37,7 @@ export type ProcessedImage = {
   /** Of the upright original: EXIF rotation applied. */
   width: number;
   height: number;
-  /** A few hundred bytes: a 16 px wide WebP as a data URL. */
+  /** A few hundred bytes: a WebP within 16×16 px, as a data URL. */
   blur: string;
   /** Every width in every format. */
   variants: Variant[];
@@ -71,7 +78,12 @@ export async function processImage(
   const variants: Variant[] = [];
   // One at a time: each encode already uses every core.
   for (const width of VARIANT_WIDTHS) {
-    const resized = source().resize({ width, withoutEnlargement: true });
+    const resized = source().resize({
+      width,
+      height: MAX_SIDE,
+      fit: "inside",
+      withoutEnlargement: true,
+    });
     variants.push({
       width,
       format: "webp",
@@ -87,8 +99,10 @@ export async function processImage(
     });
   }
 
+  // Inside a square: 16 px wide alone would make a tall picture's
+  // placeholder thousands of pixels high.
   const blur = await source()
-    .resize({ width: BLUR_WIDTH })
+    .resize({ width: BLUR_SIZE, height: BLUR_SIZE, fit: "inside" })
     .webp({ quality: 40 })
     .toBuffer();
 
@@ -116,7 +130,12 @@ async function decode(original: Uint8Array, maxInputPixels: number) {
     }
     const { data, info } = await image
       .autoOrient()
-      .resize({ width: widest, withoutEnlargement: true })
+      .resize({
+        width: widest,
+        height: MAX_SIDE,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
       .raw()
       .toBuffer({ resolveWithObject: true });
     return {

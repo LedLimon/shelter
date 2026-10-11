@@ -189,6 +189,37 @@ describe("the media.process job", () => {
     expect(await stored(storageKey)).toBeNull();
   });
 
+  it("clears what a cut-off run left of a discarded media", async () => {
+    const id = await upload();
+    await runWorker();
+    // The row went while a run was writing versions, its purge had already
+    // passed, and that run never got to clean up after itself.
+    await getDb().media.delete({ where: { id } });
+    expect(await storedVariants(id)).toHaveLength(8);
+
+    // The retry of the job.
+    await processMedia(id);
+
+    expect(await storedVariants(id)).toEqual([]);
+  });
+
+  it("fails a file that is not the size that was declared", async () => {
+    const id = await upload();
+    const { storageKey } = (await mediaRow(id))!;
+    // Not through the upload URL, which takes only the declared size.
+    await getStorage().put(storageKey, await phonePhoto(640, 480), {
+      contentType: "image/jpeg",
+    });
+
+    await runWorker();
+
+    expect(await mediaRow(id)).toMatchObject({
+      status: "FAILED",
+      failure: "missing",
+    });
+    expect(await storedVariants(id)).toEqual([]);
+  });
+
   it("turns a sideways phone photo upright", async () => {
     const sideways = await sharp({
       create: {

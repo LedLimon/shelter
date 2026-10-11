@@ -1,5 +1,4 @@
 import "server-only";
-import { MAX_UPLOAD_BYTES } from "@/lib/media/constraints";
 import type { MediaFailure } from "@/lib/media/types";
 import { getDb } from "@/server/db";
 import { enqueueJob } from "@/server/jobs";
@@ -42,8 +41,14 @@ export async function processMedia(
     where: { id: mediaId },
     select: { status: true, storageKey: true, byteSize: true },
   });
-  // Discarded meanwhile, or another run got here first.
-  if (!media || media.status !== "UPLOADED") return;
+  if (!media) {
+    // Discarded. An earlier run that was cut off may have written versions
+    // after the media's own purge had passed: nothing else would delete them.
+    for (const key of variantKeys(mediaId)) await storage.delete(key, signal);
+    return;
+  }
+  // Another run got here first, or the media has failed for good.
+  if (media.status !== "UPLOADED") return;
 
   const fail = async (failure: MediaFailure) => {
     await db.media.updateMany({
@@ -54,9 +59,9 @@ export async function processMedia(
 
   const original = await storage.get(media.storageKey, signal);
   if (!original) return fail("missing");
-  // The upload URL allows only the declared size; a larger body here means
-  // the object was replaced by other means.
-  if (original.byteSize === null || original.byteSize > MAX_UPLOAD_BYTES) {
+  // The upload URL takes only the declared size: another one here means the
+  // object was replaced by other means.
+  if (original.byteSize !== media.byteSize) {
     await original.body.cancel();
     return fail("missing");
   }
