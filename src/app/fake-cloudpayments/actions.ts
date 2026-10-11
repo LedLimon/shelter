@@ -40,7 +40,8 @@ export async function startTestPayment(
     email,
     metadata: { target: "GENERAL" },
     ...(monthly && {
-      accountId: email,
+      // Opaque, as a real intent's should be: not the email.
+      accountId: `test-payer-${randomBytes(8).toString("hex")}`,
       recurrent: { interval: "MONTH", period: 1 },
     }),
     returnUrl: `${getEnv().APP_URL}/fake-cloudpayments`,
@@ -96,5 +97,15 @@ export async function cancelFakeCheckout(formData: FormData): Promise<void> {
   if (!parsed.success) notFound();
 
   fake.cancel(parsed.data);
+  redirect(`${FAKE_CHECKOUT_PATH}/${parsed.data}`);
+}
+
+/** «Повторить платёж» after a decline. */
+export async function retryFakeCheckout(formData: FormData): Promise<void> {
+  const fake = await requireFakeCloudPayments();
+  const parsed = checkoutId.safeParse(formData.get("checkoutId"));
+  if (!parsed.success) notFound();
+
+  fake.retry(parsed.data);
   redirect(`${FAKE_CHECKOUT_PATH}/${parsed.data}`);
 }

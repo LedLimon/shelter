@@ -3,7 +3,9 @@ import { parseEnv as parseDotenv } from "node:util";
 import { describe, expect, it } from "vitest";
 import {
   EnvValidationError,
+  isLocalUrl,
   parseEnv,
+  parseServerEnv,
   publicEnvSchema,
   seedEnvSchema,
   serverEnvSchema,
@@ -223,6 +225,67 @@ describe("server env", () => {
       expect(example.CLOUDPAYMENTS_PUBLIC_ID).toBe("");
       expect(example.CLOUDPAYMENTS_API_SECRET).toBe("");
     });
+
+    it("accepts test payments only when told to", () => {
+      expect(example.CLOUDPAYMENTS_ACCEPT_TEST_PAYMENTS).toBe("");
+      expect(parseServer().CLOUDPAYMENTS_ACCEPT_TEST_PAYMENTS).toBe(false);
+      expect(
+        parseServer({ CLOUDPAYMENTS_ACCEPT_TEST_PAYMENTS: "true" })
+          .CLOUDPAYMENTS_ACCEPT_TEST_PAYMENTS,
+      ).toBe(true);
+      expect(
+        errorOf(() =>
+          parseServer({ CLOUDPAYMENTS_ACCEPT_TEST_PAYMENTS: "sometimes" }),
+        ).message,
+      ).toContain(
+        "  - CLOUDPAYMENTS_ACCEPT_TEST_PAYMENTS: must be true or false",
+      );
+    });
+
+    describe("in a production build", () => {
+      const source = { ...example, ...secrets };
+      const production = (overrides: Record<string, string | undefined>) =>
+        parseServerEnv({ ...source, ...overrides }, "production");
+
+      it("has no default: a forgotten variable must not mean the emulator", () => {
+        for (const PAYMENT_PROVIDER of [undefined, ""]) {
+          expect(
+            errorOf(() => production({ PAYMENT_PROVIDER })).message,
+          ).toContain("  - PAYMENT_PROVIDER: is not set");
+        }
+      });
+
+      it("takes a provider named explicitly", () => {
+        // CI runs the production build against the emulator, on 127.0.0.1.
+        expect(production({ PAYMENT_PROVIDER: "fake" }).PAYMENT_PROVIDER).toBe(
+          "fake",
+        );
+        expect(
+          production({
+            APP_URL: "https://priyut.example",
+            PAYMENT_PROVIDER: "cloudpayments",
+            ...keys,
+          }).PAYMENT_PROVIDER,
+        ).toBe("cloudpayments");
+      });
+
+      it("still refuses the emulator on a public address", () => {
+        expect(
+          errorOf(() =>
+            production({
+              APP_URL: "https://priyut.example",
+              PAYMENT_PROVIDER: "fake",
+            }),
+          ).message,
+        ).toContain("  - PAYMENT_PROVIDER: the fake provider charges no money");
+      });
+
+      it("keeps the default in development and tests", () => {
+        for (const nodeEnv of ["development", "test", undefined]) {
+          expect(parseServerEnv(source, nodeEnv).PAYMENT_PROVIDER).toBe("fake");
+        }
+      });
+    });
   });
 
   it("returns only declared variables", () => {
@@ -331,5 +394,31 @@ describe("env schemas", () => {
     ).toContain(
       "Invalid public environment variables:\n  - NEXT_PUBLIC_COUNTER_ID: is not set",
     );
+  });
+});
+
+describe("isLocalUrl", () => {
+  it.each([
+    "http://localhost:3000",
+    "http://localhost",
+    "https://shelter.localhost",
+    "http://127.0.0.1:3100",
+    "http://[::1]:3000",
+  ])("%s is this machine", (url) => {
+    expect(isLocalUrl(url)).toBe(true);
+  });
+
+  it.each([
+    "https://priyut.example",
+    "http://localhost.example.com",
+    "http://localhost@evil.example",
+    "http://127.0.0.1.nip.io",
+    "http://127.0.0.2",
+    "http://0.0.0.0:3000",
+    "http://192.168.1.10:3000",
+    "http://10.0.0.5",
+    "http://notlocalhost",
+  ])("%s is not", (url) => {
+    expect(isLocalUrl(url)).toBe(false);
   });
 });

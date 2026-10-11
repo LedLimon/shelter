@@ -37,6 +37,7 @@ describe("cloudPaymentsWidgetParams", () => {
         externalId: "cm2donation0000000000001",
         userInfo: { email: "donor@shelter.localhost" },
         metadata: { target: "NEED", needId: "need_korm_oct" },
+        retryPayment: true,
         successRedirectUrl: INTENT.returnUrl,
         failRedirectUrl: INTENT.returnUrl,
       },

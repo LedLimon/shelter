@@ -213,7 +213,10 @@ export function recurrentFields(
     Amount: kopToDecimalRub(subscription.amountKop),
     Currency: "RUB",
     RequireConfirmation: "false",
-    StartDate: formatUtcDateTime(subscription.startAt),
+    // The date of the first charge by schedule; we don't read it.
+    StartDate: formatUtcDateTime(
+      subscription.nextChargeAt ?? subscription.lastChargeAt ?? new Date(0),
+    ),
     Interval: INTERVAL_NAME[subscription.interval],
     Period: String(subscription.period),
     Status: STATUS_NAME[subscription.status],

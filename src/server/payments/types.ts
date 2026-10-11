@@ -17,7 +17,8 @@ export type PaymentIntent = {
   email: string;
   /**
    * The provider's handle of the payer. CloudPayments needs it to start a
-   * subscription and finds subscriptions by it.
+   * subscription and finds subscriptions by it. An opaque id of ours, not the
+   * email: it shows up in the provider's account and in webhooks.
    */
   accountId?: string;
   /**
@@ -69,6 +70,12 @@ export type CloudPaymentsWidgetOptions = {
   /** Comes back as Data. */
   metadata: { [key: string]: JsonValue };
   recurrent?: { interval: "Month"; period: number; amount?: number };
+  /**
+   * «Повторить платёж» after a decline (the widget's default, set explicitly).
+   * A declined attempt is therefore not the end: a `fail` may be followed by
+   * a `pay` of the same invoice with another transaction id.
+   */
+  retryPayment: true;
   successRedirectUrl: string;
   failRedirectUrl: string;
 };
@@ -98,7 +105,10 @@ export type ChargeDetails = {
   amountKop: number;
   /** When the provider created the transaction. */
   occurredAt: Date;
-  /** The provider's test terminal: no real money moved. */
+  /**
+   * The provider's test terminal: no real money moved. A `check` or `pay`
+   * with it reaches a handler only if the provider `acceptsTestPayments`.
+   */
   testMode: boolean;
   accountId: string | null;
   email: string | null;
@@ -126,12 +136,17 @@ type EventBase = {
 export type CheckEvent = EventBase &
   ChargeDetails & { type: "check"; operation: "payment" | "refund" };
 
-/** The money is charged. */
+/**
+ * The money is charged: a fact to record whatever state our donation is in.
+ * One invoice can be paid by a transaction other than the one that failed
+ * before (a retry in the widget, the provider's fallback bank).
+ */
 export type PayEvent = EventBase & ChargeDetails & { type: "pay" };
 
 /**
- * An operation was declined. `operation` matters: a failed refund must not
- * mark the donation as failed.
+ * An attempt was declined — this transaction, not the invoice: a `pay` with
+ * another transaction id may follow. `operation` matters too: a failed
+ * refund must not mark the donation as failed.
  */
 export type FailEvent = EventBase &
   ChargeDetails & {
@@ -157,7 +172,12 @@ export type RefundEvent = EventBase & {
   metadata: JsonValue | null;
 };
 
-/** A subscription changed its status. */
+/**
+ * A subscription changed its status. The notification has no id of its own:
+ * `dedupeKey` is derived from its body, so two changes with identical bodies
+ * are one key. Apply it as a snapshot of the subscription (setting a status
+ * twice changes nothing) and use the key to send the email once.
+ */
 export type RecurrentEvent = EventBase & {
   type: "recurrent";
   subscription: ProviderSubscription;
@@ -184,7 +204,6 @@ export type ProviderSubscription = {
   status: ProviderSubscriptionStatus;
   interval: "DAY" | "WEEK" | "MONTH";
   period: number;
-  startAt: Date;
   lastChargeAt: Date | null;
   nextChargeAt: Date | null;
   successfulCharges: number;
@@ -218,15 +237,35 @@ export type ProviderTransaction = {
   metadata: JsonValue | null;
 };
 
+/** A registry row we couldn't read: to be looked at by a person, not skipped. */
+export type UnreadableTransaction = {
+  /** Null if even the id was unreadable. */
+  providerTxId: string | null;
+  /** Names of the fields that were wrong; never their values. */
+  fields: string[];
+};
+
+export type TransactionRegistry = {
+  /** Oldest first. */
+  transactions: ProviderTransaction[];
+  /**
+   * Rows of the period that didn't parse. A row stays in the provider's
+   * registry forever, so one bad row must not block the rest of the day:
+   * import what is readable and raise an alert about these.
+   */
+  unreadable: UnreadableTransaction[];
+};
+
 export type RefundInput = {
   /** The payment to return (Donation.providerTxId). */
   providerTxId: string;
   amountKop: number;
   /**
-   * `refund:{donationId}:{n}`. The provider replays its answer to a repeated
-   * request with the same key, but remembers it for an hour only: record the
-   * refund in our database before calling, and treat the provider's memory
-   * as a guard against network retries, not as the idempotency.
+   * `refund:{donationId}:{n}`, printable ASCII. The provider replays its
+   * answer to a repeated request with the same key, but remembers it for an
+   * hour only: record the refund in our database before calling, and treat
+   * the provider's memory as a guard against network retries, not as the
+   * idempotency.
    */
   idempotencyKey: string;
 };
@@ -236,6 +275,25 @@ export type ListTransactionsInput = {
   from: Date;
   to: Date;
 };
+
+/**
+ * Our answer to a webhook, in our own terms; the provider turns it into its
+ * wire format. Only a `check` can be refused: every other notification
+ * reports a fact, which we either took ("ok") or must get again ("retry").
+ */
+export type WebhookReply =
+  /** Received and recorded. For a `check`: the payment may go through. */
+  | "ok"
+  /** `check`: we know no such invoice. */
+  | "unknown-invoice"
+  /** `check`: the amount isn't the invoice's. */
+  | "wrong-amount"
+  /** `check`: this payment can't be accepted. */
+  | "declined"
+  /** `check`: the invoice is too old to pay. */
+  | "expired"
+  /** We failed to process it: deliver again later. */
+  | "retry";
 
 /**
  * A payment provider: CloudPayments in staging and production, FakeCloudPayments
@@ -248,44 +306,62 @@ export interface PaymentProvider {
   /** Stored in Donation.provider. */
   readonly name: PaymentProviderName;
 
+  /**
+   * Whether payments of the provider's test terminal count here (staging,
+   * dev). If not, a `check` or `pay` with `testMode` is refused before it
+   * reaches a handler. Reconciliation must apply the same rule to the
+   * registry: a test transaction is not money.
+   */
+  readonly acceptsTestPayments: boolean;
+
   /** What the browser needs to start the payment. Throws on a malformed intent. */
   widgetParams(intent: PaymentIntent): WidgetParams;
 
   /**
-   * Whether the webhook is signed by the provider. Call it on the raw body
-   * before anything else; answer 401 to an unsigned one.
+   * The event of an incoming webhook: checks the provider's signature of the
+   * raw body, then parses it. `type` is the last segment of the URL it came
+   * to. Throws WebhookSignatureError (answer 401, do nothing else) or
+   * WebhookParseError (answer webhookResponse("retry"), never "ok").
    */
-  verifyWebhook(webhook: IncomingWebhook): boolean;
+  receiveWebhook(type: string, webhook: IncomingWebhook): PaymentEvent;
 
   /**
-   * The event of a webhook that passed verifyWebhook(). Throws
-   * WebhookParseError when the body isn't what the provider documents or is
-   * something we don't accept (another currency, a two-stage payment):
-   * answer with an error so that the provider retries, never with success.
+   * The event of a body that receiveWebhook() accepted earlier and we stored
+   * (reprocessing from the webhook journal). Never for a body that just
+   * arrived: nothing is verified here.
    */
-  parseWebhook(type: string, rawBody: string): PaymentEvent;
+  parseStoredWebhook(type: string, rawBody: string): PaymentEvent;
+
+  /** The HTTP response that tells the provider `reply`. */
+  webhookResponse(reply: WebhookReply): Response;
 
   /**
    * Asks for a refund; the money movement is confirmed by the `refund`
-   * webhook. On an UNAVAILABLE error the outcome is unknown: repeat with the
-   * same idempotencyKey.
+   * webhook, which may arrive before this call returns. If the error's
+   * outcome is "unknown", the refund may have happened: see
+   * PaymentProviderError.
    */
   refund(input: RefundInput): Promise<{ refundTxId: string }>;
 
   /** Stops future charges. Resolves once the provider confirmed. */
   cancelSubscription(input: { subscriptionId: string }): Promise<void>;
 
+  /** The subscription as the provider has it now. */
+  getSubscription(input: {
+    subscriptionId: string;
+  }): Promise<ProviderSubscription>;
+
   /**
-   * Changes the amount of future charges. CloudPayments reactivates a
-   * cancelled or finished subscription on any change: check our status first.
+   * Changes the amount of future charges of a subscription that is still
+   * charging (ACTIVE or PAST_DUE at the provider); any other is refused with
+   * REJECTED. CloudPayments itself would reactivate a cancelled subscription
+   * on any change — and charge a donor who had cancelled.
    */
   updateSubscription(input: {
     subscriptionId: string;
     amountKop: number;
   }): Promise<ProviderSubscription>;
 
-  /** The provider's registry for a period, oldest first. */
-  listTransactions(
-    input: ListTransactionsInput,
-  ): Promise<ProviderTransaction[]>;
+  /** The provider's registry for a period. */
+  listTransactions(input: ListTransactionsInput): Promise<TransactionRegistry>;
 }

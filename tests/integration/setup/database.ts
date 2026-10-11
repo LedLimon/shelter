@@ -7,6 +7,7 @@ import { parseEnv } from "node:util";
 import { afterAll, inject } from "vitest";
 import { disconnectDb } from "@/server/db";
 import { createPrismaClient } from "@/server/db/client";
+import { interceptFakeWebhooks } from "../../helpers/cloudpayments";
 
 const templateUrl = new URL(inject("templateDatabaseUrl"));
 const template = templateUrl.pathname.slice(1);
@@ -39,6 +40,11 @@ Object.assign(process.env, example, {
   DATABASE_URL: urlOf(database),
   BETTER_AUTH_SECRET: "integration-tests-only-0123456789abcdef",
 });
+
+// The payment emulator posts its notifications to APP_URL — into a dev
+// server, if one is running there. Tests receive them instead
+// (docs/testing.md#платежи-в-тестах).
+interceptFakeWebhooks();
 
 afterAll(async () => {
   await disconnectDb();

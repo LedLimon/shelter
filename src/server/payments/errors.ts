@@ -20,6 +20,14 @@ export class WebhookParseError extends Error {
   }
 }
 
+/** The webhook isn't signed by the provider: answer 401 and do nothing else. */
+export class WebhookSignatureError extends Error {
+  constructor() {
+    super("payments: the webhook signature is missing or wrong");
+    this.name = "WebhookSignatureError";
+  }
+}
+
 export type PaymentProviderErrorCode =
   /** Our arguments failed validation; nothing was sent. */
   | "INVALID_INPUT"
@@ -27,16 +35,20 @@ export type PaymentProviderErrorCode =
   | "REJECTED"
   /** Wrong credentials (HTTP 401). */
   | "UNAUTHORIZED"
-  /** Too many concurrent requests (HTTP 429). */
+  /** Too many concurrent requests (HTTP 429): the same request may pass later. */
   | "RATE_LIMITED"
-  /** Network error, timeout or HTTP 5xx: the outcome is unknown. */
+  /** Network error, timeout or HTTP 5xx. */
   | "UNAVAILABLE"
   /** An answer we don't understand. */
   | "BAD_RESPONSE";
 
+const UNKNOWN_OUTCOME: readonly PaymentProviderErrorCode[] = [
+  "UNAVAILABLE",
+  "BAD_RESPONSE",
+];
+
 /**
- * A failed call to the provider's API. `retryable` — the same request (with
- * the same idempotency key) may succeed later; `outcomeUnknown` — see below. The message never carries our
+ * A failed call to the provider's API. The message never carries our
  * credentials or request data; the provider's own explanation of a REJECTED
  * request is in `providerMessage`, for the staff member who asked.
  */
@@ -55,16 +67,21 @@ export class PaymentProviderError extends Error {
     this.providerMessage = providerMessage;
   }
 
-  get retryable(): boolean {
-    return this.code === "RATE_LIMITED" || this.code === "UNAVAILABLE";
-  }
-
   /**
-   * The provider may have done what we asked (a refund!) although we got no
-   * readable answer. Don't record the operation as failed: repeat it with
-   * the same idempotency key or look it up in the provider's registry.
+   * Whether the provider did what we asked.
+   *
+   * "not-performed" — it certainly didn't.
+   *
+   * "unknown" — we got no readable answer, and the operation (a refund!) may
+   * have gone through. Never record it as failed. Within an hour, repeat it
+   * with the same idempotency key: the provider replays its first answer.
+   * Later the provider has forgotten the key and would do it twice — first
+   * look for the operation in listTransactions() (or wait for its webhook).
+   * For the same reason a REJECTED answer to a repeat doesn't prove the
+   * first attempt failed: "the amount exceeds the payment" is also what a
+   * second full refund gets.
    */
-  get outcomeUnknown(): boolean {
-    return this.code === "UNAVAILABLE" || this.code === "BAD_RESPONSE";
+  get outcome(): "not-performed" | "unknown" {
+    return UNKNOWN_OUTCOME.includes(this.code) ? "unknown" : "not-performed";
   }
 }

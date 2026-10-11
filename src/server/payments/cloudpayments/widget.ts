@@ -1,5 +1,5 @@
 import { kopToDecimalRub } from "@/lib/money";
-import { assertPaymentIntent } from "../intent";
+import { assertPaymentIntent } from "../input";
 import type {
   CloudPaymentsWidgetOptions,
   PaymentIntent,
@@ -44,6 +44,7 @@ export function cloudPaymentsWidgetParams(
         }),
       },
     }),
+    retryPayment: true,
     successRedirectUrl: intent.returnUrl,
     failRedirectUrl: intent.returnUrl,
   };

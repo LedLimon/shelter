@@ -1,6 +1,10 @@
 import { isLocalUrl, type ServerEnv } from "@/lib/env/schema";
 import { createCloudPayments } from "./cloudpayments";
-import { createFakeCloudPayments, type FakeState } from "./fake";
+import {
+  createFakeCloudPayments,
+  globalFakeState,
+  type FakeState,
+} from "./fake";
 import type { PaymentProvider } from "./types";
 
 type PaymentEnv = Pick<
@@ -9,11 +13,16 @@ type PaymentEnv = Pick<
   | "APP_URL"
   | "CLOUDPAYMENTS_PUBLIC_ID"
   | "CLOUDPAYMENTS_API_SECRET"
+  | "CLOUDPAYMENTS_ACCEPT_TEST_PAYMENTS"
 >;
 
 /**
  * The provider PAYMENT_PROVIDER names. Not `server-only`: the worker builds
- * its own (reconciliation). In the app use getPaymentProvider().
+ * its own. In the app use getPaymentProvider().
+ *
+ * `fakeState` is the emulated terminal to use; by default this process's
+ * shared one. The emulator's payments live in memory, so the worker's fake
+ * knows nothing of what was paid through the web server's.
  */
 export function createPaymentProvider(
   env: PaymentEnv,
@@ -29,7 +38,11 @@ export function createPaymentProvider(
           "payments: PAYMENT_PROVIDER=cloudpayments needs CLOUDPAYMENTS_PUBLIC_ID and CLOUDPAYMENTS_API_SECRET",
         );
       }
-      return createCloudPayments({ publicId, apiSecret });
+      return createCloudPayments({
+        publicId,
+        apiSecret,
+        acceptTestPayments: env.CLOUDPAYMENTS_ACCEPT_TEST_PAYMENTS,
+      });
     }
     case "fake":
       // The env schema checks this too; a provider that charges nothing must
@@ -39,6 +52,9 @@ export function createPaymentProvider(
           "payments: PAYMENT_PROVIDER=fake is allowed only with a local APP_URL",
         );
       }
-      return createFakeCloudPayments({ appUrl: env.APP_URL, state: fakeState });
+      return createFakeCloudPayments({
+        appUrl: env.APP_URL,
+        state: fakeState ?? globalFakeState(),
+      });
   }
 }

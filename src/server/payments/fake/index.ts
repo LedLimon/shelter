@@ -7,10 +7,15 @@
 // restart forgets it. Nothing here may be reachable in production — the
 // environment check allows this provider only on a local APP_URL.
 import { randomBytes } from "node:crypto";
-import { SIGNATURE_HEADER, verifySignature } from "../cloudpayments/signature";
-import { parseWebhook } from "../cloudpayments/webhooks";
+import { cloudPaymentsWebhooks } from "../cloudpayments";
 import { PaymentProviderError } from "../errors";
-import { assertPaymentIntent } from "../intent";
+import {
+  assertPaymentIntent,
+  parsePeriod,
+  parseRefundInput,
+  parseSubscriptionInput,
+  parseUpdateSubscriptionInput,
+} from "../input";
 import type {
   PaymentIntent,
   PaymentProvider,
@@ -42,6 +47,8 @@ export const WEBHOOK_PATH = "/api/webhooks/cloudpayments";
 
 /** CloudPayments waits this long for an answer to a notification. */
 const DELIVERY_TIMEOUT_MS = 30_000;
+/** How long CloudPayments remembers the answer to an X-Request-ID. */
+const REQUEST_ID_TTL_MS = 60 * 60 * 1000;
 const MAX_CHECKOUTS = 500;
 const MAX_TRANSACTIONS = 5000;
 
@@ -52,10 +59,16 @@ export type DeliveryResult = {
   code: number | null;
 };
 
-export type Deliver = (webhook: SimulatedWebhook) => Promise<DeliveryResult>;
+/** Takes a notification to `url` and reports the answer; must not throw. */
+export type Deliver = (
+  webhook: SimulatedWebhook,
+  url: string,
+) => Promise<DeliveryResult>;
 
 export type FakeDelivery = DeliveryResult & {
   webhook: SimulatedWebhook;
+  /** Where it was posted. */
+  url: string;
   /** HTTP 2xx with { code: 0 }: what CloudPayments takes for "received". */
   accepted: boolean;
 };
@@ -80,6 +93,7 @@ export type FakeCheckout = {
   intent: PaymentIntent;
   status: FakeCheckoutStatus;
   declineReason: FakeDeclineReason | null;
+  /** Of the last attempt: «Повторить платёж» starts a new transaction. */
   transactionId: string | null;
   /** When the donor pressed «Оплатить»: the transaction's time. */
   chargedAt: Date | null;
@@ -102,10 +116,16 @@ export type FakeState = {
   checkouts: Map<string, FakeCheckout>;
   transactions: Map<string, ProviderTransaction>;
   subscriptions: Map<string, ProviderSubscription>;
-  refunds: Map<string, { refundTxId: string }>;
+  /** Answers to refund requests by idempotency key, and when they were given. */
+  refunds: Map<string, { result: { refundTxId: string }; at: number }>;
   /** Notifications sent outside a checkout: refunds, subscription changes. */
   background: Set<Promise<unknown>>;
-  sequence: number;
+  lastTransactionId: number;
+  /**
+   * Replaces the HTTP delivery: tests route notifications to a handler or
+   * just record them, without touching whatever listens on APP_URL.
+   */
+  deliver: Deliver | null;
 };
 
 export function createFakeState(): FakeState {
@@ -115,16 +135,29 @@ export function createFakeState(): FakeState {
     subscriptions: new Map(),
     refunds: new Map(),
     background: new Set(),
-    sequence: 0,
+    lastTransactionId: 0,
+    deliver: null,
   };
+}
+
+const globalForFake = globalThis as typeof globalThis & {
+  shelterFakePayments?: FakeState;
+};
+
+/**
+ * The emulated terminal of this process: what getPaymentProvider() uses.
+ * On globalThis, so dev reloads and separately bundled routes share it.
+ * Another process (the worker) has its own, empty one.
+ */
+export function globalFakeState(): FakeState {
+  globalForFake.shelterFakePayments ??= createFakeState();
+  return globalForFake.shelterFakePayments;
 }
 
 export type FakeCloudPaymentsOptions = {
   /** Where our site listens: notifications go to `${appUrl}/api/webhooks/cloudpayments/{type}`. */
   appUrl: string;
   state?: FakeState;
-  /** For tests: receives notifications instead of the HTTP endpoint. */
-  deliver?: Deliver;
   now?: () => Date;
 };
 
@@ -135,6 +168,8 @@ export type FakeCloudPayments = PaymentProvider & {
   pay(checkoutId: string, scenario: FakeScenario): Promise<void>;
   /** The donor answered the bank's 3-D Secure page. */
   complete3ds(checkoutId: string, passed: boolean): Promise<void>;
+  /** «Повторить платёж» after a decline: the widget is open again. */
+  retry(checkoutId: string): void;
   /** The donor closed the widget without paying: no notifications. */
   cancel(checkoutId: string): void;
   /** Resolves when notifications sent in the background are delivered. */
@@ -147,29 +182,35 @@ export function isFakeCloudPayments(
   return provider.name === "fake";
 }
 
-function httpDeliver(appUrl: string): Deliver {
-  return async (webhook) => {
-    try {
-      const response = await fetch(`${appUrl}${WEBHOOK_PATH}/${webhook.type}`, {
-        method: "POST",
-        headers: webhook.headers,
-        body: webhook.body,
-        signal: AbortSignal.timeout(DELIVERY_TIMEOUT_MS),
-      });
-      const answer: unknown = await response.json().catch(() => null);
-      const code =
-        typeof answer === "object" && answer !== null && "code" in answer
-          ? answer.code
-          : null;
-      return {
-        status: response.status,
-        code: typeof code === "number" ? code : null,
-      };
-    } catch {
-      return { status: null, code: null };
-    }
+/** Reads our endpoint's answer the way CloudPayments does. */
+export async function deliveryResultOf(
+  response: Response,
+): Promise<DeliveryResult> {
+  const answer: unknown = await response.json().catch(() => null);
+  const code =
+    typeof answer === "object" && answer !== null && "code" in answer
+      ? answer.code
+      : null;
+  return {
+    status: response.status,
+    code: typeof code === "number" ? code : null,
   };
 }
+
+/** Posts a notification the way CloudPayments does. */
+export const httpDeliver: Deliver = async (webhook, url) => {
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: webhook.headers,
+      body: webhook.body,
+      signal: AbortSignal.timeout(DELIVERY_TIMEOUT_MS),
+    });
+    return await deliveryResultOf(response);
+  } catch {
+    return { status: null, code: null };
+  }
+};
 
 /** Drops the oldest entries of an insertion-ordered map. */
 function trim(map: Map<string, unknown>, limit: number): void {
@@ -179,9 +220,15 @@ function trim(map: Map<string, unknown>, limit: number): void {
   }
 }
 
+/** The same day `months` later, or the last day of a shorter month. */
 function addMonths(date: Date, months: number): Date {
   const next = new Date(date);
+  next.setUTCDate(1);
   next.setUTCMonth(next.getUTCMonth() + months);
+  const lastDay = new Date(
+    Date.UTC(next.getUTCFullYear(), next.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  next.setUTCDate(Math.min(date.getUTCDate(), lastDay));
   return next;
 }
 
@@ -191,20 +238,12 @@ function feeOf(amountKop: number): number {
   return (scaled - (scaled % 1000)) / 1000;
 }
 
-function invalid(what: string): Promise<never> {
-  return Promise.reject(
-    new PaymentProviderError("INVALID_INPUT", `invalid ${what}`),
-  );
-}
-
 /** The API answered Success: false. */
-function refused(path: string, providerMessage: string): Promise<never> {
-  return Promise.reject(
-    new PaymentProviderError(
-      "REJECTED",
-      `${path}: the fake refused the request`,
-      providerMessage,
-    ),
+function refused(path: string, providerMessage: string): never {
+  throw new PaymentProviderError(
+    "REJECTED",
+    `${path}: the fake refused the request`,
+    providerMessage,
   );
 }
 
@@ -212,16 +251,19 @@ export function createFakeCloudPayments(
   options: FakeCloudPaymentsOptions,
 ): FakeCloudPayments {
   const state = options.state ?? createFakeState();
-  const deliver = options.deliver ?? httpDeliver(options.appUrl);
   const now = options.now ?? (() => new Date());
 
   /**
-   * Ids like CloudPayments' (digits), unique across restarts: our database
-   * outlives this process, and a repeated id would look like a webhook retry.
+   * Ids like CloudPayments' (up to 15 digits), unique across restarts: our
+   * database outlives this process, and a repeated id would look like a
+   * webhook retry.
    */
   function nextTransactionId(): string {
-    state.sequence = (state.sequence + 1) % 1000;
-    return String(now().getTime() * 1000 + state.sequence);
+    state.lastTransactionId = Math.max(
+      state.lastTransactionId + 1,
+      now().getTime() * 100,
+    );
+    return String(state.lastTransactionId);
   }
 
   async function send(
@@ -229,13 +271,15 @@ export function createFakeCloudPayments(
     fields: WebhookFields,
   ): Promise<FakeDelivery> {
     const webhook = simulateWebhook(type, fields, FAKE_API_SECRET);
-    const result = await deliver(webhook).catch((): DeliveryResult => ({
+    const url = `${options.appUrl}${WEBHOOK_PATH}/${type}`;
+    const deliver = state.deliver ?? httpDeliver;
+    const result = await deliver(webhook, url).catch((): DeliveryResult => ({
       status: null,
       code: null,
     }));
     const ok =
       result.status !== null && result.status >= 200 && result.status < 300;
-    return { webhook, ...result, accepted: ok && result.code === 0 };
+    return { webhook, url, ...result, accepted: ok && result.code === 0 };
   }
 
   /** Not awaited by the caller, like a notification that follows an API call. */
@@ -288,8 +332,6 @@ export function createFakeCloudPayments(
     const { recurrent, accountId, email, amountKop } = checkout.intent;
     if (!recurrent || !accountId) return;
 
-    const startedAt = checkout.chargedAt!;
-    const nextChargeAt = addMonths(startedAt, recurrent.period);
     const subscription: ProviderSubscription = {
       id: `sc_${randomBytes(16).toString("hex")}`,
       accountId,
@@ -298,9 +340,8 @@ export function createFakeCloudPayments(
       status: "ACTIVE",
       interval: recurrent.interval,
       period: recurrent.period,
-      startAt: nextChargeAt,
-      lastChargeAt: startedAt,
-      nextChargeAt,
+      lastChargeAt: checkout.chargedAt,
+      nextChargeAt: addMonths(checkout.chargedAt!, recurrent.period),
       successfulCharges: 1,
       failedCharges: 0,
     };
@@ -355,8 +396,20 @@ export function createFakeCloudPayments(
     }
   }
 
+  function subscriptionOf(path: string, id: string): ProviderSubscription {
+    return (
+      state.subscriptions.get(id) ?? refused(path, "Subscription not found")
+    );
+  }
+
   return {
     name: "fake",
+
+    // Every payment of the fake is a test one: it has nothing else to take.
+    ...cloudPaymentsWebhooks({
+      apiSecret: FAKE_API_SECRET,
+      acceptTestPayments: true,
+    }),
 
     widgetParams(intent) {
       assertPaymentIntent(intent);
@@ -376,17 +429,13 @@ export function createFakeCloudPayments(
       return { kind: "redirect", url: `${FAKE_CHECKOUT_PATH}/${id}` };
     },
 
-    verifyWebhook: ({ rawBody, headers }) =>
-      verifySignature(rawBody, headers.get(SIGNATURE_HEADER), FAKE_API_SECRET),
-
-    parseWebhook,
-
     getCheckout: (id) => state.checkouts.get(id),
 
     pay: (checkoutId, scenario) =>
       step(checkoutId, "open", async (checkout) => {
         checkout.transactionId = nextTransactionId();
         checkout.chargedAt = now();
+        checkout.declineReason = null;
 
         if (scenario.check) {
           const check = await send("check", checkFields(chargeOf(checkout)));
@@ -413,6 +462,12 @@ export function createFakeCloudPayments(
         passed ? succeed(checkout) : decline(checkout, "3ds"),
       ),
 
+    retry(checkoutId) {
+      const checkout = state.checkouts.get(checkoutId);
+      // The next attempt is a new transaction of the same invoice.
+      if (checkout?.status === "declined") checkout.status = "open";
+    },
+
     cancel(checkoutId) {
       const checkout = state.checkouts.get(checkoutId);
       if (checkout?.status === "open") checkout.status = "cancelled";
@@ -424,14 +479,19 @@ export function createFakeCloudPayments(
       }
     },
 
-    refund({ providerTxId, amountKop, idempotencyKey }) {
-      if (!Number.isSafeInteger(amountKop) || amountKop <= 0) {
-        return invalid("refund: amountKop");
-      }
-      if (!idempotencyKey) return invalid("refund: idempotencyKey");
-      // Like X-Request-ID: a repeated request gets the first answer.
+    // The API is emulated in memory, but answers like the network one: every
+    // failure is a rejected promise.
+    // eslint-disable-next-line @typescript-eslint/require-await
+    async refund(input) {
+      const { providerTxId, amountKop, idempotencyKey } =
+        parseRefundInput(input);
+      const at = now().getTime();
+      // Like X-Request-ID: a repeated request gets the first answer — for an
+      // hour. After that CloudPayments has forgotten it and refunds again.
       const repeated = state.refunds.get(idempotencyKey);
-      if (repeated) return Promise.resolve(repeated);
+      if (repeated && at - repeated.at < REQUEST_ID_TTL_MS) {
+        return repeated.result;
+      }
 
       // A payment made before the last restart is unknown here; it is
       // refunded on trust, so that an old dev database stays usable.
@@ -448,22 +508,18 @@ export function createFakeCloudPayments(
             ? payment.amountKop - refunded
             : 0;
         if (amountKop > refundable) {
-          return refused(
-            "payments/refund",
-            "Refund amount exceeds the payment",
-          );
+          refused("payments/refund", "Refund amount exceeds the payment");
         }
       }
 
       const refundTxId = nextTransactionId();
-      const createdAt = now();
       state.transactions.set(refundTxId, {
         providerTxId: refundTxId,
         kind: "refund",
         status: "COMPLETED",
         amountKop,
         feeKop: null,
-        createdAt,
+        createdAt: new Date(at),
         testMode: true,
         invoiceId: payment?.invoiceId ?? null,
         accountId: payment?.accountId ?? null,
@@ -474,7 +530,8 @@ export function createFakeCloudPayments(
       });
       trim(state.transactions, MAX_TRANSACTIONS);
       const result = { refundTxId };
-      state.refunds.set(idempotencyKey, result);
+      state.refunds.delete(idempotencyKey);
+      state.refunds.set(idempotencyKey, { result, at });
       trim(state.refunds, MAX_TRANSACTIONS);
 
       sendInBackground(
@@ -483,17 +540,19 @@ export function createFakeCloudPayments(
           transactionId: refundTxId,
           paymentTransactionId: providerTxId,
           amountKop,
-          dateTime: createdAt,
+          dateTime: new Date(at),
           invoiceId: payment?.invoiceId,
           accountId: payment?.accountId,
           email: payment?.email,
           metadata: payment?.metadata,
         }),
       );
-      return Promise.resolve(result);
+      return result;
     },
 
-    cancelSubscription({ subscriptionId }) {
+    // eslint-disable-next-line @typescript-eslint/require-await
+    async cancelSubscription(input) {
+      const { subscriptionId } = parseSubscriptionInput(input);
       const subscription = state.subscriptions.get(subscriptionId);
       // Unknown after a restart: nothing to stop, and that is what was asked.
       if (subscription && subscription.status !== "CANCELLED") {
@@ -504,34 +563,42 @@ export function createFakeCloudPayments(
         // cope with both.
         sendInBackground("recurrent", recurrentFields(subscription));
       }
-      return Promise.resolve();
     },
 
-    updateSubscription({ subscriptionId, amountKop }) {
-      const subscription = state.subscriptions.get(subscriptionId);
-      if (!subscription) {
-        return refused("subscriptions/update", "Subscription not found");
+    // eslint-disable-next-line @typescript-eslint/require-await
+    async getSubscription(input) {
+      const { subscriptionId } = parseSubscriptionInput(input);
+      return { ...subscriptionOf("subscriptions/get", subscriptionId) };
+    },
+
+    // eslint-disable-next-line @typescript-eslint/require-await
+    async updateSubscription(input) {
+      const { subscriptionId, amountKop } = parseUpdateSubscriptionInput(input);
+      const path = "subscriptions/update";
+      const subscription = subscriptionOf(path, subscriptionId);
+      // The adapter's own rule: only a subscription that still charges.
+      if (
+        subscription.status !== "ACTIVE" &&
+        subscription.status !== "PAST_DUE"
+      ) {
+        refused(path, `Subscription is ${subscription.status}`);
       }
-      if (!Number.isSafeInteger(amountKop) || amountKop <= 0) {
-        return invalid("subscription: amountKop");
-      }
+      // No notification follows a change made through the API.
       subscription.amountKop = amountKop;
-      // As documented: any change through the API reactivates a subscription
-      // that was cancelled or had finished. No notification follows.
-      if (subscription.status !== "ACTIVE") {
-        subscription.status = "ACTIVE";
-        subscription.failedCharges = 0;
-        subscription.nextChargeAt = addMonths(now(), subscription.period);
-      }
-      return Promise.resolve({ ...subscription });
+      return { ...subscription };
     },
 
-    listTransactions({ from, to }) {
+    // eslint-disable-next-line @typescript-eslint/require-await
+    async listTransactions(input) {
+      const { from, to } = parsePeriod(input);
       const found = [...state.transactions.values()].filter(
         ({ createdAt }) => createdAt >= from && createdAt < to,
       );
       found.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-      return Promise.resolve(found.map((transaction) => ({ ...transaction })));
+      return {
+        transactions: found.map((transaction) => ({ ...transaction })),
+        unreadable: [],
+      };
     },
   };
 }

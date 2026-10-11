@@ -1,4 +1,4 @@
-import { parseEnv, serverEnvSchema, type ServerEnv } from "./schema";
+import { parseServerEnv, type ServerEnv } from "./schema";
 
 // Not `server-only`: the worker and scripts outside Next.js import this too.
 if (typeof window !== "undefined") {
@@ -16,6 +16,6 @@ let cached: ServerEnv | undefined;
  * anyway (src/instrumentation.ts).
  */
 export function getEnv(): ServerEnv {
-  cached ??= parseEnv(serverEnvSchema, process.env, "server");
+  cached ??= parseServerEnv(process.env, process.env.NODE_ENV);
   return cached;
 }

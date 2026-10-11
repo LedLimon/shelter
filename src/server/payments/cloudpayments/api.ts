@@ -2,15 +2,22 @@
 // («API») on 2026-10-11: POST with JSON, HTTP Basic auth (Public ID as the
 // login, API Secret as the password), X-Request-ID for idempotency, answers
 // as { Success, Message, Model }.
-import { createHash } from "node:crypto";
 import { z } from "zod";
-import { decimalRubToKop, kopToDecimalRub, MAX_AMOUNT_KOP } from "@/lib/money";
+import { decimalRubToKop, kopToDecimalRub } from "@/lib/money";
 import { PaymentProviderError } from "../errors";
+import {
+  parsePeriod,
+  parseRefundInput,
+  parseSubscriptionInput,
+  parseUpdateSubscriptionInput,
+} from "../input";
 import type {
   ListTransactionsInput,
   ProviderSubscription,
   ProviderTransaction,
   RefundInput,
+  TransactionRegistry,
+  UnreadableTransaction,
 } from "../types";
 import { parseMetadata, parseUtcDateTime } from "./webhooks";
 
@@ -89,7 +96,6 @@ const subscriptionSchema = z
     Email: text,
     Amount: amountKop,
     Currency: rub,
-    StartDateIso: isoDate,
     Interval: z.enum(["Day", "Week", "Month"]),
     Period: z.int().min(1),
     Status: z.enum(["Active", "PastDue", "Cancelled", "Rejected", "Expired"]),
@@ -106,7 +112,6 @@ const subscriptionSchema = z
     status: SUBSCRIPTION_STATUS[model.Status],
     interval: INTERVAL[model.Interval],
     period: model.Period,
-    startAt: model.StartDateIso,
     lastChargeAt: model.LastTransactionDateIso ?? null,
     nextChargeAt: model.NextTransactionDateIso ?? null,
     successfulCharges: model.SuccessfulTransactionsNumber,
@@ -115,7 +120,10 @@ const subscriptionSchema = z
 
 // `Type` is a number in API answers. The docs' examples show 0 for a payment
 // and 2 for a card payout; 1 for a refund follows their «Типы операций»
-// order and is to be confirmed on a test terminal (ORG-2).
+// order and is to be confirmed on a test terminal (ORG-2). Until then the
+// link to the original payment is the cross-check: a refund has it, a payment
+// doesn't, and a row where the two disagree is unreadable — a refund taken
+// for a payment would become a donation in reconciliation.
 const TRANSACTION_KIND = ["payment", "refund", "payout"] as const;
 
 // "/Date(1615288374632)/": milliseconds since the epoch, no time zone to guess.
@@ -144,6 +152,15 @@ const transactionSchema = z
     OriginalTransactionId: id.nullish(),
     JsonData: text,
   })
+  .superRefine((model, ctx) => {
+    const kind = TRANSACTION_KIND[model.Type];
+    const hasOriginal = model.OriginalTransactionId != null;
+    if (kind !== "payout" && (kind === "refund") !== hasOriginal) {
+      for (const field of ["Type", "OriginalTransactionId"]) {
+        ctx.addIssue({ code: "custom", path: [field], message: "mismatch" });
+      }
+    }
+  })
   .transform((model): ProviderTransaction => ({
     providerTxId: model.TransactionId,
     kind: TRANSACTION_KIND[model.Type]!,
@@ -162,38 +179,10 @@ const transactionSchema = z
 
 const refundModelSchema = z.object({ TransactionId: id });
 
-const refundInputSchema = z.object({
-  // A Long in the API; ours always fit a double exactly.
-  providerTxId: z
-    .string()
-    .regex(/^\d{1,15}$/)
-    .transform(Number),
-  amountKop: z.int().min(1).max(MAX_AMOUNT_KOP),
-  idempotencyKey: z.string().min(1),
-});
-
-const updateInputSchema = z.object({
-  subscriptionId: z.string().min(1),
-  amountKop: z.int().min(1).max(MAX_AMOUNT_KOP),
-});
-
 /** Names of the fields that failed, never their values. */
-function fieldsOf(error: z.ZodError): string {
+function fieldsOf(error: z.ZodError): string[] {
   const names = error.issues.map((issue) => issue.path.join(".") || "(root)");
-  return [...new Set(names)].join(", ");
-}
-
-function parseInput<Schema extends z.ZodType>(
-  schema: Schema,
-  input: unknown,
-  what: string,
-): z.output<Schema> {
-  const result = schema.safeParse(input);
-  if (result.success) return result.data;
-  throw new PaymentProviderError(
-    "INVALID_INPUT",
-    `invalid ${what}: ${fieldsOf(result.error)}`,
-  );
+  return [...new Set(names)];
 }
 
 function parseModel<Schema extends z.ZodType>(
@@ -205,26 +194,14 @@ function parseModel<Schema extends z.ZodType>(
   if (result.success) return result.data;
   throw new PaymentProviderError(
     "BAD_RESPONSE",
-    `unexpected answer of ${path}: ${fieldsOf(result.error)}`,
+    `unexpected answer of ${path}: ${fieldsOf(result.error).join(", ")}`,
   );
 }
 
-/**
- * X-Request-ID from our idempotency key. CloudPayments' examples are GUIDs,
- * and whether other strings are accepted isn't documented — so the key is
- * hashed into the shape of one. The same key always gives the same id.
- */
-export function requestIdFor(idempotencyKey: string): string {
-  const hex = createHash("sha256").update(idempotencyKey, "utf8").digest("hex");
-  // Version and variant nibbles of a name-based UUID (RFC 9562, version 8).
-  const variant = ((parseInt(hex[16]!, 16) & 0x3) | 0x8).toString(16);
-  return [
-    hex.slice(0, 8),
-    hex.slice(8, 12),
-    `8${hex.slice(13, 16)}`,
-    `${variant}${hex.slice(17, 20)}`,
-    hex.slice(20, 32),
-  ].join("-");
+/** The id of a registry row we couldn't read, if at least that is readable. */
+function idOf(row: unknown): string | null {
+  const result = refundModelSchema.safeParse(row);
+  return result.success ? result.data.TransactionId : null;
 }
 
 /** "2026-10-11T00:00:00+00:00": the format of the docs' examples, in UTC. */
@@ -307,43 +284,58 @@ export function createCloudPaymentsApi(config: CloudPaymentsApiConfig) {
     return envelope.data.Model;
   }
 
+  async function getSubscription(input: {
+    subscriptionId: string;
+  }): Promise<ProviderSubscription> {
+    const { subscriptionId } = parseSubscriptionInput(input);
+    const model = await call("subscriptions/get", { Id: subscriptionId });
+    return parseModel(subscriptionSchema, model, "subscriptions/get");
+  }
+
   return {
     async refund(input: RefundInput): Promise<{ refundTxId: string }> {
-      const { providerTxId, amountKop, idempotencyKey } = parseInput(
-        refundInputSchema,
-        input,
-        "refund",
-      );
+      const { providerTxId, amountKop, idempotencyKey } =
+        parseRefundInput(input);
       const model = await call(
         "payments/refund",
         {
-          TransactionId: providerTxId,
+          TransactionId: Number(providerTxId),
           Amount: Number(kopToDecimalRub(amountKop)),
         },
-        requestIdFor(idempotencyKey),
+        // The docs allow «guid, комбинация из номера заказа, даты и суммы или
+        // любое другое значение»: our key goes as it is, readable in the
+        // provider's logs.
+        idempotencyKey,
       );
       const refund = parseModel(refundModelSchema, model, "payments/refund");
       return { refundTxId: refund.TransactionId };
     },
 
     async cancelSubscription(input: { subscriptionId: string }): Promise<void> {
-      const { subscriptionId } = parseInput(
-        updateInputSchema.pick({ subscriptionId: true }),
-        input,
-        "subscription",
-      );
+      const { subscriptionId } = parseSubscriptionInput(input);
       await call("subscriptions/cancel", { Id: subscriptionId });
     },
+
+    getSubscription,
 
     async updateSubscription(input: {
       subscriptionId: string;
       amountKop: number;
     }): Promise<ProviderSubscription> {
-      const { subscriptionId, amountKop } = parseInput(
-        updateInputSchema,
-        input,
-        "subscription",
-      );
+      const { subscriptionId, amountKop } = parseUpdateSubscriptionInput(input);
+      // CloudPayments reactivates a cancelled or finished subscription on any
+      // change. The donor may have cancelled it on my.cloudpayments.ru a
+      // moment ago, whatever our database says — so the provider is asked
+      // first. A cancellation between the two calls still slips through;
+      // the returned status shows it.
+      const current = await getSubscription({ subscriptionId });
+      if (current.status !== "ACTIVE" && current.status !== "PAST_DUE") {
+        throw new PaymentProviderError(
+          "REJECTED",
+          "subscriptions/update: the subscription is not active, not changed",
+          `Subscription is ${current.status}`,
+        );
+      }
       const model = await call("subscriptions/update", {
         Id: subscriptionId,
         Amount: Number(kopToDecimalRub(amountKop)),
@@ -352,18 +344,12 @@ export function createCloudPaymentsApi(config: CloudPaymentsApiConfig) {
       return parseModel(subscriptionSchema, model, "subscriptions/update");
     },
 
-    async listTransactions({
-      from,
-      to,
-    }: ListTransactionsInput): Promise<ProviderTransaction[]> {
+    async listTransactions(
+      input: ListTransactionsInput,
+    ): Promise<TransactionRegistry> {
+      const { from, to } = parsePeriod(input);
       const fromMs = from.getTime();
       const toMs = to.getTime();
-      if (!(fromMs < toMs)) {
-        throw new PaymentProviderError(
-          "INVALID_INPUT",
-          "invalid period: from must be before to",
-        );
-      }
 
       // The API takes whole seconds and both bounds inclusive: ask a little
       // wider and cut to [from, to) here.
@@ -372,6 +358,7 @@ export function createCloudPaymentsApi(config: CloudPaymentsApiConfig) {
         CreatedDateLte: isoSeconds(Math.ceil(toMs / 1000) * 1000),
       };
       const found = new Map<string, ProviderTransaction>();
+      const unreadable: UnreadableTransaction[] = [];
       for (let page = 1; ; page++) {
         if (page > MAX_PAGES) {
           throw new PaymentProviderError(
@@ -383,22 +370,34 @@ export function createCloudPaymentsApi(config: CloudPaymentsApiConfig) {
           ...period,
           PageNumber: page,
         });
-        const transactions = parseModel(
-          z.array(transactionSchema),
+        const rows = parseModel(
+          z.array(z.unknown()),
           model,
           "v2/payments/list",
         );
-        for (const transaction of transactions) {
-          const createdMs = transaction.createdAt.getTime();
+        for (const row of rows) {
+          const parsed = transactionSchema.safeParse(row);
+          if (!parsed.success) {
+            // Its time may be what is unreadable: reported whatever the period.
+            unreadable.push({
+              providerTxId: idOf(row),
+              fields: fieldsOf(parsed.error),
+            });
+            continue;
+          }
+          const createdMs = parsed.data.createdAt.getTime();
           if (createdMs >= fromMs && createdMs < toMs) {
-            found.set(transaction.providerTxId, transaction);
+            found.set(parsed.data.providerTxId, parsed.data);
           }
         }
-        if (transactions.length < PAGE_SIZE) break;
+        if (rows.length < PAGE_SIZE) break;
       }
-      return [...found.values()].sort(
-        (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
-      );
+      return {
+        transactions: [...found.values()].sort(
+          (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+        ),
+        unreadable,
+      };
     },
   };
 }

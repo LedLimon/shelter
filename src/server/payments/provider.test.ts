@@ -1,13 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { webhookFixtures } from "../../../tests/fixtures/cloudpayments-webhooks";
 import { payWebhook, incoming } from "../../../tests/helpers/cloudpayments";
-import { createFakeState, isFakeCloudPayments } from "./fake";
+import { WebhookSignatureError } from "./errors";
+import { createFakeState, globalFakeState, isFakeCloudPayments } from "./fake";
 import { createPaymentProvider } from "./provider";
 
 const LOCAL = {
   APP_URL: "http://localhost:3000",
   CLOUDPAYMENTS_PUBLIC_ID: undefined,
   CLOUDPAYMENTS_API_SECRET: undefined,
+  CLOUDPAYMENTS_ACCEPT_TEST_PAYMENTS: false,
 } as const;
 
 const KEYS = {
@@ -88,23 +90,46 @@ describe("createPaymentProvider", () => {
     // Signed by the fake: valid for the fake only.
     const forged = payWebhook({ amountKop: 1_000_000_00 });
 
-    expect(cloudPayments.verifyWebhook(incoming(forged))).toBe(false);
+    expect(() => cloudPayments.receiveWebhook("pay", incoming(forged))).toThrow(
+      WebhookSignatureError,
+    );
   });
 
   it("verifies with the terminal's API Secret", () => {
-    const cloudPayments = createPaymentProvider({
+    const staging = createPaymentProvider({
+      ...LOCAL,
+      ...KEYS,
+      PAYMENT_PROVIDER: "cloudpayments",
+      CLOUDPAYMENTS_ACCEPT_TEST_PAYMENTS: true,
+    });
+    const { body, contentHmac } = webhookFixtures.pay;
+
+    expect(
+      staging.receiveWebhook("pay", {
+        rawBody: body,
+        headers: new Headers({ "Content-HMAC": contentHmac }),
+      }),
+    ).toMatchObject({ type: "pay", amountKop: 150_000, testMode: true });
+  });
+
+  it("takes test payments only where CLOUDPAYMENTS_ACCEPT_TEST_PAYMENTS says so", () => {
+    const production = createPaymentProvider({
       ...LOCAL,
       ...KEYS,
       PAYMENT_PROVIDER: "cloudpayments",
     });
     const { body, contentHmac } = webhookFixtures.pay;
+    const fake = createPaymentProvider({ ...LOCAL, PAYMENT_PROVIDER: "fake" });
 
-    expect(
-      cloudPayments.verifyWebhook({
+    expect(production.acceptsTestPayments).toBe(false);
+    expect(fake.acceptsTestPayments).toBe(true);
+    // Correctly signed by the terminal — and still not money.
+    expect(() =>
+      production.receiveWebhook("pay", {
         rawBody: body,
         headers: new Headers({ "Content-HMAC": contentHmac }),
       }),
-    ).toBe(true);
+    ).toThrow("test payments are not accepted here");
   });
 
   it("shares the fake's payments through the given state", () => {
@@ -117,5 +142,15 @@ describe("createPaymentProvider", () => {
     expect(launch.kind).toBe("redirect");
     expect(isFakeCloudPayments(reloaded)).toBe(true);
     expect(state.checkouts.size).toBe(1);
+  });
+
+  it("uses the process-wide emulated terminal unless given another", () => {
+    const env = { ...LOCAL, PAYMENT_PROVIDER: "fake" } as const;
+    const before = globalFakeState().checkouts.size;
+
+    createPaymentProvider(env).widgetParams(INTENT);
+    createPaymentProvider(env).widgetParams(INTENT);
+
+    expect(globalFakeState().checkouts.size).toBe(before + 2);
   });
 });

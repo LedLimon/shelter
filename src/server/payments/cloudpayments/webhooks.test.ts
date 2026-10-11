@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { webhookFixtures } from "../../../../tests/fixtures/cloudpayments-webhooks";
 import { WebhookParseError } from "../errors";
-import { parseUtcDateTime, parseWebhook } from "./webhooks";
+import { WEBHOOK_TYPES } from "../types";
+import {
+  parseUtcDateTime,
+  parseWebhook as parseWithPolicy,
+  webhookResponse,
+} from "./webhooks";
+
+/** As on staging: the fixtures come from a test terminal. */
+const parseWebhook = (type: string, body: string) =>
+  parseWithPolicy(type, body, { acceptTestPayments: true });
 
 /** A fixture body with some fields replaced (or, with null, removed). */
 function edit(body: string, changes: Record<string, string | null>): string {
@@ -146,7 +155,6 @@ describe("parseWebhook: fixtures of every notification type", () => {
         status: "PAST_DUE",
         interval: "MONTH",
         period: 1,
-        startAt: new Date("2026-11-11T06:00:00Z"),
         lastChargeAt: new Date("2027-01-11T06:00:21Z"),
         nextChargeAt: new Date("2027-01-12T06:00:00Z"),
         successfulCharges: 3,
@@ -335,6 +343,7 @@ describe("parseWebhook: malformed bodies", () => {
         "TestMode",
         "Status",
         "OperationType",
+        "GatewayName",
       ],
     ],
     [
@@ -367,7 +376,6 @@ describe("parseWebhook: malformed bodies", () => {
         "AccountId",
         "Amount",
         "Currency",
-        "StartDate",
         "Interval",
         "Period",
         "Status",
@@ -434,7 +442,31 @@ describe("parseWebhook: malformed bodies", () => {
     const error = errorOf("pay", `${webhookFixtures.pay.body}&Amount=1.00`);
 
     expect(error.code).toBe("MALFORMED");
-    expect(error.message).toContain("Amount");
+    expect(error.message).toBe(
+      "payments: pay notification: missing or invalid Amount",
+    );
+  });
+
+  it("lets fields it doesn't read repeat: an array may come that way", () => {
+    const body = `${webhookFixtures.pay.body}&CustomFields=a&CustomFields=b&New=1&New=1`;
+
+    expect(parseWebhook("pay", body)).toMatchObject({
+      type: "pay",
+      amountKop: 150_000,
+    });
+  });
+
+  it("names only fields it asked for, never what the body brought", () => {
+    // A field name is body content too; here it looks like an email.
+    const error = errorOf(
+      "pay",
+      edit(webhookFixtures.pay.body, { Amount: "" }) +
+        "&donor%40example.org=1&donor%40example.org=2",
+    );
+
+    expect(error.message).toBe(
+      "payments: pay notification: missing or invalid Amount",
+    );
   });
 
   it.each(["", "{}", '{"TransactionId":1,"Amount":10}', "not a form"])(
@@ -553,7 +585,161 @@ describe("parseUtcDateTime", () => {
     "2026-10-11 09:60:00",
     "2026-10-11 09:15:42+03:00",
     "/Date(1615288374632)/",
+    // Date.UTC would read the year 26 as 1926.
+    "0026-10-11 09:15:42",
+    "1999-12-31 23:59:59",
+    "2101-01-01 00:00:00",
   ])("refuses %j", (value) => {
     expect(parseUtcDateTime(value)).toBeNull();
+  });
+});
+
+describe("parseWebhook: the body must be of the type its URL names", () => {
+  // The signature covers the body, not the URL: a signed Check posted to
+  // /pay (a wrong address in the terminal's settings, a replay) must not
+  // become a payment — a Check is sent before the bank is asked.
+  const bodies = {
+    check: webhookFixtures.check.body,
+    pay: webhookFixtures.pay.body,
+    paySbp: webhookFixtures.paySbp.body,
+    payRecurring: webhookFixtures.payRecurring.body,
+    fail: webhookFixtures.fail.body,
+    refund: webhookFixtures.refund.body,
+    recurrent: webhookFixtures.recurrent.body,
+  };
+  const ownType = (name: keyof typeof bodies) =>
+    name.startsWith("pay") ? "pay" : name;
+
+  for (const name of Object.keys(bodies) as (keyof typeof bodies)[]) {
+    for (const type of WEBHOOK_TYPES) {
+      if (type === ownType(name)) continue;
+
+      it(`refuses the ${name} fixture as ${type}`, () => {
+        expect(() => parseWebhook(type, bodies[name])).toThrow(
+          WebhookParseError,
+        );
+      });
+    }
+  }
+
+  it("tells a Pay from a Check by GatewayName", () => {
+    const check = errorOf("pay", webhookFixtures.check.body);
+    const pay = errorOf("check", webhookFixtures.pay.body);
+
+    expect(check.message).toBe(
+      "payments: pay notification: missing or invalid GatewayName",
+    );
+    expect(pay.code).toBe("UNSUPPORTED");
+    expect(pay.message).toContain("has GatewayName");
+  });
+
+  it("holds for the simulator's bodies as well", () => {
+    // The emulator must not be able to do what CloudPayments can't.
+    const check = edit(webhookFixtures.check.body, { CardId: null });
+
+    expect(() => parseWebhook("pay", check)).toThrow(WebhookParseError);
+  });
+});
+
+describe("parseWebhook: test payments are not money", () => {
+  const live = (type: string, body: string) =>
+    parseWithPolicy(type, body, { acceptTestPayments: false });
+
+  it("refuses a test-mode check and pay where they aren't accepted", () => {
+    for (const type of ["check", "pay"] as const) {
+      expect(() => live(type, webhookFixtures[type].body)).toThrow(
+        "a test-mode payment, and test payments are not accepted here",
+      );
+      expect(
+        errorOf(type, edit(webhookFixtures[type].body, { TestMode: "2" })).code,
+      ).toBe("MALFORMED");
+    }
+  });
+
+  it("takes live payments there", () => {
+    expect(live("pay", webhookFixtures.paySbp.body)).toMatchObject({
+      type: "pay",
+      testMode: false,
+      amountKop: 25_050,
+    });
+    expect(
+      live("check", edit(webhookFixtures.check.body, { TestMode: "0" })),
+    ).toMatchObject({ type: "check", testMode: false });
+  });
+
+  it("takes test payments where the terminal is a test one", () => {
+    expect(parseWebhook("pay", webhookFixtures.pay.body)).toMatchObject({
+      testMode: true,
+    });
+  });
+
+  it("lets a test-mode fail through: it reports no money", () => {
+    expect(live("fail", webhookFixtures.fail.body)).toMatchObject({
+      type: "fail",
+      testMode: true,
+    });
+  });
+});
+
+describe("parseWebhook: undocumented corners", () => {
+  it("doesn't need Status in a check of a refund", () => {
+    const body = edit(webhookFixtures.check.body, {
+      OperationType: "Refund",
+      Status: null,
+    });
+
+    expect(parseWebhook("check", body)).toMatchObject({
+      type: "check",
+      operation: "refund",
+    });
+    // …but if it is there, it must not be a two-stage one.
+    expect(errorOf("check", edit(body, { Status: "Authorized" })).code).toBe(
+      "UNSUPPORTED",
+    );
+  });
+
+  it("refuses a refund in another currency, should the field ever come", () => {
+    const { body } = webhookFixtures.refund;
+
+    expect(
+      errorOf("refund", edit(body, { Currency: "USD" })).message,
+    ).toContain("Currency is not RUB");
+    expect(
+      parseWebhook("refund", edit(body, { Currency: "RUB" })),
+    ).toMatchObject({ type: "refund", amountKop: 70_000 });
+  });
+
+  it("doesn't read the subscription's StartDate, whatever its format", () => {
+    for (const StartDate of ["", "11.11.2026", "/Date(1635973200000)/"]) {
+      expect(
+        parseWebhook(
+          "recurrent",
+          edit(webhookFixtures.recurrent.body, { StartDate }),
+        ),
+      ).toMatchObject({ type: "recurrent" });
+    }
+  });
+});
+
+describe("webhookResponse", () => {
+  it.each([
+    ["ok", 0],
+    ["unknown-invoice", 10],
+    ["wrong-amount", 12],
+    ["declined", 13],
+    ["expired", 20],
+  ] as const)("answers %s with code %i", async (reply, code) => {
+    const response = webhookResponse(reply);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toContain("application/json");
+    expect(await response.json()).toEqual({ code });
+  });
+
+  it("asks for another delivery with an error status and no code 0", async () => {
+    const response = webhookResponse("retry");
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).not.toHaveProperty("code");
   });
 });

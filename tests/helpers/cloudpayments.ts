@@ -7,7 +7,11 @@
 // By default they are signed for the app's provider in tests, FakeCloudPayments
 // (PAYMENT_PROVIDER is empty in .env.example). Pass `apiSecret` to sign for a
 // CloudPayments adapter created in the test.
-import { FAKE_API_SECRET } from "@/server/payments/fake";
+import {
+  deliveryResultOf,
+  FAKE_API_SECRET,
+  globalFakeState,
+} from "@/server/payments/fake";
 import {
   checkFields,
   failFields,
@@ -123,7 +127,6 @@ export function recurrentWebhook(
       status: "ACTIVE",
       interval: "MONTH",
       period: 1,
-      startAt: new Date("2026-11-11T06:00:00Z"),
       lastChargeAt: new Date("2026-10-11T09:15:42Z"),
       nextChargeAt: new Date("2026-11-11T06:00:00Z"),
       successfulCharges: 1,
@@ -166,4 +169,30 @@ export function webhookRequest(
     headers: webhook.headers,
     body: webhook.body,
   });
+}
+
+/**
+ * Takes over the notifications the app's FakeCloudPayments sends (after
+ * refund(), cancelSubscription() or a checkout): they go to `handle` instead
+ * of HTTP — pass the route handler under test — or, without it, nowhere.
+ * Returns the list every sent notification is appended to. Integration tests
+ * start with it installed (tests/integration/setup), so nothing reaches a
+ * dev server that happens to listen on APP_URL.
+ *
+ *   const sent = interceptFakeWebhooks((webhook) =>
+ *     POST(webhookRequest(webhook), { params }),
+ *   );
+ *   await provider.refund(…);
+ *   await provider.settled();
+ */
+export function interceptFakeWebhooks(
+  handle?: (webhook: SimulatedWebhook) => Response | Promise<Response>,
+): SimulatedWebhook[] {
+  const sent: SimulatedWebhook[] = [];
+  globalFakeState().deliver = async (webhook) => {
+    sent.push(webhook);
+    if (!handle) return { status: null, code: null };
+    return deliveryResultOf(await handle(webhook));
+  };
+  return sent;
 }

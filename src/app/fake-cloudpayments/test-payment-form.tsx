@@ -16,15 +16,21 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { validateRubInput, type RubInputError } from "@/lib/money";
+import {
+  formatRub,
+  MAX_AMOUNT_KOP,
+  validateRubInput,
+  type RubInputError,
+} from "@/lib/money";
 import { startTestPayment } from "./actions";
 
+// Amounts go through formatRub: its non-breaking spaces keep them on one line.
 const AMOUNT_ERRORS: Record<RubInputError, string> = {
   empty: "Введите сумму, например 500.",
-  invalid: "Введите сумму цифрами, например 500 или 1 500,50.",
+  invalid: `Введите сумму цифрами, например 500 или ${formatRub(150_050, { symbol: false })}.`,
   negative: "Сумма не может быть отрицательной.",
-  "too-many-decimals": "Копеек — не больше двух знаков после запятой.",
-  "too-large": "Слишком большая сумма: не больше 21 474 836,47 ₽.",
+  "too-many-decimals": "После запятой — не больше двух цифр, например 10,50.",
+  "too-large": `Слишком большая сумма: не больше ${formatRub(MAX_AMOUNT_KOP)}.`,
 };
 
 const schema = z.object({

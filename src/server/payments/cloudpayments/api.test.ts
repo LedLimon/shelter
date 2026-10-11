@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { PaymentProviderError } from "../errors";
-import { API_URL, createCloudPaymentsApi, requestIdFor } from "./api";
+import { API_URL, createCloudPaymentsApi } from "./api";
 
 const CREDENTIALS = {
   publicId: "pk_test_public",
@@ -89,7 +89,7 @@ describe("refund", () => {
     });
   });
 
-  it("sends the idempotency key as the same X-Request-ID every time", async () => {
+  it("sends the idempotency key as X-Request-ID, the same on every repeat", async () => {
     const { api, calls } = apiWith(
       ok({ TransactionId: 568 }),
       ok({ TransactionId: 568 }),
@@ -100,13 +100,11 @@ describe("refund", () => {
     await api.refund(REFUND);
     await api.refund({ ...REFUND, idempotencyKey: "refund:donation-1:2" });
 
-    const ids = calls.map((call) => call.headers.get("X-Request-ID"));
-    expect(ids[0]).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-    );
-    expect(ids[1]).toBe(ids[0]);
-    expect(ids[2]).not.toBe(ids[0]);
-    expect(ids[0]).toBe(requestIdFor("refund:donation-1:1"));
+    expect(calls.map((call) => call.headers.get("X-Request-ID"))).toEqual([
+      "refund:donation-1:1",
+      "refund:donation-1:1",
+      "refund:donation-1:2",
+    ]);
   });
 
   it.each([
@@ -117,14 +115,26 @@ describe("refund", () => {
     ["NaN", { amountKop: Number.NaN }],
     ["a non-numeric transaction", { providerTxId: "tx-1" }],
     ["an empty transaction", { providerTxId: "" }],
+    [
+      "a transaction id too long for a number",
+      { providerTxId: "1234567890123456" },
+    ],
     ["an empty idempotency key", { idempotencyKey: "" }],
+    [
+      "an idempotency key that can't be a header",
+      { idempotencyKey: "возврат 1" },
+    ],
+    [
+      "an idempotency key with a line break",
+      { idempotencyKey: "refund:1\r\nX-Evil: 1" },
+    ],
   ])("sends nothing for %s", async (_what, change) => {
     const { api, calls } = apiWith();
 
     const error = await errorOf(api.refund({ ...REFUND, ...change }));
 
     expect(error.code).toBe("INVALID_INPUT");
-    expect(error.outcomeUnknown).toBe(false);
+    expect(error.outcome).toBe("not-performed");
     expect(calls).toHaveLength(0);
   });
 
@@ -137,8 +147,7 @@ describe("refund", () => {
 
     expect(error.code).toBe("REJECTED");
     expect(error.providerMessage).toBe("Transaction not found");
-    expect(error.retryable).toBe(false);
-    expect(error.outcomeUnknown).toBe(false);
+    expect(error.outcome).toBe("not-performed");
   });
 
   it.each([
@@ -158,25 +167,21 @@ describe("refund", () => {
 
       expect(error.code).toBe(code);
       // The refund may have happened: never to be recorded as failed.
-      expect(error.outcomeUnknown).toBe(true);
+      expect(error.outcome).toBe("unknown");
     },
   );
 
   it.each([
-    [401, "UNAUTHORIZED", false],
-    [429, "RATE_LIMITED", true],
-  ] as const)(
-    "knows nothing was done on HTTP %i",
-    async (status, code, retryable) => {
-      const { api } = apiWith(new Response("", { status }));
+    [401, "UNAUTHORIZED"],
+    [429, "RATE_LIMITED"],
+  ] as const)("knows nothing was done on HTTP %i", async (status, code) => {
+    const { api } = apiWith(new Response("", { status }));
 
-      const error = await errorOf(api.refund(REFUND));
+    const error = await errorOf(api.refund(REFUND));
 
-      expect(error.code).toBe(code);
-      expect(error.retryable).toBe(retryable);
-      expect(error.outcomeUnknown).toBe(false);
-    },
-  );
+    expect(error.code).toBe(code);
+    expect(error.outcome).toBe("not-performed");
+  });
 
   it("keeps credentials and request data out of error messages", async () => {
     for (const answer of [
@@ -248,20 +253,15 @@ describe("subscriptions", () => {
     expect(error.code).toBe("REJECTED");
   });
 
-  it("changes the amount and reads the subscription back", async () => {
+  it("reads a subscription", async () => {
     const { api, calls } = apiWith(ok(SUBSCRIPTION_MODEL));
 
-    const subscription = await api.updateSubscription({
+    const subscription = await api.getSubscription({
       subscriptionId: SUBSCRIPTION_MODEL.Id,
-      amountKop: 49_950,
     });
 
-    expect(calls[0]!.url).toBe(`${API_URL}/subscriptions/update`);
-    expect(calls[0]!.body).toEqual({
-      Id: SUBSCRIPTION_MODEL.Id,
-      Amount: 499.5,
-      Currency: "RUB",
-    });
+    expect(calls[0]!.url).toBe(`${API_URL}/subscriptions/get`);
+    expect(calls[0]!.body).toEqual({ Id: SUBSCRIPTION_MODEL.Id });
     expect(subscription).toEqual({
       id: SUBSCRIPTION_MODEL.Id,
       accountId: "donor@shelter.localhost",
@@ -270,7 +270,6 @@ describe("subscriptions", () => {
       status: "ACTIVE",
       interval: "MONTH",
       period: 1,
-      startAt: new Date("2021-11-03T21:00:00Z"),
       lastChargeAt: null,
       nextChargeAt: new Date("2021-12-03T21:00:00Z"),
       successfulCharges: 2,
@@ -278,19 +277,79 @@ describe("subscriptions", () => {
     });
   });
 
-  it.each([
-    ["an amount with fractions of a kopeck", { Amount: 499.555 }],
-    ["another currency", { Currency: "USD" }],
-    ["an unknown status", { Status: "Paused" }],
-    ["a broken date", { StartDateIso: "soon" }],
-  ])("refuses a subscription with %s", async (_what, change) => {
-    const { api } = apiWith(ok({ ...SUBSCRIPTION_MODEL, ...change }));
+  it("changes the amount of a subscription that still charges", async () => {
+    for (const Status of ["Active", "PastDue"]) {
+      const { api, calls } = apiWith(
+        ok({ ...SUBSCRIPTION_MODEL, Status }),
+        ok({ ...SUBSCRIPTION_MODEL, Status, Amount: 300 }),
+      );
+
+      const subscription = await api.updateSubscription({
+        subscriptionId: SUBSCRIPTION_MODEL.Id,
+        amountKop: 30_000,
+      });
+
+      expect(calls.map((call) => call.url)).toEqual([
+        `${API_URL}/subscriptions/get`,
+        `${API_URL}/subscriptions/update`,
+      ]);
+      expect(calls[1]!.body).toEqual({
+        Id: SUBSCRIPTION_MODEL.Id,
+        Amount: 300,
+        Currency: "RUB",
+      });
+      expect(subscription).toMatchObject({ amountKop: 30_000 });
+    }
+  });
+
+  // CloudPayments would reactivate it — and charge a donor who had cancelled.
+  it.each(["Cancelled", "Rejected", "Expired"])(
+    "doesn't touch a %s subscription",
+    async (Status) => {
+      const { api, calls } = apiWith(ok({ ...SUBSCRIPTION_MODEL, Status }));
+
+      const error = await errorOf(
+        api.updateSubscription({
+          subscriptionId: SUBSCRIPTION_MODEL.Id,
+          amountKop: 30_000,
+        }),
+      );
+
+      expect(error.code).toBe("REJECTED");
+      expect(error.outcome).toBe("not-performed");
+      expect(error.providerMessage).toBe(
+        `Subscription is ${Status.toUpperCase()}`,
+      );
+      expect(calls.map((call) => call.url)).toEqual([
+        `${API_URL}/subscriptions/get`,
+      ]);
+    },
+  );
+
+  it("doesn't change a subscription it couldn't read first", async () => {
+    const { api, calls } = apiWith(new TypeError("fetch failed"));
 
     const error = await errorOf(
       api.updateSubscription({
         subscriptionId: SUBSCRIPTION_MODEL.Id,
-        amountKop: 49_950,
+        amountKop: 30_000,
       }),
+    );
+
+    expect(error.code).toBe("UNAVAILABLE");
+    expect(calls).toHaveLength(1);
+  });
+
+  it.each([
+    ["an amount with fractions of a kopeck", { Amount: 499.555 }],
+    ["another currency", { Currency: "USD" }],
+    ["an unknown status", { Status: "Paused" }],
+    ["a broken date", { NextTransactionDateIso: "soon" }],
+  ])("refuses a subscription with %s", async (_what, change) => {
+    const { api } = apiWith(ok({ ...SUBSCRIPTION_MODEL, ...change }));
+
+    const error = await errorOf(
+      api.getSubscription({ subscriptionId: SUBSCRIPTION_MODEL.Id }),
     );
 
     expect(error.code).toBe("BAD_RESPONSE");
@@ -309,9 +368,14 @@ describe("subscriptions", () => {
         "INVALID_INPUT",
       );
     }
-    expect(
-      (await errorOf(api.cancelSubscription({ subscriptionId: "" }))).code,
-    ).toBe("INVALID_INPUT");
+    for (const subscriptionId of ["", "sc 1"]) {
+      expect(
+        (await errorOf(api.cancelSubscription({ subscriptionId }))).code,
+      ).toBe("INVALID_INPUT");
+      expect(
+        (await errorOf(api.getSubscription({ subscriptionId }))).code,
+      ).toBe("INVALID_INPUT");
+    }
     expect(calls).toHaveLength(0);
   });
 });
@@ -357,7 +421,7 @@ describe("listTransactions", () => {
   it("asks for the period in UTC and maps transactions", async () => {
     const { api, calls } = apiWith(ok([transaction()]));
 
-    const transactions = await api.listTransactions(DAY);
+    const registry = await api.listTransactions(DAY);
 
     expect(calls[0]!.url).toBe(`${API_URL}/v2/payments/list`);
     expect(calls[0]!.body).toEqual({
@@ -365,23 +429,26 @@ describe("listTransactions", () => {
       CreatedDateLte: "2021-03-09T21:00:00+00:00",
       PageNumber: 1,
     });
-    expect(transactions).toEqual([
-      {
-        providerTxId: "54",
-        kind: "payment",
-        status: "COMPLETED",
-        amountKop: 1234,
-        feeKop: 36,
-        createdAt: new Date("2021-03-09T11:12:54.632Z"),
-        testMode: true,
-        invoiceId: "1234567",
-        accountId: "User@Example.com",
-        email: null,
-        subscriptionId: null,
-        originalTxId: null,
-        metadata: { some: "value" },
-      },
-    ]);
+    expect(registry).toEqual({
+      transactions: [
+        {
+          providerTxId: "54",
+          kind: "payment",
+          status: "COMPLETED",
+          amountKop: 1234,
+          feeKop: 36,
+          createdAt: new Date("2021-03-09T11:12:54.632Z"),
+          testMode: true,
+          invoiceId: "1234567",
+          accountId: "User@Example.com",
+          email: null,
+          subscriptionId: null,
+          originalTxId: null,
+          metadata: { some: "value" },
+        },
+      ],
+      unreadable: [],
+    });
   });
 
   it("reads refunds, declines and missing fees", async () => {
@@ -399,8 +466,9 @@ describe("listTransactions", () => {
       ]),
     );
 
-    const transactions = await api.listTransactions(DAY);
+    const { transactions, unreadable } = await api.listTransactions(DAY);
 
+    expect(unreadable).toEqual([]);
     expect(transactions).toMatchObject([
       { providerTxId: "60", kind: "payment", status: "DECLINED", feeKop: null },
       {
@@ -426,7 +494,7 @@ describe("listTransactions", () => {
       );
     const { api, calls } = apiWith(page(1, 100), page(101, 100), page(201, 7));
 
-    const transactions = await api.listTransactions(DAY);
+    const { transactions } = await api.listTransactions(DAY);
 
     expect(
       calls.map((call) => (call.body as { PageNumber: number }).PageNumber),
@@ -444,7 +512,7 @@ describe("listTransactions", () => {
     );
     const { api, calls } = apiWith(full, ok([]));
 
-    expect(await api.listTransactions(DAY)).toHaveLength(100);
+    expect((await api.listTransactions(DAY)).transactions).toHaveLength(100);
     expect(calls).toHaveLength(2);
   });
 
@@ -475,7 +543,7 @@ describe("listTransactions", () => {
       ]),
     );
 
-    const transactions = await api.listTransactions({
+    const { transactions } = await api.listTransactions({
       from: new Date("2021-03-08T21:00:00.000Z"),
       to: new Date("2021-03-09T21:00:00.000Z"),
     });
@@ -498,21 +566,92 @@ describe("listTransactions", () => {
     });
   });
 
+  // A row stays in the registry forever: if it failed the whole answer, that
+  // day would never be reconciled.
   it.each([
-    ["an amount with fractions of a kopeck", { Amount: 12.345 }],
-    ["a fee with fractions of a kopeck", { TotalFee: 0.365 }],
-    ["another currency", { Currency: "USD" }],
-    ["an unknown status", { Status: "Pending" }],
-    ["an unknown type", { Type: 7 }],
-    ["a date in another format", { CreatedDate: "2021-03-09T11:12:54" }],
-    ["no transaction id", { TransactionId: null }],
-  ])("fails the whole import on %s", async (_what, change) => {
-    const { api } = apiWith(ok([transaction(), transaction(change)]));
+    ["an amount with fractions of a kopeck", { Amount: 12.345 }, ["Amount"]],
+    ["a fee with fractions of a kopeck", { TotalFee: 0.365 }, ["TotalFee"]],
+    ["another currency", { Currency: "USD" }, ["Currency"]],
+    ["an unknown status", { Status: "Pending" }, ["Status"]],
+    ["an unknown type", { Type: 7 }, ["Type"]],
+    [
+      "a date in another format",
+      { CreatedDate: "2021-03-09T11:12:54" },
+      ["CreatedDate"],
+    ],
+  ])(
+    "sets aside a row with %s and reads the rest",
+    async (_what, change, fields) => {
+      const { api } = apiWith(
+        ok([
+          transaction({ TransactionId: 54 }),
+          transaction({ TransactionId: 55, ...change }),
+          transaction({ TransactionId: 56 }),
+        ]),
+      );
+
+      const { transactions, unreadable } = await api.listTransactions(DAY);
+
+      expect(transactions.map((item) => item.providerTxId)).toEqual([
+        "54",
+        "56",
+      ]);
+      expect(unreadable).toEqual([{ providerTxId: "55", fields }]);
+    },
+  );
+
+  it("sets aside a row without a readable id", async () => {
+    const { api } = apiWith(ok([transaction({ TransactionId: null }), "junk"]));
+
+    const { transactions, unreadable } = await api.listTransactions(DAY);
+
+    expect(transactions).toEqual([]);
+    expect(unreadable).toEqual([
+      { providerTxId: null, fields: ["TransactionId"] },
+      { providerTxId: null, fields: ["(root)"] },
+    ]);
+  });
+
+  // The number of a refund's Type is a guess until a test terminal confirms
+  // it. A refund read as a payment would become a donation in reconciliation.
+  it.each([
+    [
+      "a payment that points at an original",
+      { Type: 0, OriginalTransactionId: 54 },
+    ],
+    [
+      "a refund that points at nothing",
+      { Type: 1, OriginalTransactionId: null },
+    ],
+  ])("sets aside %s", async (_what, change) => {
+    const { api } = apiWith(
+      ok([transaction({ TransactionId: 70, ...change })]),
+    );
+
+    const { transactions, unreadable } = await api.listTransactions(DAY);
+
+    expect(transactions).toEqual([]);
+    expect(unreadable).toEqual([
+      { providerTxId: "70", fields: ["Type", "OriginalTransactionId"] },
+    ]);
+  });
+
+  it("never quotes an unreadable row", async () => {
+    const { api } = apiWith(
+      ok([transaction({ Amount: "donor@shelter.localhost" })]),
+    );
+
+    const { unreadable } = await api.listTransactions(DAY);
+
+    expect(JSON.stringify(unreadable)).not.toContain("donor");
+  });
+
+  it("fails when the answer isn't a list at all", async () => {
+    const { api } = apiWith(ok({ rows: [] }));
 
     const error = await errorOf(api.listTransactions(DAY));
 
     expect(error.code).toBe("BAD_RESPONSE");
-    expect(error.message).toContain(`1.${Object.keys(change)[0]}`);
   });
 
   it("refuses an empty or reversed period", async () => {
