@@ -65,8 +65,8 @@ function TabsTrigger({ className, ...props }: TabsPrimitive.Tab.Props) {
         // Equal segments that may shrink: a long word hyphenates inside its
         // tab instead of widening the page. Line tabs keep their own width.
         "relative inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1.5 px-3 text-center font-display text-label hyphens-auto text-foreground uppercase transition-colors duration-150 ease-out select-none group-data-vertical/tabs:justify-start focus-visible:z-10",
-        // Disabled is dashed, like every other disabled control, not only paler.
-        "data-disabled:cursor-not-allowed data-disabled:text-muted-foreground data-disabled:underline data-disabled:decoration-dashed data-disabled:decoration-1 data-disabled:underline-offset-4 forced-colors:data-disabled:text-[GrayText]",
+        // Disabled: the board shows through, not only a paler word.
+        "data-disabled:cursor-not-allowed data-disabled:bg-muted data-disabled:text-muted-foreground forced-colors:data-disabled:text-[GrayText]",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         // default: segments divided by toner lines; the active one is filled.
         "group-data-[variant=default]/tabs-list:not-first:border-l-line group-data-[variant=default]/tabs-list:not-first:border-foreground group-data-vertical/tabs:group-data-[variant=default]/tabs-list:not-first:border-t-line group-data-vertical/tabs:group-data-[variant=default]/tabs-list:not-first:border-l-0",

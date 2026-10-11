@@ -45,7 +45,7 @@ function SelectTrigger({
         "group/select-trigger",
         fieldBoxClassName,
         "flex items-center justify-between gap-2 py-2 pr-2.5 pl-3 text-left select-none data-placeholder:text-muted-foreground data-popup-open:border-foreground data-[size=default]:min-h-11 data-[size=sm]:min-h-9 data-[size=sm]:py-1",
-        "data-disabled:cursor-not-allowed data-disabled:border-dashed data-disabled:bg-transparent data-disabled:text-muted-foreground data-disabled:hover:border-input",
+        "data-disabled:cursor-not-allowed data-disabled:bg-muted data-disabled:text-muted-foreground data-disabled:hover:border-input",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className,
       )}

@@ -12,7 +12,8 @@ const fieldBoxClassName = cn(
   "w-full min-w-0 border border-input bg-background font-body text-body text-foreground transition-[border-color,box-shadow] duration-150 ease-out",
   "placeholder:text-muted-foreground hover:border-foreground",
   "aria-invalid:border-destructive aria-invalid:shadow-[inset_0_0_0_1px_var(--destructive)]",
-  "disabled:cursor-not-allowed disabled:border-dashed disabled:bg-transparent disabled:text-muted-foreground disabled:hover:border-input",
+  // Disabled: the board shows through the box; the frame stays solid.
+  "disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground disabled:hover:border-input",
 );
 
 function Input({ className, type, ...props }: React.ComponentProps<"input">) {

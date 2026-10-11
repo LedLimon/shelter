@@ -25,7 +25,7 @@ function RadioGroupItem({ className, ...props }: RadioPrimitive.Root.Props) {
         "after:absolute after:-inset-x-3 after:-inset-y-3",
         "hover:bg-accent",
         "aria-invalid:border-2 aria-invalid:border-destructive",
-        "data-disabled:cursor-not-allowed data-disabled:border-dashed data-disabled:border-input data-disabled:bg-transparent data-disabled:hover:bg-transparent",
+        "data-disabled:cursor-not-allowed data-disabled:border-input data-disabled:bg-transparent data-disabled:hover:bg-transparent",
         className,
       )}
       {...props}

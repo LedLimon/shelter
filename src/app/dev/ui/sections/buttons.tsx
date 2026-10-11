@@ -90,9 +90,10 @@ export function ButtonsSection() {
       description={
         <>
           <code className="font-mono text-mono">Button</code>: прямоугольные,
-          акцидентный шрифт капсом. Недоступная теряет заливку и&nbsp;получает
-          пунктир; при загрузке кнопка сохраняет вид и&nbsp;фокус, клики
-          блокируются (<code className="font-mono text-mono">loading</code>).
+          акцидентный шрифт капсом. Недоступная теряет заливку, рамка&nbsp;—
+          тонкая сплошная: пунктир остаётся язычкам и&nbsp;«Низкой» срочности;
+          при загрузке кнопка сохраняет вид и&nbsp;фокус, клики блокируются (
+          <code className="font-mono text-mono">loading</code>).
         </>
       }
     >
