@@ -153,7 +153,10 @@ export function useActionForm<
     }
     const shown = paths.filter(hasControl);
     const [first] = shown;
-    if (first) form.setFocus(first);
+    if (first) {
+      form.setFocus(first);
+      revealFieldMessages();
+    }
     // An error of a field that is not on screen would show nowhere.
     const orphans = paths
       .filter((path) => !shown.includes(path))
@@ -179,9 +182,28 @@ export function useActionForm<
           }
         : null,
     );
+    revealFieldMessages();
   }
 
   return { form, submit, failure };
+}
+
+/**
+ * Scrolls the hint and the error of the field that took the focus into
+ * view. Focusing a field shows the field: its message, rendered right below,
+ * may still lie under the sticky bar of the form's buttons. The page's
+ * scroll padding (the admin layout) keeps what is scrolled to clear of the
+ * bar and the header.
+ */
+function revealFieldMessages() {
+  // After react-hook-form has focused the first invalid field and React has
+  // rendered the messages.
+  setTimeout(() => {
+    const described = document.activeElement?.getAttribute("aria-describedby");
+    for (const id of described?.split(" ") ?? []) {
+      document.getElementById(id)?.scrollIntoView({ block: "nearest" });
+    }
+  });
 }
 
 /** A deep copy of plain form values. */

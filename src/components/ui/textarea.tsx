@@ -9,7 +9,9 @@ function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
       data-slot="textarea"
       className={cn(
         fieldBoxClassName,
-        "flex field-sizing-content min-h-28 px-3 py-2.5",
+        // Grows down with its text, never sideways: without the containment a
+        // long unbroken line (a URL) widens the field and the page with it.
+        "flex field-sizing-content min-h-28 px-3 py-2.5 contain-inline-size",
         className,
       )}
       {...props}

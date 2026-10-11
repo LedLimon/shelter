@@ -240,6 +240,81 @@ test("form shows errors at the fields and focuses the first one", async ({
   await expect(form.getByText("Минимальная сумма — 100 ₽.")).toBeVisible();
 });
 
+test("consent boxes start unticked and link to the versions they are about", async ({
+  page,
+}) => {
+  await openShowcase(page);
+  const form = page.locator("section[aria-labelledby=form]");
+  const boxes = form.getByRole("checkbox");
+
+  // The offer, personal data and the newsletter: none is ticked for the donor.
+  await expect(boxes).toHaveCount(3);
+  for (const box of await boxes.all()) await expect(box).not.toBeChecked();
+
+  // A monthly donation asks for one more consent, with its sum and period.
+  await form.getByRole("radio", { name: "Каждый месяц" }).click();
+  await expect(boxes).toHaveCount(4);
+  const recurring = form.getByRole("checkbox", { name: /каждый месяц/ });
+  await expect(recurring).not.toBeChecked();
+
+  const offer = form.getByRole("checkbox", { name: /Принимаю условия оферты/ });
+  const link = form.getByRole("link", { name: /оферты о пожертвовании/ });
+  await expect(link).toHaveAttribute("href", "/legal/offer/3");
+  await expect(link).toHaveAttribute("target", "_blank");
+  // Ticking is the donor's own action — by the box or its sentence.
+  await offer.click();
+  await expect(offer).toBeChecked();
+  await form.getByText("Хочу получать новости приюта").click();
+  await expect(
+    form.getByRole("checkbox", { name: /Хочу получать новости/ }),
+  ).toBeChecked();
+  await expect(recurring).not.toBeChecked();
+});
+
+test("a consent lasts only for the text it was given to", async ({ page }) => {
+  await openShowcase(page);
+  const form = page.locator("section[aria-labelledby=form]");
+  const monthly = form.getByRole("radio", { name: "Каждый месяц" });
+  const recurring = form.getByRole("checkbox", { name: /Разрешаю списывать/ });
+  const offer = form.getByRole("checkbox", { name: /Принимаю условия оферты/ });
+
+  // The monthly box leaves the form with a one-time donation and takes its
+  // tick along: it doesn't come back ticked.
+  await form.getByLabel("Сумма, ₽").fill("500");
+  await monthly.click();
+  await recurring.click();
+  await expect(recurring).toBeChecked();
+  await form.getByRole("radio", { name: "Один раз" }).click();
+  await expect(recurring).toHaveCount(0);
+  await monthly.click();
+  await expect(recurring).not.toBeChecked();
+
+  // Another sum is another consent.
+  await recurring.click();
+  await expect(recurring).toBeChecked();
+  await form.getByLabel("Сумма, ₽").fill("1500");
+  await expect(
+    form.getByRole("checkbox", { name: /1 500 ₽ каждый месяц/ }),
+  ).not.toBeChecked();
+
+  // So is a new version of the document: the link leads to it, and the box
+  // has to be ticked again.
+  await offer.click();
+  await expect(offer).toBeChecked();
+  await form
+    .getByRole("button", { name: "Пример: вышла новая версия оферты" })
+    .click();
+  await expect(offer).not.toBeChecked();
+  await expect(
+    form.getByRole("link", { name: /оферты о пожертвовании/ }),
+  ).toHaveAttribute("href", "/legal/offer/4");
+  // Sent as it is, the form asks for the consent again.
+  await form.getByRole("button", { name: "Отправить" }).click();
+  await expect(
+    form.getByText("Чтобы помочь, примите условия оферты."),
+  ).toBeVisible();
+});
+
 // DataTable of the admin (FND-7): the server sorts, filters and pages, the
 // table only rewrites the URL.
 test.describe("DataTable", () => {

@@ -1,11 +1,18 @@
 // Run by e2e/global-setup.ts with tsx (like the seed): creates the e2e users
-// and resets their sign-in state, so every run starts the same.
+// and resets their sign-in state, so every run starts the same, and adds the
+// fixtures a run uses up (newsletter consents to withdraw).
 import type { PrismaClient } from "@/generated/prisma/client";
 import type { UserRole } from "@/generated/prisma/enums";
 import { EnvValidationError, parseEnv, seedEnvSchema } from "@/lib/env/schema";
 import { createAuth } from "@/server/auth/config";
 import { ensurePassword, ensureTotp } from "@/server/auth/credentials";
 import { createPrismaClient } from "@/server/db/client";
+import {
+  createLegalDraft,
+  currentLegalDocument,
+  legalDraft,
+  publishLegalDraft,
+} from "@/server/legal/documents";
 import { defaultSettings } from "@/server/settings/schema";
 import {
   E2E_ATTEMPTS,
@@ -15,6 +22,8 @@ import {
   E2E_USERS,
   LOCAL_EMAIL_DOMAIN,
   newStaffEmail,
+  UNSUBSCRIBE_VARIANTS,
+  unsubscribeToken,
 } from "./users";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
@@ -110,6 +119,32 @@ async function main() {
         update: { value: defaults[key] },
       });
     }
+
+    // Newsletter consents for the unsubscribe tests: one per attempt, since
+    // withdrawing is for good. A database seeded without published legal
+    // texts gets the placeholder of that consent published first.
+    const marketing =
+      (await currentLegalDocument(db, "MARKETING")) ??
+      (await db.$transaction(async (tx) => {
+        const draft =
+          (await legalDraft(tx, "MARKETING")) ??
+          (await createLegalDraft(tx, "MARKETING"));
+        return publishLegalDraft(tx, draft.id, draft.sha256);
+      }));
+    await db.consentRecord.createMany({
+      data: E2E_PROJECTS.flatMap((project) =>
+        Array.from({ length: E2E_ATTEMPTS }, (_, retry) =>
+          UNSUBSCRIBE_VARIANTS.map((variant) => ({
+            id: unsubscribeToken(project, retry, variant),
+            documentId: marketing.id,
+            email: `e2e-subscriber-${project}-${variant}${LOCAL_EMAIL_DOMAIN}`,
+            context: "e2e",
+          })),
+        ).flat(),
+      ),
+      // The same run id again (a local rerun with E2E_RUN_ID set by hand).
+      skipDuplicates: true,
+    });
 
     for (const project of E2E_PROJECTS) {
       for (let retry = 0; retry < E2E_ATTEMPTS; retry += 1) {

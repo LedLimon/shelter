@@ -43,6 +43,7 @@ src/
     ui/                   # shadcn
     form/                 # поля форм: react-hook-form + Field
     admin/                # каркас админки, меню, DataTable, useActionForm
+    legal/                # ConsentCheckboxes, текст документа, обёртка страниц /legal
     <домен>/              # доменные компоненты (NeedCard, DogCard, ...)
   lib/                    # общие утилиты: money.ts, plural.ts, dates.ts, shelter.ts (название приюта)
 worker/                   # точка входа фонового процесса (pnpm worker)
@@ -54,7 +55,9 @@ e2e/                      # Playwright
 Правила:
 
 - Страницы и server actions — тонкие: проверка прав (`can()`) → валидация (zod) → вызов `src/server/<домен>` → сброс кеша. В админке этот порядок держит `adminAction()` — см. [«Админка»](#админка).
-- Публичные страницы — Server Components + ISR, теги вида `need:{id}`, `dog:{id}`, `needs`, `dogs`, `ledger`.
+- Публичные страницы — Server Components + ISR, теги вида `need:{id}`, `dog:{id}`, `needs`, `dogs`, `ledger`, `legal`, `settings`. Страница с параметром в адресе экспортирует `generateStaticParams()` с пустым списком: при сборке ничего не рендерится (базы там нет), страница собирается при первом заходе и хранится до сброса тега или перезапуска процесса. Данные читает функция, обёрнутая в `unstable_cache(…, { tags })`; она возвращает JSON, поэтому время — строкой ISO. Пример — [`src/app/legal`](../src/app/legal).
+  - **Кеш — только в памяти процесса** (`isrFlushToDisk: false` в `next.config.ts`, [ADR-0009](adr/0009-isr-cache-in-memory.md)). Время сброса тегов Next.js хранит в памяти, поэтому кеш на диске после перезапуска отдавал бы сброшенные страницы как свежие. Приложение — один процесс: у второго экземпляра был бы свой кеш, и сброс тега до него не дошёл бы.
+  - Кешируются и ответы 404, поэтому адрес проверяется до обращения к данным: неизвестный документ не доходит до базы.
 - Побочные эффекты (письма, уведомления) — через **outbox**: запись в таблицу `Outbox` в той же транзакции, что и бизнес-данные, воркер отправляет. Как — в разделе [«Фоновые задачи»](#фоновые-задачи-worker).
 
 ## Модель данных
@@ -129,8 +132,8 @@ e2e/                      # Playwright
 
 ### Комплаенс и контент
 
-- `LegalDocument`: type (`OFFER | PRIVACY | PD_CONSENT | RECURRING | MARKETING`), version, body, sha256, effectiveAt.
-- `ConsentRecord`: email | userId, documentId, context, ip, ua, givenAt, withdrawnAt.
+- `LegalDocument`: type (`OFFER | PRIVACY | PD_CONSENT | RECURRING | MARKETING`), version, body, sha256, effectiveAt. Строка — одна версия документа: `effectiveAt` пуст — черновик (один на тип), задан — версия опубликована и действует с этого момента, пока не выйдет следующая. Опубликованную строку триггер не даёт ни изменить, ни удалить; `sha256` сверяется с `body` CHECK-ом. Пишет только `src/server/legal`. Подробно — [legal.md](legal.md#как-это-устроено-в-коде), [ADR-0008](adr/0008-legal-documents-and-consents.md).
+- `ConsentRecord`: email | userId, documentId, context, ip, userAgent, givenAt, withdrawnAt. Согласие с конкретной опубликованной версией. Журнал — доказательство: триггер не даёт удалить строку и сменить `documentId`, `context` и `givenAt`; время согласия и отзыва (`withdrawnAt`, один раз) ставит БД. `ip` и `userAgent` — ПДн. Пишет только `recordConsents()`.
 - `AuditLog`: actorId, action, entity, entityId, diff, ip, at.
 - `Post` (новости, истории «Они дома»), `Page`.
 
@@ -148,7 +151,8 @@ e2e/                      # Playwright
 - `/` · `/needs` · `/needs/[slug]` · `/dogs` · `/dogs/[slug]` · `/donate` · `/donate/status/[id]` · `/guardianship` · `/help/in-kind`
 - `/transparency` · `/transparency/ledger` · `/transparency/reports/[yyyy-mm]` · `/transparency/expenses/[id]`
 - `/news` · `/news/[slug]` · `/stories` · `/about` · `/documents` · `/contacts` · `/how-to-help`
-- `/legal/offer` · `/legal/privacy` · `/legal/consent` · `/legal/recurring`
+- `/legal/offer` · `/legal/privacy` · `/legal/consent` · `/legal/recurring` · `/legal/marketing` — действующая версия документа и список прежних; `/legal/[slug]/[version]` — постоянный адрес версии
+- `/unsubscribe/[token]` — отписка от рассылки по ссылке из письма; токен — id записи о согласии
 - `/volunteer` · `/volunteer/shifts` · `/volunteer/tasks`
 - `/account` (вход) · `/account/donations` · `/account/subscriptions` · `/account/wards` · `/account/volunteer` · `/account/settings`
 - `/subscriptions/manage?token=…` — управление подпиской без аккаунта
@@ -212,7 +216,9 @@ export const publishNeed = adminAction(
 - `useActionForm({ schema, defaultValues, action })` из `@/components/admin/action-form` связывает react-hook-form с action и одинаково во всех формах разбирает ответ: успех — тост и «чистое» состояние формы, ошибки полей — в поля, остальное — в `ActionFailureAlert` рядом с кнопкой (туда же попадает ошибка, у которой нет поля на экране, — например, списка целиком). Если action возвращает сохранённые значения, `savedValues` сразу показывает их в форме в нормализованном виде. Набранное, пока запрос был в пути, остаётся в форме и помечено несохранённым; повторная отправка во время первой игнорируется.
 - **Форма, которая правит несколько независимых записей** (настройки), ставит `changedOnly`: в action уходят только изменённые группы полей верхнего уровня, и схема action принимает частичный ввод (`.partial()`). Иначе вкладка, открытая до чужой правки, записала бы поверх неё свою старую копию. В ответ такой action отдаёт форму целиком, как она сейчас хранится.
 - Поля — `TextField`, `TextareaField`, `SelectField` и `FormField` из `@/components/form/form-field`; кнопки формы — в `FormActions` (`@/components/admin/form-actions`): липкий листок, который сообщает странице свою высоту для отступа прокрутки.
+- После неудачной отправки фокус получает первое поле с ошибкой, а его подсказка и сообщение об ошибке прокручиваются в видимую область: сам фокус показывает только поле, и сообщение под ним осталось бы под липким листком кнопок.
 - Пока в форме есть несохранённое, `useActionForm` вешает `beforeunload`. Переходы по ссылкам внутри админки он не удерживает.
+- **Действие по кнопке, а не из формы** (опубликовать, удалить, создать) — `useAdminAction()` из `@/components/admin/use-admin-action`: один вызов за раз, `pending` для спиннера кнопки, `failure` для `ActionFailureAlert` рядом с ней. Необратимое действие подтверждается в `Dialog`, ошибка показывается в нём же. Пример — «Юридические документы» (`src/app/admin/(staff)/legal`).
 - Эталон — «Настройки»: `src/app/admin/(staff)/settings/` (`page.tsx`, `schema.ts`, `actions.ts`, `settings-form.tsx`).
 
 ### Таблицы: `DataTable`
