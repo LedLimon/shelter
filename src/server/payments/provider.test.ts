@@ -68,6 +68,17 @@ describe("createPaymentProvider", () => {
     }
   });
 
+  it("refuses the fake on a public APP_URL, even past the env check", () => {
+    for (const APP_URL of [
+      "https://priyut.example",
+      "http://192.168.1.10:3000",
+    ]) {
+      expect(() =>
+        createPaymentProvider({ ...LOCAL, APP_URL, PAYMENT_PROVIDER: "fake" }),
+      ).toThrow("allowed only with a local APP_URL");
+    }
+  });
+
   it("keeps the fake's secret out of CloudPayments", () => {
     const cloudPayments = createPaymentProvider({
       ...LOCAL,
