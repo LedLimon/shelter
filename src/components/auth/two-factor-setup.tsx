@@ -1,26 +1,18 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-  type ReactNode,
-} from "react";
-import { Button } from "@/components/ui/button";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { z } from "zod";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { attempt, authClient } from "./auth-client";
 import { authErrorMessage, restartsSignIn } from "./auth-errors";
-import {
-  AUTH_BUTTON_CLASS,
-  AUTH_LINK_CLASS,
-  Field,
-  FormError,
-  formText,
-  SubmitButton,
-} from "./field";
+import { FormAlert, formLinkClass } from "./form-alert";
 import { SignOutButton } from "./sign-out-button";
 import { manualKey, TotpQr } from "./totp-qr";
 
@@ -107,6 +99,10 @@ function StepHeader({
   );
 }
 
+const passwordSchema = z.object({
+  password: z.string().min(1, "Введите пароль, с которым вы только что вошли."),
+});
+
 function PasswordStep({
   email,
   onEnrolled,
@@ -117,22 +113,15 @@ function PasswordStep({
   /** The page no longer fits the session: let the server send us on. */
   onStale: () => void;
 }) {
-  const [pending, setPending] = useState(false);
+  const id = useId();
   const [error, setError] = useState<string>();
-  const [fieldError, setFieldError] = useState<string>();
-  const passwordInput = useRef<HTMLInputElement>(null);
+  const [leaving, setLeaving] = useState(false);
+  const form = useForm<z.infer<typeof passwordSchema>>({
+    resolver: zodResolver(passwordSchema),
+    defaultValues: { password: "" },
+  });
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (pending) return;
-    const password = formText(new FormData(event.currentTarget), "password");
-    if (!password) {
-      setFieldError("Введите пароль, с которым вы только что вошли.");
-      passwordInput.current?.focus();
-      return;
-    }
-
-    setPending(true);
+  async function onSubmit({ password }: z.infer<typeof passwordSchema>) {
     setError(undefined);
     let enrollment: Enrollment | undefined;
     const failure = await attempt(async (fetchOptions) => {
@@ -156,20 +145,19 @@ function PasswordStep({
       failure?.code === "TWO_FACTOR_REQUIRED" ||
       failure?.status === 401
     ) {
+      setLeaving(true);
       return onStale();
     }
     if (!failure && enrollment) return onEnrolled(enrollment);
-    setPending(false);
     setError(authErrorMessage(failure ?? { status: 500 }));
-    passwordInput.current?.focus();
-    passwordInput.current?.select();
+    form.setFocus("password", { shouldSelect: true });
   }
 
   return (
     <form
       method="post"
       noValidate
-      onSubmit={(event) => void submit(event)}
+      onSubmit={(event) => void form.handleSubmit(onSubmit)(event)}
       className="flex flex-col gap-5"
     >
       <StepHeader step={1} title="Защитите вход кодом">
@@ -183,7 +171,7 @@ function PasswordStep({
           минут.
         </p>
       </StepHeader>
-      {error && <FormError>{error}</FormError>}
+      {error && <FormAlert>{error}</FormAlert>}
       {/* Lets password managers match the password to the account. */}
       <input
         type="email"
@@ -193,21 +181,43 @@ function PasswordStep({
         readOnly
         hidden
       />
-      <Field
-        ref={passwordInput}
-        label="Пароль"
+      <Controller
         name="password"
-        type="password"
-        autoComplete="current-password"
-        error={fieldError}
-        onChange={() => setFieldError(undefined)}
+        control={form.control}
+        render={({ field, fieldState }) => (
+          <Field data-invalid={fieldState.invalid}>
+            <FieldLabel htmlFor={`${id}-password`}>Пароль</FieldLabel>
+            <Input
+              {...field}
+              id={`${id}-password`}
+              type="password"
+              autoComplete="current-password"
+              aria-invalid={fieldState.invalid}
+              aria-describedby={
+                fieldState.invalid ? `${id}-password-error` : undefined
+              }
+            />
+            <FieldError
+              id={`${id}-password-error`}
+              errors={[fieldState.error]}
+            />
+          </Field>
+        )}
       />
-      <SubmitButton pending={pending} pendingLabel="Проверяем…">
+      <Button
+        type="submit"
+        loading={form.formState.isSubmitting || leaving}
+        className="w-full"
+      >
         Продолжить
-      </SubmitButton>
+      </Button>
     </form>
   );
 }
+
+const codeSchema = z.object({
+  code: z.string().regex(/^\d{6}$/, "Введите 6 цифр из приложения."),
+});
 
 function ScanStep({
   enrollment,
@@ -216,48 +226,44 @@ function ScanStep({
   enrollment: Enrollment;
   onVerified: () => void;
 }) {
-  const [code, setCode] = useState("");
-  const [pending, setPending] = useState(false);
+  const id = useId();
   const [error, setError] = useState<string>();
   const [sessionEnded, setSessionEnded] = useState(false);
-  const input = useRef<HTMLInputElement>(null);
+  const form = useForm<z.infer<typeof codeSchema>>({
+    resolver: zodResolver(codeSchema),
+    defaultValues: { code: "" },
+  });
+  const pending = form.formState.isSubmitting;
   const key = manualKey(enrollment.totpURI);
 
-  async function verify(value: string) {
-    if (pending) return;
-    if (value.length !== TOTP_LENGTH) {
-      setError("Введите 6 цифр из приложения.");
-      input.current?.focus();
-      return;
-    }
-
-    setPending(true);
+  async function onSubmit({ code }: z.infer<typeof codeSchema>) {
     setError(undefined);
     const failure = await attempt((fetchOptions) =>
-      authClient.twoFactor.verifyTotp({ code: value, fetchOptions }),
+      authClient.twoFactor.verifyTotp({ code, fetchOptions }),
     );
 
     if (!failure) return onVerified();
-    setPending(false);
-    if (restartsSignIn(failure)) {
+    if (restartsSignIn(failure) || failure.status === 403) {
       setSessionEnded(true);
       return;
     }
     setError(authErrorMessage(failure));
-    setCode("");
-    input.current?.focus();
+    form.setValue("code", "");
+    form.setFocus("code");
   }
+
+  const submit = form.handleSubmit(onSubmit);
 
   if (sessionEnded) {
     return (
       <div className="flex flex-col gap-5">
-        <FormError>
+        <FormAlert>
           Сессия закончилась, пока шла настройка. Войдите заново — настройку
           придётся начать сначала.
-        </FormError>
+        </FormAlert>
         <Link
           href="/admin/login"
-          className={cn(AUTH_LINK_CLASS, "text-caption text-pen")}
+          className={cn(buttonVariants({ variant: "link" }), formLinkClass)}
         >
           Войти заново
         </Link>
@@ -269,10 +275,7 @@ function ScanStep({
     <form
       method="post"
       noValidate
-      onSubmit={(event) => {
-        event.preventDefault();
-        void verify(code);
-      }}
+      onSubmit={(event) => void submit(event)}
       className="flex flex-col gap-5"
     >
       <StepHeader step={2} title="Добавьте сайт в приложение">
@@ -285,8 +288,8 @@ function ScanStep({
       <a
         href={enrollment.totpURI}
         className={cn(
-          AUTH_BUTTON_CLASS,
-          "inline-flex items-center justify-center border border-toner text-center pointer-fine:hidden",
+          buttonVariants({ variant: "outline" }),
+          "pointer-fine:hidden",
         )}
       >
         Открыть в приложении на этом телефоне
@@ -303,29 +306,46 @@ function ScanStep({
           <code className="font-mono text-mono select-all">{key}</code>
         </div>
       </div>
-      {error && <FormError>{error}</FormError>}
-      <Field
-        ref={input}
-        label="Код из приложения"
+      {error && <FormAlert id={`${id}-alert`}>{error}</FormAlert>}
+      <Controller
         name="code"
-        value={code}
-        onChange={(event) => {
-          const digits = event.target.value
-            .replace(/\D/g, "")
-            .slice(0, TOTP_LENGTH);
-          setCode(digits);
-          if (digits.length === TOTP_LENGTH) void verify(digits);
-        }}
-        inputMode="numeric"
-        autoComplete="one-time-code"
-        pattern="[0-9]*"
-        maxLength={TOTP_LENGTH}
-        readOnly={pending}
-        className="font-mono text-sum tracking-[0.3em] tabular-nums"
+        control={form.control}
+        render={({ field, fieldState }) => (
+          <Field data-invalid={fieldState.invalid}>
+            <FieldLabel htmlFor={`${id}-code`}>Код из приложения</FieldLabel>
+            <Input
+              {...field}
+              id={`${id}-code`}
+              onChange={(event) => {
+                const digits = event.target.value
+                  .replace(/\D/g, "")
+                  .slice(0, TOTP_LENGTH);
+                field.onChange(digits);
+                if (digits.length === TOTP_LENGTH && !pending) void submit();
+              }}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]*"
+              maxLength={TOTP_LENGTH}
+              readOnly={pending}
+              aria-invalid={fieldState.invalid}
+              aria-describedby={
+                [
+                  fieldState.invalid && `${id}-code-error`,
+                  error && `${id}-alert`,
+                ]
+                  .filter(Boolean)
+                  .join(" ") || undefined
+              }
+              className="font-mono text-sum tracking-[0.3em] tabular-nums"
+            />
+            <FieldError id={`${id}-code-error`} errors={[fieldState.error]} />
+          </Field>
+        )}
       />
-      <SubmitButton pending={pending} pendingLabel="Проверяем…">
+      <Button type="submit" loading={pending} className="w-full">
         Подтвердить
-      </SubmitButton>
+      </Button>
     </form>
   );
 }
@@ -402,14 +422,10 @@ function BackupCodesStep({
         ))}
       </ol>
       <div className="flex flex-wrap gap-3">
-        <Button variant="outline" className={AUTH_BUTTON_CLASS} onClick={copy}>
+        <Button type="button" variant="outline" onClick={copy}>
           {copyState === "copied" ? "Скопировано" : "Скопировать"}
         </Button>
-        <Button
-          variant="outline"
-          className={AUTH_BUTTON_CLASS}
-          onClick={download}
-        >
+        <Button type="button" variant="outline" onClick={download}>
           Скачать файлом
         </Button>
       </div>
@@ -419,15 +435,15 @@ function BackupCodesStep({
           "Не получилось скопировать — выделите коды вручную или скачайте файлом."}
       </p>
       <Button
-        disabled={leaving}
-        focusableWhenDisabled
-        className={cn(AUTH_BUTTON_CLASS, "w-full")}
+        type="button"
+        loading={leaving}
+        className="w-full"
         onClick={() => {
           setLeaving(true);
           onDone();
         }}
       >
-        {leaving ? "Открываем админку…" : "Коды сохранены — в админку"}
+        Коды сохранены — в админку
       </Button>
     </div>
   );

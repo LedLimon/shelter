@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { AUTH_LINK_CLASS } from "./field";
+import { formLinkClass } from "./form-alert";
 
-const linkClass = cn(AUTH_LINK_CLASS, "text-pen");
+const linkClass = cn(buttonVariants({ variant: "link" }), formLinkClass);
 
 /** 403 from forbidden(): signed in, but this role may not open the page. */
 export function ForbiddenSheet() {
@@ -16,7 +17,7 @@ export function ForbiddenSheet() {
           своей учётной записью; если доступа не хватает — попросите владельца
           приюта выдать нужную роль.
         </p>
-        <div className="flex flex-wrap gap-x-6 text-caption">
+        <div className="flex flex-wrap gap-x-6">
           <Link href="/admin/login" className={linkClass}>
             Войти как сотрудник
           </Link>

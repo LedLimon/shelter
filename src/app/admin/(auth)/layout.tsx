@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { AUTH_LINK_CLASS } from "@/components/auth/field";
+import { formLinkClass } from "@/components/auth/form-alert";
+import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 /** Sign-in screens: one sheet on the board, nothing else to look at. */
@@ -12,8 +13,9 @@ export default function AuthLayout({ children }: LayoutProps<"/admin">) {
       <Link
         href="/"
         className={cn(
-          AUTH_LINK_CLASS,
-          "mt-4 text-caption text-toner-muted hover:text-toner",
+          buttonVariants({ variant: "link" }),
+          formLinkClass,
+          "mt-4 text-toner-muted hover:text-toner",
         )}
       >
         На сайт приюта

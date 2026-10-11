@@ -1,22 +1,20 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { z } from "zod";
+import { Button } from "@/components/ui/button";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { attempt, authClient } from "./auth-client";
 import { authErrorMessage, restartsSignIn } from "./auth-errors";
 import { normalizeBackupCode } from "./backup-code";
-import {
-  AUTH_LINK_CLASS,
-  Field,
-  FormError,
-  formText,
-  SubmitButton,
-} from "./field";
+import { FormAlert, formLinkClass } from "./form-alert";
 
 type Step = "password" | "totp" | "backup";
-
-type FieldName = "email" | "password";
 
 const TOTP_LENGTH = 6;
 
@@ -85,6 +83,15 @@ type StepProps = {
   onSignedIn: () => void;
 };
 
+const passwordSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .min(1, "Введите email.")
+    .pipe(z.email("В email должны быть «@» и домен, например anna@priyut.ru.")),
+  password: z.string().min(1, "Введите пароль."),
+});
+
 function PasswordStep({
   defaultEmail,
   error,
@@ -95,41 +102,22 @@ function PasswordStep({
   defaultEmail: string;
   onTwoFactor: (email: string) => void;
 }) {
-  const [pending, setPending] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<
-    Partial<Record<FieldName, string>>
-  >({});
+  const id = useId();
+  // Set on success: the form keeps loading until the next screen replaces it.
+  const [leaving, setLeaving] = useState(false);
+  const form = useForm<
+    z.input<typeof passwordSchema>,
+    unknown,
+    z.output<typeof passwordSchema>
+  >({
+    resolver: zodResolver(passwordSchema),
+    defaultValues: { email: defaultEmail, password: "" },
+  });
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (pending) return;
-    const formElement = event.currentTarget;
-    const focus = (name: FieldName, select = false) => {
-      const input = formElement.querySelector<HTMLInputElement>(
-        `[name=${name}]`,
-      );
-      input?.focus();
-      if (select) input?.select();
-    };
-    const form = new FormData(formElement);
-    const email = formText(form, "email").trim();
-    const password = formText(form, "password");
-
-    const errors = {
-      email: !email
-        ? "Введите email."
-        : !/^[^\s@]+@[^\s@]+$/.test(email)
-          ? "В email должны быть «@» и домен, например anna@priyut.ru."
-          : undefined,
-      password: password ? undefined : "Введите пароль.",
-    };
-    setFieldErrors(errors);
-    if (errors.email || errors.password) {
-      focus(errors.email ? "email" : "password");
-      return;
-    }
-
-    setPending(true);
+  async function onSubmit({
+    email,
+    password,
+  }: z.output<typeof passwordSchema>) {
     setError(undefined);
     let needsCode = false;
     const failure = await attempt(async (fetchOptions) => {
@@ -146,12 +134,12 @@ function PasswordStep({
       return result;
     });
 
-    // On success the form stays pending until the next screen replaces it.
-    if (needsCode) return onTwoFactor(email);
-    if (!failure) return onSignedIn();
-    setPending(false);
+    if (!failure) {
+      setLeaving(true);
+      return needsCode ? onTwoFactor(email) : onSignedIn();
+    }
     setError(authErrorMessage(failure));
-    focus("password", true);
+    form.setFocus("password", { shouldSelect: true });
   }
 
   return (
@@ -160,16 +148,7 @@ function PasswordStep({
     <form
       method="post"
       noValidate
-      onSubmit={(event) => void submit(event)}
-      onChange={(event) => {
-        // A field's error goes once the user starts fixing it.
-        const target: EventTarget = event.target;
-        if (!(target instanceof HTMLInputElement)) return;
-        const { name } = target;
-        if (name === "email" || name === "password") {
-          setFieldErrors((errors) => ({ ...errors, [name]: undefined }));
-        }
-      }}
+      onSubmit={(event) => void form.handleSubmit(onSubmit)(event)}
       className="flex flex-col gap-5"
     >
       <header className="flex flex-col gap-2">
@@ -178,31 +157,70 @@ function PasswordStep({
           После пароля спросим код из приложения на телефоне.
         </p>
       </header>
-      {error && <FormError>{error}</FormError>}
-      <Field
-        label="Email"
+      {error && <FormAlert>{error}</FormAlert>}
+      <Controller
         name="email"
-        type="email"
-        autoComplete="username"
-        autoCapitalize="none"
-        spellCheck={false}
-        inputMode="email"
-        defaultValue={defaultEmail}
-        error={fieldErrors.email}
+        control={form.control}
+        render={({ field, fieldState }) => (
+          <Field data-invalid={fieldState.invalid}>
+            <FieldLabel htmlFor={`${id}-email`}>Email</FieldLabel>
+            <Input
+              {...field}
+              id={`${id}-email`}
+              type="email"
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
+              inputMode="email"
+              aria-invalid={fieldState.invalid}
+              aria-describedby={
+                fieldState.invalid ? `${id}-email-error` : undefined
+              }
+            />
+            <FieldError id={`${id}-email-error`} errors={[fieldState.error]} />
+          </Field>
+        )}
       />
-      <Field
-        label="Пароль"
+      <Controller
         name="password"
-        type="password"
-        autoComplete="current-password"
-        error={fieldErrors.password}
+        control={form.control}
+        render={({ field, fieldState }) => (
+          <Field data-invalid={fieldState.invalid}>
+            <FieldLabel htmlFor={`${id}-password`}>Пароль</FieldLabel>
+            <Input
+              {...field}
+              id={`${id}-password`}
+              type="password"
+              autoComplete="current-password"
+              aria-invalid={fieldState.invalid}
+              aria-describedby={
+                fieldState.invalid ? `${id}-password-error` : undefined
+              }
+            />
+            <FieldError
+              id={`${id}-password-error`}
+              errors={[fieldState.error]}
+            />
+          </Field>
+        )}
       />
-      <SubmitButton pending={pending} pendingLabel="Проверяем…">
+      <Button
+        type="submit"
+        loading={form.formState.isSubmitting || leaving}
+        className="w-full"
+      >
         Дальше
-      </SubmitButton>
+      </Button>
     </form>
   );
 }
+
+const totpSchema = z.object({
+  code: z.string().regex(/^\d{6}$/, "Введите 6 цифр из приложения."),
+});
+const backupSchema = z.object({
+  code: z.string().trim().min(1, "Введите резервный код."),
+});
 
 function CodeStep({
   kind,
@@ -220,56 +238,52 @@ function CodeStep({
   onSwitch: () => void;
   onBack: () => void;
 }) {
-  const [code, setCode] = useState("");
-  const [pending, setPending] = useState(false);
-  const input = useRef<HTMLInputElement>(null);
-  const errorId = useId();
+  const id = useId();
   const isTotp = kind === "totp";
+  const [leaving, setLeaving] = useState(false);
+  const form = useForm<{ code: string }>({
+    resolver: zodResolver(isTotp ? totpSchema : backupSchema),
+    defaultValues: { code: "" },
+  });
+  const pending = form.formState.isSubmitting || leaving;
 
   // The step replaces the password form: move focus to its only field.
-  useEffect(() => input.current?.focus(), []);
+  useEffect(() => form.setFocus("code"), [form]);
 
-  async function verify(value: string) {
-    if (pending) return;
-    if (!value.trim()) {
-      setError(
-        isTotp ? "Введите код из приложения." : "Введите резервный код.",
-      );
-      input.current?.focus();
-      return;
-    }
-
-    setPending(true);
+  async function onSubmit({ code }: { code: string }) {
     setError(undefined);
     const failure = await attempt((fetchOptions) =>
       isTotp
-        ? authClient.twoFactor.verifyTotp({ code: value, fetchOptions })
+        ? authClient.twoFactor.verifyTotp({ code, fetchOptions })
         : authClient.twoFactor.verifyBackupCode({
-            code: normalizeBackupCode(value),
+            code: normalizeBackupCode(code),
             fetchOptions,
           }),
     );
 
-    // On success the form stays pending until the admin replaces it.
-    if (!failure) return onSignedIn();
-    setPending(false);
+    if (!failure) {
+      setLeaving(true);
+      return onSignedIn();
+    }
     if (restartsSignIn(failure)) return onRestart(authErrorMessage(failure));
     setError(authErrorMessage(failure));
     // A new TOTP code is typed from scratch; a backup code copied from paper
     // is kept for fixing a typo.
-    if (isTotp) setCode("");
-    input.current?.focus();
-    if (!isTotp) input.current?.select();
+    if (isTotp) form.setValue("code", "");
+    form.setFocus("code", { shouldSelect: !isTotp });
   }
+
+  const submit = form.handleSubmit(onSubmit);
+  const describedBy = (invalid: boolean) =>
+    [invalid && `${id}-code-error`, error && `${id}-alert`]
+      .filter(Boolean)
+      .join(" ") || undefined;
 
   return (
     <form
       method="post"
       noValidate
-      onSubmit={(event) => {
-        event.preventDefault();
-        void verify(code);
-      }}
+      onSubmit={(event) => void submit(event)}
       className="flex flex-col gap-5"
     >
       <header className="flex flex-col gap-2">
@@ -284,69 +298,78 @@ function CodeStep({
           {isTotp ? "." : ". Каждый код работает один раз."}
         </p>
       </header>
-      {error && (
-        <div id={errorId}>
-          <FormError>{error}</FormError>
-        </div>
-      )}
-      {isTotp ? (
-        <Field
-          ref={input}
-          label="Код"
-          name="code"
-          value={code}
-          onChange={(event) => {
-            const digits = event.target.value
-              .replace(/\D/g, "")
-              .slice(0, TOTP_LENGTH);
-            setCode(digits);
-            // A full code submits itself: one less tap on the phone.
-            if (digits.length === TOTP_LENGTH) void verify(digits);
-          }}
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          pattern="[0-9]*"
-          maxLength={TOTP_LENGTH}
-          readOnly={pending}
-          aria-describedby={error ? errorId : undefined}
-          className="font-mono text-sum tracking-[0.3em] tabular-nums"
-        />
-      ) : (
-        <Field
-          ref={input}
-          label="Резервный код"
-          name="code"
-          value={code}
-          onChange={(event) => setCode(event.target.value)}
-          placeholder="xxxxx-xxxxx"
-          autoComplete="off"
-          autoCapitalize="none"
-          spellCheck={false}
-          readOnly={pending}
-          aria-describedby={error ? errorId : undefined}
-          className="font-mono"
-        />
-      )}
-      <SubmitButton pending={pending} pendingLabel="Проверяем…">
+      {error && <FormAlert id={`${id}-alert`}>{error}</FormAlert>}
+      <Controller
+        name="code"
+        control={form.control}
+        render={({ field, fieldState }) => (
+          <Field data-invalid={fieldState.invalid}>
+            <FieldLabel htmlFor={`${id}-code`}>
+              {isTotp ? "Код" : "Резервный код"}
+            </FieldLabel>
+            {isTotp ? (
+              <Input
+                {...field}
+                id={`${id}-code`}
+                onChange={(event) => {
+                  const digits = event.target.value
+                    .replace(/\D/g, "")
+                    .slice(0, TOTP_LENGTH);
+                  field.onChange(digits);
+                  // A full code submits itself: one less tap on the phone.
+                  if (digits.length === TOTP_LENGTH && !pending) {
+                    void submit();
+                  }
+                }}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]*"
+                maxLength={TOTP_LENGTH}
+                readOnly={pending}
+                aria-invalid={fieldState.invalid}
+                aria-describedby={describedBy(fieldState.invalid)}
+                className="font-mono text-sum tracking-[0.3em] tabular-nums"
+              />
+            ) : (
+              <Input
+                {...field}
+                id={`${id}-code`}
+                placeholder="xxxxx-xxxxx"
+                autoComplete="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                readOnly={pending}
+                aria-invalid={fieldState.invalid}
+                aria-describedby={describedBy(fieldState.invalid)}
+                className="font-mono"
+              />
+            )}
+            <FieldError id={`${id}-code-error`} errors={[fieldState.error]} />
+          </Field>
+        )}
+      />
+      <Button type="submit" loading={pending} className="w-full">
         Войти
-      </SubmitButton>
-      <div className="flex flex-col items-start text-caption">
-        <button
+      </Button>
+      <div className="flex flex-col items-start">
+        <Button
           type="button"
+          variant="link"
           onClick={onSwitch}
-          className={cn(AUTH_LINK_CLASS, "text-pen")}
+          className={formLinkClass}
         >
           {isTotp
             ? "Нет телефона под рукой — войти резервным кодом"
             : "Ввести код из приложения"}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="link"
           onClick={onBack}
-          className={cn(AUTH_LINK_CLASS, "text-toner-muted hover:text-toner")}
+          className={cn(formLinkClass, "text-toner-muted hover:text-toner")}
         >
           Войти под другой учётной записью
-        </button>
+        </Button>
       </div>
     </form>
   );
