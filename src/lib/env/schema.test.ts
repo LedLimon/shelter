@@ -41,7 +41,7 @@ describe("server env", () => {
     expect(env.SMTP_PORT).toBe(1025);
     expect(env.S3_FORCE_PATH_STYLE).toBe(true);
     expect(env.SMTP_SECURE).toBe(false);
-    expect(env.SMTP_FROM).toBe("Приют <no-reply@shelter.localhost>");
+    expect(env.SMTP_FROM).toBe("no-reply@shelter.localhost");
   });
 
   it("ships no secrets in .env.example", () => {
@@ -94,6 +94,8 @@ describe("server env", () => {
     ["SMTP_PORT", "smtp", "must be a port number"],
     ["SMTP_PORT", "70000", "must be a port number"],
     ["SMTP_PORT", "25.5", "must be a port number"],
+    ["SMTP_FROM", "Приют", "must be an address or"],
+    ["SMTP_FROM", "a@x.ru, b@y.ru", "must be an address or"],
     ["S3_FORCE_PATH_STYLE", "maybe", "must be true or false"],
   ])("rejects %s=%s", (key, value, expected) => {
     const error = errorOf(() => parseServer({ [key]: value }));
@@ -113,6 +115,14 @@ describe("server env", () => {
 
     expect(error.message).not.toContain("hunter2");
     expect(error.message).not.toContain("mailer");
+  });
+
+  it("takes the sender as an address, with a name or without", () => {
+    expect(parseServer().SMTP_FROM).toBe("no-reply@shelter.localhost");
+    expect(
+      parseServer({ SMTP_FROM: "Приют <no-reply@shelter.localhost>" })
+        .SMTP_FROM,
+    ).toBe("Приют <no-reply@shelter.localhost>");
   });
 
   it("requires SMTP_USER and SMTP_PASSWORD together", () => {

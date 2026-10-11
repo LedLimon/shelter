@@ -45,10 +45,14 @@ jobs:
 
       # Node from mise.toml. The build needs no dependencies, so no `pnpm install`.
       - name: Install Node (mise.toml)
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           # Skip mise releases younger than a week (supply-chain cooldown).
           minimum_release_age: 7d
+          # Not the default `mise-v1`: caches saved under it by mise-action v4 have
+          # no record of their mise version, and v5 reinstalls such a mise after
+          # every mise release. Same prefix as in .github/actions/setup.
+          cache_key_prefix: mise-v2
 
       - name: Build
         run: node prototype/build.mjs

@@ -22,12 +22,16 @@ export default defineConfig({
         },
       },
       {
-        // Real Postgres in Docker (Testcontainers): docs/testing.md#интеграционные-тесты
+        // Real Postgres and Mailpit in Docker (Testcontainers):
+        // docs/testing.md#интеграционные-тесты
         extends: true,
         test: {
           name: "integration",
           include: ["tests/integration/**/*.test.ts"],
-          globalSetup: ["tests/integration/setup/postgres.ts"],
+          globalSetup: [
+            "tests/integration/setup/postgres.ts",
+            "tests/integration/setup/mailpit.ts",
+          ],
           setupFiles: ["tests/integration/setup/database.ts"],
           // A fresh process per file: the setup points DATABASE_URL at the
           // file's database, and getEnv()/getDb() cache it per process.

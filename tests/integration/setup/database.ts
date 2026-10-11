@@ -36,9 +36,14 @@ const example = parseEnv(
   readFileSync(new URL("../../../.env.example", import.meta.url), "utf8"),
 );
 // Secrets are empty there; this one is a fixed value for tests only.
+const mailpit = inject("mailpit");
 Object.assign(process.env, example, {
   DATABASE_URL: urlOf(database),
   BETTER_AUTH_SECRET: "integration-tests-only-0123456789abcdef",
+  // Letters go to the run's own Mailpit (./mailpit.ts), not to whatever
+  // listens on the port of .env.example.
+  SMTP_HOST: mailpit.smtpHost,
+  SMTP_PORT: String(mailpit.smtpPort),
 });
 
 // The payment emulator posts its notifications to APP_URL — into a dev

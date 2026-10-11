@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseMailbox } from "@/lib/mailbox";
 import { isTimeZone } from "@/lib/time-zones";
 import { MIN_PASSWORD_LENGTH } from "@/server/auth/policy";
 
@@ -92,7 +93,12 @@ const serverEnv = (provider: PaymentProviderSchema) =>
       SMTP_SECURE: flag().default(false),
       SMTP_USER: z.string().optional(),
       SMTP_PASSWORD: z.string().optional(),
-      SMTP_FROM: required(),
+      // The sender: an address, or `Name <address>` to sign letters with a
+      // name other than the shelter's.
+      SMTP_FROM: required().refine(
+        (value) => parseMailbox(value) !== null,
+        'must be an address or "Name <address>"',
+      ),
 
       // Who takes the money (src/server/payments). "fake" is the emulator for
       // dev and CI: it charges nothing, so it is refused unless APP_URL is

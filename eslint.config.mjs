@@ -49,6 +49,11 @@ const eslintConfig = defineConfig([
               message:
                 "Only src/server/jobs/boss.ts (the worker) talks to pg-boss. The app starts jobs through the outbox: enqueueJob() from @/server/jobs.",
             },
+            {
+              name: "nodemailer",
+              message:
+                "Only src/server/email/transport.ts talks SMTP. Letters go out of an outbox handler: sendEmail() from @/server/email/send.",
+            },
           ],
         },
       ],
@@ -59,7 +64,9 @@ const eslintConfig = defineConfig([
   // off there, so its classes would silently generate nothing.
   {
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/**/*.test.{ts,tsx}"],
+    // Mail clients know no CSS variables: the letters' palette is the one
+    // file with colour values, checked against the tokens by its test.
+    ignores: ["src/**/*.test.{ts,tsx}", "src/server/email/palette.ts"],
     rules: {
       "no-restricted-syntax": [
         "error",

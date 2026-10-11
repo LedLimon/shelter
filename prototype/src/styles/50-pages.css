@@ -27,6 +27,21 @@
   white-space: nowrap;
 }
 
+.mark br {
+  display: none;
+}
+
+/* On a phone the name stands in two lines: in one it pushes «Помочь» off the screen. */
+@media (max-width: 39.99rem) {
+  .site-header .mark {
+    font-size: 1.375rem;
+  }
+
+  .mark br {
+    display: inline;
+  }
+}
+
 .site-nav {
   display: none;
   gap: 1.375rem;

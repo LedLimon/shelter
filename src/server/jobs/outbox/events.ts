@@ -19,6 +19,17 @@ export const outboxEvents = {
    * deploy behind retries a job it doesn't know yet instead of rejecting it.
    */
   "job.run": z.object({ name: z.string(), payload: z.unknown() }),
+  /**
+   * Sends a staff member a sample of a letter (src/server/email): how a real
+   * mailbox shows it, and whether SMTP works at all. `template` is a key of
+   * the email registry and `example` one of its samples — strings here, like
+   * a job's name: a worker one deploy behind retries what it doesn't know yet.
+   */
+  "email.test": z.object({
+    template: z.string(),
+    example: z.string(),
+    userId: z.string(),
+  }),
 } satisfies Record<string, z.ZodType>;
 
 export type OutboxEventType = keyof typeof outboxEvents;

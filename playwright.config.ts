@@ -15,12 +15,13 @@ const host = isCI ? "127.0.0.1" : "localhost";
 // (Next.js refuses a second `next dev` in the same checkout).
 const externalBaseURL = process.env.E2E_BASE_URL;
 const baseURL = externalBaseURL ?? `http://${host}:${port}`;
-// The /dev/ui showcase exists only in `next dev`. CI tests the production
-// build, so it starts a dev server next to it for the showcase project.
+// The /dev showcases (components, letters) exist only in `next dev`. CI tests
+// the production build, so it starts a dev server next to it for the
+// showcase project.
 const devPort = port + 1;
 const showcaseBaseURL =
   externalBaseURL ?? (isCI ? `http://localhost:${devPort}` : baseURL);
-const SHOWCASE_SPEC = /dev-ui\.spec\.ts/;
+const SHOWCASE_SPEC = /dev-(ui|email)\.spec\.ts/;
 
 export default defineConfig({
   testDir: "./e2e",
