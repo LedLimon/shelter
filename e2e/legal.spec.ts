@@ -64,6 +64,24 @@ test("the owner publishes a new version and the document's page shows it", async
   const version = Number(/\d+/.exec(draftHeading ?? "")?.[0]);
   expect(version).toBeGreaterThanOrEqual(1);
 
+  // An empty text is refused at the field, and the message is not hidden
+  // under the sticky bar with the buttons.
+  const save = page.getByRole("button", { name: "Сохранить черновик" });
+  await editor.fill("");
+  await save.click();
+  const emptyError = page.getByText("Введите текст документа.");
+  await expect(emptyError).toBeVisible();
+  await expect(editor).toBeFocused();
+  await expect
+    .poll(async () => {
+      const [error, bar] = await Promise.all([
+        emptyError.boundingBox(),
+        save.boundingBox(),
+      ]);
+      return error && bar ? bar.y - (error.y + error.height) : -1;
+    })
+    .toBeGreaterThanOrEqual(0);
+
   // An address without a single space: it must wrap, not widen the page.
   const longUrl = `https://priyut.example/${"ochen-dlinnyy-adres/".repeat(8)}`;
   await editor.fill(
@@ -76,7 +94,7 @@ test("the owner publishes a new version and the document's page shows it", async
     exact: true,
   });
   await expect(publish).toBeDisabled();
-  await page.getByRole("button", { name: "Сохранить черновик" }).click();
+  await save.click();
   await expect(page.getByText("Черновик сохранён")).toBeVisible();
 
   // Left and reached again through the browser's history, the editor has
@@ -223,6 +241,10 @@ for (const variant of UNSUBSCRIBE_VARIANTS) {
 
       await page.getByRole("button", { name: "Отписаться" }).click();
       await expect(done).toBeVisible();
+      // The page changed under the reader: its title says what happened,
+      // and with JavaScript the result takes the focus.
+      await expect(page).toHaveTitle(/Вы отписаны/);
+      if (variant === "js") await expect(done).toBeFocused();
 
       // For good: the link now only says so.
       await page.goto(link);

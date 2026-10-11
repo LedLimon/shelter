@@ -1,20 +1,30 @@
 import { MailCheck, MailQuestion } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { LegalSheet, LegalShell } from "@/components/legal/legal-shell";
-import { buttonVariants } from "@/components/ui/button";
 import { maskEmail } from "@/lib/pii";
 import { getDb } from "@/server/db";
 import { marketingConsentState } from "@/server/legal";
 import { getSettings } from "@/server/settings";
 import { unsubscribe } from "./actions";
+import { ResultHeading } from "./result-heading";
 import { UnsubscribeButton } from "./unsubscribe-button";
 
 // The link at the bottom of every newsletter (unsubscribeUrl()). Opening it
 // withdraws nothing — mail scanners follow links — the button does.
 
-export const metadata: Metadata = {
-  title: "Отписка от рассылки",
+export async function generateMetadata({
+  params,
+}: PageProps<"/unsubscribe/[token]">): Promise<Metadata> {
+  const { status } = await marketingConsentState(getDb(), (await params).token);
+  return {
+    // The title changes with the page: it is what a screen reader and a
+    // browser without JavaScript announce after the button.
+    title: status === "withdrawn" ? "Вы отписаны" : "Отписка от рассылки",
+    ...SHARED_METADATA,
+  };
+}
+
+const SHARED_METADATA: Metadata = {
   robots: { index: false },
   // The address is a secret: don't hand it to other sites in the Referer.
   // Not "no-referrer": the form's own POST would then come with
@@ -67,7 +77,7 @@ export default async function UnsubscribePage({
       <LegalShell>
         <LegalSheet className="grid max-w-xl gap-4">
           <MailCheck aria-hidden className="size-8 text-success" />
-          <h1 className="text-section">Вы&nbsp;отписаны</h1>
+          <ResultHeading>Вы&nbsp;отписаны</ResultHeading>
           <p className="max-w-prose">
             Новости приюта больше не&nbsp;придут
             {address && (
@@ -78,17 +88,12 @@ export default async function UnsubscribePage({
               </>
             )}
             . Письма о&nbsp;ваших пожертвованиях и&nbsp;ежемесячной помощи
-            приходить продолжат: это не&nbsp;рассылка.
+            продолжат приходить: это не&nbsp;рассылка.
           </p>
           <p className="max-w-prose text-caption text-toner-muted">
             Передумаете — отметьте «Хочу получать новости» при следующем
             пожертвовании.
           </p>
-          <div>
-            <Link href="/" className={buttonVariants({ variant: "outline" })}>
-              На сайт приюта
-            </Link>
-          </div>
         </LegalSheet>
       </LegalShell>
     );

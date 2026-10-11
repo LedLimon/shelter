@@ -1,10 +1,14 @@
 import { cn } from "@/lib/utils";
+// Pure, like the catalog: the same line-breaking rules the letters use.
+import { typeset } from "@/server/email/typography";
 import { parseLegalInline, parseLegalText } from "./parse-legal-text";
 
 /**
  * The text of a legal document as people read it: Literata at a reading
  * measure, clause numbers as typed. The markup is in parse-legal-text.ts.
- * Renders React elements only, so the text can't inject markup.
+ * Renders React elements only, so the text can't inject markup. Short
+ * prepositions are glued to the next word for showing; the stored text and
+ * its hash are left alone.
  */
 export function LegalText({
   body,
@@ -24,13 +28,18 @@ export function LegalText({
       {parseLegalText(body).map((block, index) => {
         switch (block.kind) {
           case "heading":
+            // A step below the page's title at every width: on a phone the
+            // title itself is 30 px.
             return block.level === 2 ? (
-              <h2 key={index} className="mt-8 mb-3 text-title first:mt-0">
-                {block.text}
+              <h2 key={index} className="mt-8 mb-3 text-button first:mt-0">
+                {typeset(block.text)}
               </h2>
             ) : (
-              <h3 key={index} className="mt-6 mb-2 text-button first:mt-0">
-                {block.text}
+              <h3
+                key={index}
+                className="mt-6 mb-2 font-reading text-body leading-snug font-bold first:mt-0"
+              >
+                {typeset(block.text)}
               </h3>
             );
           case "list":
@@ -70,7 +79,7 @@ function Inline({ text }: { text: string }) {
         {part.href}
       </a>
     ) : (
-      part.text
+      typeset(part.text)
     ),
   );
 }

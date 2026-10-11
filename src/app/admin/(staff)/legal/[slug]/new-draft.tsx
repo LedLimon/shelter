@@ -23,7 +23,7 @@ export function NewDraft({
   const { run, pending, failure } = useAdminAction();
 
   return (
-    <Panel title={`Версия ${version}`} className="max-w-3xl">
+    <Panel title="Новая версия" className="max-w-3xl">
       <p className="max-w-prose">
         {currentVersion === null ? (
           <>

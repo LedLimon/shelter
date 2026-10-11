@@ -54,6 +54,11 @@ type ConsentCheckboxesProps<
    * was given to another sum.
    */
   recurringTerms?: string;
+  /**
+   * The boxes the form can't go without — the `required` of consentsSchema():
+   * a screen reader says so before the form is sent.
+   */
+  required?: readonly LegalDocumentType[];
   className?: string;
 };
 
@@ -75,6 +80,7 @@ export function ConsentCheckboxes<
   name,
   documents,
   recurringTerms,
+  required = [],
   className,
 }: ConsentCheckboxesProps<Values, Name, Output>) {
   return (
@@ -90,6 +96,7 @@ export function ConsentCheckboxes<
             <ConsentBox
               document={document}
               recurringTerms={recurringTerms}
+              required={required.includes(document.type)}
               name={field.name}
               value={typeof field.value === "string" ? field.value : NOT_GIVEN}
               onChange={field.onChange}
@@ -109,6 +116,7 @@ export function ConsentCheckboxes<
 function ConsentBox({
   document,
   recurringTerms,
+  required,
   name,
   value,
   onChange,
@@ -120,6 +128,7 @@ function ConsentBox({
 }: {
   document: ConsentDocument;
   recurringTerms: string | undefined;
+  required: boolean;
   name: string;
   value: ConsentValue;
   onChange: (value: ConsentValue) => void;
@@ -173,6 +182,7 @@ function ConsentBox({
         onBlur={onBlur}
         inputRef={inputRef}
         disabled={disabled}
+        aria-required={required || undefined}
         aria-invalid={invalid || undefined}
         aria-describedby={
           [hint && `${id}-hint`, invalid && `${id}-error`]
@@ -209,12 +219,15 @@ function consentText(
 
   switch (type) {
     case "OFFER":
-      return { label: <>Принимаю условия {link("оферты о пожертвовании")}</> };
+      return {
+        label: <>Принимаю условия {link("оферты о\u00A0пожертвовании")}</>,
+      };
     case "PD_CONSENT":
       return {
         label: (
           <>
-            Даю {link("согласие на обработку персональных данных")} по&nbsp;
+            Даю {link("согласие на\u00A0обработку персональных данных")}{" "}
+            по&nbsp;
             <DocumentLink href={legalHref("PRIVACY")}>
               политике приюта
             </DocumentLink>
@@ -246,7 +259,7 @@ function consentText(
         label: (
           <>
             Хочу получать новости приюта на&nbsp;почту —{" "}
-            {link("согласие на рассылку")}
+            {link("согласие на\u00A0рассылку")}
           </>
         ),
         hint: "Необязательно. Отписаться можно по ссылке в любом письме.",

@@ -89,11 +89,18 @@ export function DraftForm({ draft, title }: { draft: Draft; title: string }) {
             </TabsList>
             {/* Mounted while hidden: the field keeps its errors and its focus target. */}
             <TabsContent value="text" keepMounted>
+              {/* Above the field, not under it: an error must stay right
+                  below the field, where the sticky bar doesn't cover it. */}
+              <p className="mb-4 max-w-prose text-caption text-toner-muted">
+                Каждая строка — абзац. Заголовок раздела — строка, которая
+                начинается с&nbsp;«##&nbsp;», подзаголовок — с&nbsp;«###&nbsp;»,
+                пункт списка — с&nbsp;«-&nbsp;». Номера пунктов (1.1, 1.2) сайт
+                показывает как набраны.
+              </p>
               <TextareaField
                 control={form.control}
                 name="body"
                 label="Текст документа"
-                description="Каждая строка — абзац. Заголовок раздела — строка, которая начинается с «## », подзаголовок — с «### », пункт списка — с «- ». Номера пунктов (1.1, 1.2) сайт показывает как набраны."
                 spellCheck
                 autoComplete="off"
                 // On a phone the field grows with the text and the page scrolls;
@@ -149,8 +156,7 @@ export function DraftForm({ draft, title }: { draft: Draft; title: string }) {
           </div>
           {isDirty && !isSubmitting && (
             <p className="text-caption text-toner-muted">
-              Есть несохранённые изменения. Публикуется сохранённый текст —
-              сначала сохраните черновик.
+              Сначала сохраните черновик — публикуется сохранённый текст.
             </p>
           )}
         </FormActions>

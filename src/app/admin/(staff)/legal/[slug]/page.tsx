@@ -62,7 +62,11 @@ export default async function LegalDocumentAdminPage({
                 href={legalHref(type)}
                 target="_blank"
                 rel="noopener"
-                className={buttonVariants({ variant: "outline", size: "sm" })}
+                // cn() settles the variant's frame against the base's
+                // transparent one.
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" }),
+                )}
               >
                 Открыть на сайте
                 <ExternalLink aria-hidden />
@@ -142,7 +146,7 @@ export default async function LegalDocumentAdminPage({
                         href={legalHref(type, version.version)}
                         target="_blank"
                         rel="noopener"
-                        className="text-pen underline hover:decoration-[3px]"
+                        className="inline-flex min-h-9 items-center text-pen underline hover:decoration-[3px]"
                       >
                         Версия {version.version}
                         <span className="sr-only"> (в новой вкладке)</span>

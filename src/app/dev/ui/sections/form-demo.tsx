@@ -293,6 +293,7 @@ export function FormDemo() {
               : document,
           )}
           recurringTerms={`${monthlySum} каждый месяц`}
+          required={["OFFER", "PD_CONSENT", "RECURRING"]}
         />
         <div className="grid gap-1.5">
           <Button

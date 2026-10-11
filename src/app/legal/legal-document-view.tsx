@@ -25,6 +25,15 @@ export function LegalDocumentView({
   // Legal dates always carry the year.
   const date = (iso: string) =>
     formatDate(new Date(iso), { timeZone, year: "always" });
+  /** «с 1 по 11 октября» reads oddly when a version lasted less than a day. */
+  const period = (from: string, to: string) =>
+    date(from) === date(to) ? (
+      date(from)
+    ) : (
+      <>
+        с&nbsp;{date(from)} по&nbsp;{date(to)}
+      </>
+    );
 
   if (!document) {
     return (
@@ -65,8 +74,8 @@ export function LegalDocumentView({
                 <>действует с&nbsp;{date(document.effectiveAt)}</>
               ) : (
                 <>
-                  действовала с&nbsp;{date(document.effectiveAt)} по&nbsp;
-                  {date(replacedBy.effectiveAt)}
+                  действовала{" "}
+                  {period(document.effectiveAt, replacedBy.effectiveAt)}
                 </>
               )}
             </p>
@@ -129,10 +138,7 @@ export function LegalDocumentView({
                     </span>
                     <span className="font-mono text-mono text-toner-muted">
                       {next ? (
-                        <>
-                          с&nbsp;{date(item.effectiveAt)} по&nbsp;
-                          {date(next.effectiveAt)}
-                        </>
+                        period(item.effectiveAt, next.effectiveAt)
                       ) : (
                         <>действует с&nbsp;{date(item.effectiveAt)}</>
                       )}
