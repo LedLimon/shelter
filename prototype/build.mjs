@@ -3,9 +3,10 @@
 //
 //   node prototype/build.mjs
 //
-// dist/ostrovok-nadezhdy.html — the page to publish (the artifact host adds
-// <html>, <head> and <body> itself); dist/preview.html — the same page as a
-// full document, for checking locally.
+// dist/ostrovok-nadezhdy.html — the page to publish as an artifact (its host
+// adds <html>, <head> and <body> itself); dist/preview.html — the same page as
+// a full document: for checking locally and for GitHub Pages
+// (.github/workflows/prototype-pages.yml).
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -72,11 +73,19 @@ const page = template
       `(() => {\n"use strict";\n${js.replaceAll("</script", "<\\/script")}\n})();`,
   );
 
+// The app's placeholder icon, so the public copy does not ask for /favicon.ico.
+const favicon = await dataUri(join(repo, "src/app/icon.svg"), "image/svg+xml");
+
+// noindex: the public copy is a demo with invented needs and requisites and
+// must not be found by a search engine as the shelter's real site.
 const preview = `<!doctype html>
 <html lang="ru">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="robots" content="noindex, nofollow" />
+<meta name="description" content="Прототип сайта приюта «Островок Надежды» на демо-данных: так сайт будет выглядеть и работать." />
+<link rel="icon" type="image/svg+xml" href="${favicon}" />
 </head>
 <body>
 ${page}
