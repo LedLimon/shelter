@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isTimeZone } from "@/lib/env/schema";
+import { isTimeZone } from "@/lib/time-zones";
 
 const amountKop = z.number().int().positive();
 
@@ -39,11 +39,10 @@ export type SettingKey = keyof typeof settingSchemas;
 export type SettingValue<K extends SettingKey> = z.output<
   (typeof settingSchemas)[K]
 >;
+export type Settings = { [K in SettingKey]: SettingValue<K> };
 
 /** Values the seed writes to a new database; admins fill in the rest. */
-export function defaultSettings(timeZone: string): {
-  [K in SettingKey]: SettingValue<K>;
-} {
+export function defaultSettings(timeZone: string): Settings {
   return {
     "shelter.timezone": timeZone,
     "shelter.requisites": {

@@ -1,16 +1,8 @@
 import { z } from "zod";
+import { isTimeZone } from "@/lib/time-zones";
 import { MIN_PASSWORD_LENGTH } from "@/server/auth/policy";
 
 type EnvSource = Record<string, string | undefined>;
-
-export function isTimeZone(value: string): boolean {
-  try {
-    new Intl.DateTimeFormat("en", { timeZone: value });
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 const httpUrl = () =>
   z.url({ protocol: /^https?$/, error: "must be an http(s):// URL" });
