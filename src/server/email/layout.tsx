@@ -3,7 +3,14 @@ import type { ReactNode } from "react";
 import { Block, Caption, Link, Preheader } from "./components";
 import type { EmailContext } from "./context";
 import { SHEET_SHADOW } from "./palette";
-import { FONT, inked, SHEET_WIDTH, stylesheet, TEXT_CLASS } from "./theme";
+import {
+  FONT,
+  inked,
+  INSET,
+  SHEET_WIDTH,
+  stylesheet,
+  TEXT_CLASS,
+} from "./theme";
 
 /** Where the reader manages what they get from us; a letter may have neither. */
 export type EmailLinks = {
@@ -28,7 +35,8 @@ type EmailLayoutProps = {
 /**
  * The frame of every letter: one sheet of paper on the board, the shelter's
  * name set as a masthead (there is no logo until ORG-5), and under the sheet
- * who wrote, why, and how to stop it.
+ * why the letter came, who is behind it — the organisation, once its
+ * requisites are filled in — and how to stop it.
  */
 export function EmailLayout({
   context,
@@ -75,7 +83,7 @@ export function EmailLayout({
         <Block
           ink={{ bg: "board" }}
           className="board"
-          style={{ padding: "24px 12px 32px" }}
+          style={{ padding: INSET.board }}
         >
           <table
             role="presentation"
@@ -97,7 +105,7 @@ export function EmailLayout({
                   {...withClass(
                     inked(
                       { bg: "paper" },
-                      { padding: "28px 28px 32px", boxShadow: SHEET_SHADOW },
+                      { padding: INSET.sheet, boxShadow: SHEET_SHADOW },
                     ),
                     "inset",
                   )}
@@ -123,7 +131,7 @@ export function EmailLayout({
                 </td>
               </tr>
               <tr>
-                <td style={{ padding: "20px 28px 0" }} className="inset">
+                <td style={{ padding: INSET.foot }} className="foot">
                   <Caption>{reason}</Caption>
                   {(links.manage ?? links.unsubscribe) ? (
                     <Caption>
@@ -139,8 +147,7 @@ export function EmailLayout({
                     </Caption>
                   ) : null}
                   <Caption style={{ margin: 0 }}>
-                    Приют «{shelter.name}»
-                    {shelter.legalName ? ` · ${shelter.legalName}` : null}
+                    {shelter.legalName ?? `Приют «${shelter.name}»`}
                     <br />
                     <Link href={siteUrl} className={TEXT_CLASS.site}>
                       {hostOf(siteUrl)}

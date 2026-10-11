@@ -88,7 +88,7 @@ describe("a letter sent by an outbox event", () => {
     const [letter, ...rest] = await waitForInbox(address);
     expect(rest).toEqual([]);
     expect(plain(letter!.subject)).toBe(
-      "Проверка: Спасибо! Мы получили ваше пожертвование — 3 000 ₽",
+      "Проверка: Спасибо! Мы получили ваше пожертвование — 25 000,50 ₽",
     );
     expect(letter).toMatchObject({
       from: { name: SHELTER_NAME, address: "no-reply@shelter.localhost" },
@@ -96,8 +96,8 @@ describe("a letter sent by an outbox event", () => {
       replyTo: [],
     });
     expect(letter!.html).toMatch(/<h1[^>]*>Спасибо.*за помощь!<\/span><\/h1>/);
-    expect(plain(letter!.html)).toContain("2 124,50 ₽");
-    expect(plain(letter!.text)).toContain("В общий фонд   875,50 ₽");
+    expect(plain(letter!.html)).toContain("16 250,25 ₽");
+    expect(plain(letter!.text)).toContain("В общий фонд: 8 750,25 ₽");
     expect(plain(letter!.text)).toContain(
       "Это письмо — подтверждение пожертвования, а не кассовый чек.",
     );

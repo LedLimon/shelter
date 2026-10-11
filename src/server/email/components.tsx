@@ -1,5 +1,5 @@
 import { Children, type CSSProperties, type ReactNode } from "react";
-import { FONT, inked, TEXT_CLASS, type Ink } from "./theme";
+import { DISPLAY_SIZE, FONT, inked, TEXT_CLASS, type Ink } from "./theme";
 import { NBSP, typeset } from "./typography";
 
 // The building blocks of a letter. Mail clients lay out tables and inline
@@ -148,7 +148,7 @@ export function Title({ children }: { children: ReactNode }) {
     {
       margin: "0 0 16px",
       fontFamily: FONT.display,
-      fontSize: 40,
+      fontSize: DISPLAY_SIZE.title,
       lineHeight: 1,
       fontWeight: 900,
       ...BREAK_ANYWHERE,
@@ -254,12 +254,17 @@ export type FormRow = {
   value: ReactNode;
   /** The row the form is about: its value is set large. */
   primary?: boolean;
+  /**
+   * The value under its label, across the whole form: for a value of several
+   * lines (a long title), which reads badly squeezed into the right column.
+   */
+  stacked?: boolean;
 };
 
 /**
  * A filled-in form: a box in a toner frame, rows parted by perforation, each
  * a label in the service face and its value. For the facts of a letter —
- * what was paid, when, under what number.
+ * what was paid, when, where it went.
  */
 export function Form({ rows }: { rows: FormRow[] }) {
   const box = inked(
@@ -271,6 +276,31 @@ export function Form({ rows }: { rows: FormRow[] }) {
       margin: "0 0 24px",
     },
   );
+  // A line of its own between rows: drawn on each cell, the dashes would
+  // lose their rhythm where the columns meet.
+  const perforation = inked(
+    { border: "perforation" },
+    {
+      borderTopWidth: 2,
+      borderTopStyle: "dashed",
+      height: 0,
+      fontSize: 0,
+      lineHeight: 0,
+    },
+  );
+  const labelStyle: CSSProperties = {
+    fontFamily: FONT.mono,
+    fontSize: 12,
+    lineHeight: "18px",
+  };
+  const valueStyle: CSSProperties = {
+    fontFamily: FONT.body,
+    fontSize: 16,
+    lineHeight: "22px",
+    fontVariantNumeric: "tabular-nums",
+    ...BREAK_ANYWHERE,
+  };
+
   return (
     <table
       role="presentation"
@@ -281,65 +311,105 @@ export function Form({ rows }: { rows: FormRow[] }) {
       style={box.style}
     >
       <tbody>
-        {rows.map((row, index) => {
-          const divider: CSSProperties =
-            index === 0 ? {} : { borderTopWidth: 2, borderTopStyle: "dashed" };
-          const label = inked(
-            { fg: "toner-muted", border: "perforation" },
-            {
-              ...divider,
-              padding: "12px 8px 12px 14px",
-              fontFamily: FONT.mono,
-              fontSize: 12,
-              lineHeight: "18px",
-              // Labels are a word or two; a long value wraps instead. On a
-              // phone the label may wrap too (the stylesheet's .label).
-              whiteSpace: "nowrap",
-              verticalAlign: row.primary ? "middle" : "top",
-            },
+        {rows.flatMap((row, index) => {
+          const cells = row.stacked ? (
+            <StackedRow
+              key={row.label}
+              row={row}
+              labelStyle={labelStyle}
+              valueStyle={valueStyle}
+            />
+          ) : (
+            <SplitRow
+              key={row.label}
+              row={row}
+              labelStyle={labelStyle}
+              valueStyle={valueStyle}
+            />
           );
-          const value = inked(
-            { fg: "toner", border: "perforation" },
-            {
-              ...divider,
-              padding: "12px 14px 12px 8px",
-              textAlign: "right",
-              verticalAlign: row.primary ? "middle" : "top",
-              fontVariantNumeric: "tabular-nums",
-              ...(row.primary
-                ? {
-                    fontFamily: FONT.display,
-                    fontSize: 36,
-                    lineHeight: "36px",
-                    fontWeight: 900,
-                    whiteSpace: "nowrap",
-                  }
-                : {
-                    fontFamily: FONT.body,
-                    fontSize: 16,
-                    lineHeight: "22px",
-                    ...BREAK_ANYWHERE,
-                  }),
-            },
-          );
-          return (
-            <tr key={row.label}>
+          if (index === 0) return [cells];
+          return [
+            <tr key={`${row.label}-line`}>
               <td
-                className={classes(label.className, "label")}
-                style={label.style}
-              >
-                {row.label}
-              </td>
-              <td
-                className={classes(value.className, row.primary && "sum")}
-                style={value.style}
-              >
-                {row.primary ? setDisplay(row.value) : row.value}
-              </td>
-            </tr>
-          );
+                colSpan={2}
+                className={perforation.className}
+                style={perforation.style}
+              />
+            </tr>,
+            cells,
+          ];
         })}
       </tbody>
     </table>
+  );
+}
+
+type RowProps = {
+  row: FormRow;
+  labelStyle: CSSProperties;
+  valueStyle: CSSProperties;
+};
+
+/** A label on the left, its value on the right. */
+function SplitRow({ row, labelStyle, valueStyle }: RowProps) {
+  const align = row.primary ? "middle" : "top";
+  const label = inked(
+    { fg: "toner-muted" },
+    { ...labelStyle, padding: "12px 8px 12px 14px", verticalAlign: align },
+  );
+  const value = inked(
+    { fg: "toner" },
+    {
+      ...valueStyle,
+      padding: "12px 14px 12px 8px",
+      textAlign: "right",
+      verticalAlign: align,
+      ...(row.primary && {
+        fontFamily: FONT.display,
+        fontSize: DISPLAY_SIZE.sum,
+        lineHeight: `${DISPLAY_SIZE.sum + 2}px`,
+        fontWeight: 900,
+        whiteSpace: "nowrap",
+        overflowWrap: "normal",
+        wordBreak: "normal",
+      }),
+    },
+  );
+  return (
+    <tr data-form="row">
+      {/* .label: one line in a wide window (the stylesheet), free to wrap on a phone. */}
+      <td
+        data-form="label"
+        className={classes(label.className, "label")}
+        style={label.style}
+      >
+        {set(row.label)}
+      </td>
+      <td
+        data-form="value"
+        className={classes(value.className, row.primary && "sum")}
+        style={value.style}
+      >
+        {row.primary ? setDisplay(row.value) : set(row.value)}
+      </td>
+    </tr>
+  );
+}
+
+/** The value under its label, both across the form. */
+function StackedRow({ row, labelStyle, valueStyle }: RowProps) {
+  const label = inked({ fg: "toner-muted" }, labelStyle);
+  const value = inked({ fg: "toner" }, { ...valueStyle, paddingTop: 2 });
+  return (
+    <tr data-form="row">
+      <td colSpan={2} style={{ padding: "12px 14px" }}>
+        <div data-form="label" className={label.className} style={label.style}>
+          {set(row.label)}
+        </div>
+        <div data-form="value" className={value.className} style={value.style}>
+          {set(row.value)}
+        </div>
+      </td>
+    </tr>
   );
 }

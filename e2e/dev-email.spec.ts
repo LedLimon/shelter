@@ -148,6 +148,14 @@ for (const theme of ["light", "dark"] as const) {
           `${href} at ${width} px`,
         ).toBeLessThanOrEqual(width);
       }
+
+      // A client that drops <style> shows the inline styles alone.
+      await page.setViewportSize({ width: 320, height: 800 });
+      await page.setContent(html!.replace(/<style>[\s\S]*?<\/style>/, ""));
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+        `${href} without <style>`,
+      ).toBeLessThanOrEqual(320);
     }
   });
 }

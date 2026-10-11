@@ -1,9 +1,9 @@
 export const NBSP = "\u00A0";
 
-// Words that must not end a line: one- and two-letter prepositions,
-// conjunctions and the particle «не».
+// Words that must not end a line: one- and two-letter prepositions and
+// conjunctions, the particle «не», and the three-letter prepositions.
 const SHORT_WORD =
-  /(^|[\s«(])(а|в|и|к|о|с|у|я|во|до|за|из|ко|на|не|но|об|от|по|со)[ \t]+(?=\S)/giu;
+  /(^|[\s«(])(а|в|и|к|о|с|у|я|во|до|за|из|ко|на|не|но|об|от|по|со|без|для|над|под|при|про)[ \t]+(?=\S)/giu;
 
 /**
  * Russian line-breaking for a run of text: a short preposition stays with the

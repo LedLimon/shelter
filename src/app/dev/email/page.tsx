@@ -71,11 +71,10 @@ export default async function EmailPreviewPage({
         <div className="grid gap-3">
           <h1 className="text-hero">Письма</h1>
           <p className="max-w-prose">
-            Шаблоны из{" "}
-            <code className="font-mono text-mono">src/server/email</code>{" "}
-            с&nbsp;данными-примерами — так их отправит воркер. Только
-            в&nbsp;development. Тема и&nbsp;ширина здесь — это почтовая
-            программа читателя, а&nbsp;не&nbsp;сайт.
+            Шаблоны из <Code>src/server/email</Code> с&nbsp;данными-примерами —
+            так их отправит воркер. Только в&nbsp;development. Тема
+            и&nbsp;ширина здесь — это почтовая программа читателя,
+            а&nbsp;не&nbsp;сайт.
           </p>
         </div>
         <div className="grid gap-4 border-t border-input pt-4 md:grid-cols-2">
@@ -133,8 +132,8 @@ export default async function EmailPreviewPage({
         title="Письмо"
         description={
           <>
-            <code className="font-mono text-mono">{query.template}</code>,
-            пример «{examples[query.example]!.label}».
+            <Code>{query.template}</Code>, пример «
+            {examples[query.example]!.label}».
           </>
         }
       >
@@ -145,12 +144,16 @@ export default async function EmailPreviewPage({
             <dt className="font-mono text-mono text-toner-muted">От кого</dt>
             <dd>{SHELTER_NAME}</dd>
           </dl>
-          <div className="overflow-x-auto">
-            <EmailFrame
-              html={forceTheme(letter.html, query.theme)}
-              title={`Письмо «${letter.subject}»`}
-              width={FRAME_WIDTHS[query.width]}
-            />
+          {/* On a phone the frame reaches the screen's edges: a 375 px
+              client on a 375 px screen. A narrower screen scrolls it. */}
+          <div className="-mx-[calc(var(--spacing-gutter)+var(--spacing-sheet))] overflow-x-auto md:mx-0">
+            <div className="w-fit md:border md:border-toner">
+              <EmailFrame
+                html={forceTheme(letter.html, query.theme)}
+                title={`Письмо «${letter.subject}»`}
+                width={FRAME_WIDTHS[query.width]}
+              />
+            </div>
           </div>
         </Paper>
       </Section>
@@ -170,7 +173,14 @@ export default async function EmailPreviewPage({
       <Section
         id="send"
         title="В почту"
-        description="Образец уходит тем же путём, что и настоящие письма: событие в outbox, воркер, SMTP. Нужны pnpm dev:up, pnpm db:seed и запущенный pnpm worker; письмо появится в Mailpit — localhost:8025."
+        description={
+          <>
+            Образец уходит тем же путём, что и настоящие письма: событие
+            в&nbsp;outbox, воркер, SMTP. Нужны <Code>pnpm dev:up</Code>,{" "}
+            <Code>pnpm db:seed</Code> и&nbsp;запущенный <Code>pnpm worker</Code>
+            ; письмо появится в&nbsp;Mailpit — <Code>localhost:8025</Code>.
+          </>
+        }
       >
         <Paper>
           <SendSampleForm template={query.template} example={query.example} />
@@ -178,6 +188,10 @@ export default async function EmailPreviewPage({
       </Section>
     </main>
   );
+}
+
+function Code({ children }: { children: ReactNode }) {
+  return <code className="font-mono text-mono">{children}</code>;
 }
 
 function Options({

@@ -16,6 +16,9 @@ import { defineEmail, type EmailTemplateProps } from "../definition";
 import { EmailLayout } from "../layout";
 import { NBSP } from "../typography";
 
+// Longer than this, «Сбор «…»» no longer fits beside its label on a phone.
+const LONG_TITLE = 24;
+
 const DONATIONS: PluralForms = [
   "пожертвование",
   "пожертвования",
@@ -121,11 +124,15 @@ function DonationThanks({ props, context, links }: EmailTemplateProps<Props>) {
       { label: "На этот сбор", value: formatRub(story.toNeedKop) },
       { label: "В общий фонд", value: formatRub(story.overflowKop) },
     );
-  } else {
+  } else if (story.kind === "need") {
     rows.push({
       label: "Куда",
-      value: story.kind === "need" ? `Сбор «${story.title}»` : "Общий фонд",
+      value: `Сбор «${story.title}»`,
+      // A title of several lines gets the form's whole width.
+      stacked: story.title.length > LONG_TITLE,
     });
+  } else {
+    rows.push({ label: "Куда", value: "Общий фонд" });
   }
   rows.push({
     label: "Когда",
@@ -148,7 +155,7 @@ function DonationThanks({ props, context, links }: EmailTemplateProps<Props>) {
       preview={previewOf(story)}
       links={links}
       reason={
-        `Вы получили это письмо, потому что сделали пожертвование на сайте приюта «${shelter.name}».` +
+        "Вы получили это письмо, потому что сделали пожертвование на нашем сайте." +
         (shelter.email ? " Если это были не вы, ответьте на это письмо." : "")
       }
     >
@@ -192,8 +199,8 @@ function DonationThanks({ props, context, links }: EmailTemplateProps<Props>) {
           {story.count !== undefined && story.count > 1
             ? `Вместе с вашим в этом сборе уже ${formatCount(story.count, DONATIONS)}. `
             : null}
-          Когда всё будет куплено, на странице сбора появится отчёт с чеками и
-          фото.
+          Когда всё будет куплено или оплачено, на странице сбора появится отчёт
+          с чеками и фото.
         </Text>
       ) : null}
       {story.kind === "split" ? (
@@ -210,12 +217,13 @@ function DonationThanks({ props, context, links }: EmailTemplateProps<Props>) {
         <Button href={`${siteUrl}/transparency`}>Посмотреть расходы</Button>
       )}
 
-      <Caption>
+      <Text>Команда приюта «{shelter.name}»</Text>
+
+      <Caption style={{ margin: 0 }}>
         Это письмо — подтверждение пожертвования, а не кассовый чек. Номер
         пожертвования: <Mono>{props.donationId}</Mono> — назовите его, если
         будете писать нам об этом платеже.
       </Caption>
-      <Text style={{ margin: 0 }}>Команда приюта «{shelter.name}»</Text>
     </EmailLayout>
   );
 }
@@ -247,13 +255,13 @@ export const donationThanks = defineEmail({
       label: "На нужду с переплатой",
       props: {
         donationId: "cm2a8k3xw0002qz0h1c8m6r2d",
-        amountKop: 300_000,
+        amountKop: 2_500_050,
         paidAt,
         purpose: {
           kind: "need",
           title: "Противопаразитарная обработка всех собак перед зимой",
           slug: "obrabotka-pered-zimoy",
-          overflowKop: 87_550,
+          overflowKop: 875_025,
           goalReached: true,
         },
       },
@@ -281,10 +289,11 @@ export const donationThanks = defineEmail({
         purpose: {
           kind: "need",
           title:
-            "Электрокардиографическое обследование и противопаразитарная обработка всех собак приюта перед зимой",
-          slug: "obsledovanie-i-obrabotka-pered-zimoy",
-          overflowKop: 2_750_025,
+            "Электрокардиографическое обследование и противопаразитарная обработка для всех собак приюта",
+          slug: "obsledovanie-i-obrabotka",
+          overflowKop: 0,
           goalReached: true,
+          donationsCount: 1_204,
         },
       },
     },

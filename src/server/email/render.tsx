@@ -4,14 +4,53 @@ import type { EmailDefinition } from "./definition";
 import { emails, type EmailProps, type EmailType } from "./registry";
 import { TEXT_CLASS } from "./theme";
 
+// What html-to-text hands a formatter; its own types don't reach this
+// package (it is the renderer's dependency, not ours).
+type TextNode = {
+  attribs?: Record<string, string>;
+  children?: TextNode[];
+};
+type TextBuilder = {
+  openBlock(options?: { leadingLineBreaks?: number }): void;
+  closeBlock(options?: { trailingLineBreaks?: number }): void;
+  addInline(text: string): void;
+};
+type Walk = (nodes: TextNode[] | undefined, builder: TextBuilder) => void;
+
+/** Every node under `node` marked `data-form="<part>"` (see Form). */
+function formParts(node: TextNode, part: string): TextNode[] {
+  return (node.children ?? []).flatMap((child) =>
+    child.attribs?.["data-form"] === part ? [child] : formParts(child, part),
+  );
+}
+
 // On top of React Email's defaults (no images, nothing of the preheader):
+// - the heading keeps its case: the letter doesn't shout;
 // - a link is «text <url>» — in angle brackets, so a full stop after it is
 //   not taken for a part of the address;
-// - a form reads as rows of «label   value», where a layout table would run
+// - a form reads as lines of «label: value», where a layout table would run
 //   its cells together;
 // - the links to the site itself are its name and its host, not an address.
 const TEXT_OPTIONS = {
+  formatters: {
+    form(table: TextNode, walk: Walk, builder: TextBuilder) {
+      builder.openBlock({ leadingLineBreaks: 2 });
+      for (const row of formParts(table, "row")) {
+        builder.openBlock({ leadingLineBreaks: 1 });
+        // The parts' children, not the parts: a stacked row holds them in
+        // blocks, which would put each on a line of its own.
+        const inside = (part: string) =>
+          formParts(row, part).flatMap((node) => node.children ?? []);
+        walk(inside("label"), builder);
+        builder.addInline(": ");
+        walk(inside("value"), builder);
+        builder.closeBlock({ trailingLineBreaks: 1 });
+      }
+      builder.closeBlock({ trailingLineBreaks: 2 });
+    },
+  },
   selectors: [
+    { selector: "h1", options: { uppercase: false } },
     {
       selector: "a",
       options: { linkBrackets: ["<", ">"], hideLinkHrefIfSameAsText: true },
@@ -21,11 +60,7 @@ const TEXT_OPTIONS = {
       format: "anchor",
       options: { ignoreHref: true },
     },
-    {
-      selector: `table.${TEXT_CLASS.form}`,
-      format: "dataTable",
-      options: { colSpacing: 3, uppercaseHeaderCells: false },
-    },
+    { selector: `table.${TEXT_CLASS.form}`, format: "form" },
   ],
 };
 

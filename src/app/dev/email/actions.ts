@@ -42,14 +42,15 @@ export async function sendSample(
     };
   }
 
-  await outbox.enqueue(db, "email.test", {
+  const eventId = await outbox.enqueue(db, "email.test", {
     template,
     example,
     userId: owner.id,
   });
   return {
     ok: true,
-    message:
-      "Образец в очереди. Его отправит воркер (pnpm worker), письмо придёт в Mailpit на адрес владельца.",
+    // The id tells one click from the next and finds the event in the
+    // worker's log.
+    message: `Образец в очереди, событие ${eventId}. Его отправит воркер (pnpm worker), письмо придёт в Mailpit на адрес владельца.`,
   };
 }

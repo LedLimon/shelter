@@ -81,4 +81,26 @@ describe("EmailLayout", () => {
     );
     expect(text).toContain("Приют «Мыс доброй надежды»");
   });
+
+  it("names the organisation instead, once its requisites are filled in", async () => {
+    const html = plain(
+      await render(
+        <EmailLayout
+          context={{
+            ...context,
+            shelter: { ...context.shelter, legalName: "АНО «Мыс»" },
+          }}
+          title="Отчёт"
+          preview="Отчёт"
+          reason="Вы подписаны на отчёты."
+        >
+          <Text>Здравствуйте!</Text>
+        </EmailLayout>,
+      ),
+    );
+    const text = toPlainText(html);
+
+    expect(text).toContain("АНО «Мыс»\nmys.example");
+    expect(text).not.toContain("Приют «");
+  });
 });

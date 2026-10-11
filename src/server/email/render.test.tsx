@@ -63,15 +63,16 @@ describe.each(samples)("%s, example «%s»", (type, _example, props) => {
     }
   });
 
-  it("names the shelter as it is written in one place", async () => {
+  it("names the shelter in the masthead and who is behind it under the sheet", async () => {
     const { html, text } = await letter();
 
-    expect(text).toContain(
-      `Приют «${SHELTER_NAME}» · АНО «Мыс доброй надежды»`,
-    );
-    // The masthead links the name to the site.
+    // The masthead links the name, written in one place, to the site.
     expect(html).toMatch(
       new RegExp(`<a href="https://mys\\.example"[^>]*>${SHELTER_NAME}</a>`),
+    );
+    expect(text.startsWith(SHELTER_NAME)).toBe(true);
+    expect(text.trimEnd()).toMatch(
+      /АНО «Мыс доброй надежды»\nmys\.example · priyut@mys\.example$/,
     );
   });
 
@@ -117,7 +118,7 @@ describe.each(samples)("%s, example «%s»", (type, _example, props) => {
       .exec(html)![1]!
       .replace(/<[^>]+>/g, "");
 
-    expect(text).toContain(heading.toUpperCase());
+    expect(text).toContain(heading);
     expect(text).not.toMatch(/<\/?(p|td|table|a|span|h1)\b/);
     expect(text.length).toBeGreaterThan(200);
   });

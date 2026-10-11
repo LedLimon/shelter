@@ -27,8 +27,14 @@ describe("typeset", () => {
     expect(marked("сбор «На корм»")).toBe("сбор «На_корм»");
   });
 
+  it("keeps the three-letter prepositions too", () => {
+    expect(marked("Корм для щенков и лекарства при простуде")).toBe(
+      "Корм для_щенков и_лекарства при_простуде",
+    );
+  });
+
   it("leaves longer words, word endings and single words alone", () => {
-    expect(marked("это письмо для вас")).toBe("это письмо для вас");
+    expect(marked("это письмо уже пришло")).toBe("это письмо уже пришло");
     expect(marked("сумма собрана")).toBe("сумма собрана");
     expect(marked("в")).toBe("в");
     expect(marked("")).toBe("");

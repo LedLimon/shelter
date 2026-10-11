@@ -78,8 +78,8 @@ describe("donation.thanks", () => {
     expect(text).toContain(
       "Вся сумма пошла на сбор «Корм на октябрь» <https://mys.example/needs/korm-na-oktyabr>.",
     );
-    expect(text).toContain("Сумма   1 500 ₽");
-    expect(text).toContain("Куда    Сбор «Корм на октябрь»");
+    expect(text).toContain("Сумма: 1 500 ₽");
+    expect(text).toContain("Куда: Сбор «Корм на октябрь»");
     expect(text).toContain(
       "Посмотреть сбор <https://mys.example/needs/korm-na-oktyabr>",
     );
@@ -93,8 +93,8 @@ describe("donation.thanks", () => {
     );
 
     expect(text).toContain("Оно закрыло сбор «Корм на октябрь»");
-    expect(text).toContain("На этот сбор   1 199,50 ₽");
-    expect(text).toContain("В общий фонд   300,50 ₽");
+    expect(text).toContain("На этот сбор: 1 199,50 ₽");
+    expect(text).toContain("В общий фонд: 300,50 ₽");
     expect(text).toContain(
       "До цели сбору не хватало 1 199,50 ₽, поэтому остальные 300,50 ₽ перешли в общий фонд приюта.",
     );
@@ -110,7 +110,7 @@ describe("donation.thanks", () => {
     expect(text).toContain(
       "Пока шла оплата, сбор «Корм на октябрь» <https://mys.example/needs/korm-na-oktyabr> закрылся, поэтому вся сумма перешла в общий фонд приюта.",
     );
-    expect(text).toContain("Куда    Общий фонд");
+    expect(text).toContain("Куда: Общий фонд");
     expect(text).toContain(
       "Посмотреть расходы <https://mys.example/transparency>",
     );
@@ -121,7 +121,7 @@ describe("donation.thanks", () => {
     const { text } = await render(toGeneral);
 
     expect(text).toContain("Оно зачислено в общий фонд приюта.");
-    expect(text).toContain("Куда    Общий фонд");
+    expect(text).toContain("Куда: Общий фонд");
     expect(text).toContain(
       "Посмотреть расходы <https://mys.example/transparency>",
     );
@@ -133,7 +133,7 @@ describe("donation.thanks", () => {
       const { html, text } = await render(props);
 
       expect(html).toMatch(/<h1[^>]*>Спасибо.*за помощь!<\/span><\/h1>/);
-      expect(text).toContain("СПАСИБО ЗА ПОМОЩЬ!");
+      expect(text).toContain("Спасибо за помощь!");
       expect(text).toContain("Команда приюта «Мыс доброй надежды»");
     }
   });
@@ -177,10 +177,10 @@ describe("donation.thanks", () => {
   });
 
   it("dates the donation in the shelter's time zone", async () => {
-    expect((await render(toNeed())).text).toContain("Когда   12 октября 2026");
+    expect((await render(toNeed())).text).toContain("Когда: 12 октября 2026");
     expect(
       (await render(toNeed(), { timeZone: "America/New_York" })).text,
-    ).toContain("Когда   11 октября 2026");
+    ).toContain("Когда: 11 октября 2026");
   });
 
   it("keeps kopecks and the largest amount on one line", async () => {
@@ -204,6 +204,30 @@ describe("donation.thanks", () => {
     expect(html).toContain(
       'href="https://mys.example/needs/%D0%BA%D0%BE%D1%80%D0%BC%2F%D0%B2%D0%BE%D0%B4%D0%B0%3Fx%3D1"',
     );
+  });
+
+  it("gives a long title the form's whole width", async () => {
+    const title = "Электрокардиографическое обследование для всех собак приюта";
+    const long = await render(toNeed({ title }));
+    const short = await render(toNeed());
+
+    // Under its label, across both columns — not squeezed into the right one.
+    expect(long.html).toMatch(
+      /<td colSpan="2"[^>]*><div data-form="label"[^>]*>Куда<\/div><div data-form="value"[^>]*>Сбор «Электрокардиографическое/,
+    );
+    expect(short.html).toMatch(/<td data-form="label"[^>]*>Куда<\/td>/);
+    // The text version reads the same either way.
+    expect(long.text).toContain(`Куда: Сбор «${title}»`);
+  });
+
+  it("keeps short words off the ends of the lines of a title", async () => {
+    const { html } = await renderEmail(
+      "donation.thanks",
+      toNeed({ title: "Корм и лекарства для щенков" }),
+      context,
+    );
+
+    expect(html).toContain("Сбор «Корм и\u00A0лекарства для\u00A0щенков»");
   });
 
   it("offers a reply only when the shelter has an address to reply to", async () => {
@@ -237,14 +261,14 @@ describe("donation.thanks", () => {
       "Мыс доброй надежды
 
 
-      СПАСИБО ЗА ПОМОЩЬ!
+      Спасибо за помощь!
 
       Мы получили ваше пожертвование. Оно закрыло сбор «Корм на октябрь» <https://mys.example/needs/korm-na-oktyabr>: нужная сумма собрана.
 
-      Сумма          1 500 ₽
-      На этот сбор   1 200 ₽
-      В общий фонд   300 ₽
-      Когда          12 октября 2026
+      Сумма: 1 500 ₽
+      На этот сбор: 1 200 ₽
+      В общий фонд: 300 ₽
+      Когда: 12 октября 2026
 
       До цели сбору не хватало 1 200 ₽, поэтому остальные 300 ₽ перешли в общий фонд приюта.
 
@@ -252,13 +276,13 @@ describe("donation.thanks", () => {
 
       Посмотреть сбор <https://mys.example/needs/korm-na-oktyabr>
 
-      Это письмо — подтверждение пожертвования, а не кассовый чек. Номер пожертвования: cm2a8k3xw0001qz0h7v5t9e4b — назовите его, если будете писать нам об этом платеже.
-
       Команда приюта «Мыс доброй надежды»
 
-      Вы получили это письмо, потому что сделали пожертвование на сайте приюта «Мыс доброй надежды». Если это были не вы, ответьте на это письмо.
+      Это письмо — подтверждение пожертвования, а не кассовый чек. Номер пожертвования: cm2a8k3xw0001qz0h7v5t9e4b — назовите его, если будете писать нам об этом платеже.
 
-      Приют «Мыс доброй надежды» · АНО «Мыс»
+      Вы получили это письмо, потому что сделали пожертвование на нашем сайте. Если это были не вы, ответьте на это письмо.
+
+      АНО «Мыс»
       mys.example · priyut@mys.example"
     `);
   });
