@@ -32,7 +32,7 @@ src/
   server/                 # бизнес-логика, только сервер ("server-only")
     db/                   # prisma client, транзакции
     auth/                 # better auth, permissions.ts (can())
-    ledger/               # ЕДИНСТВЕННЫЙ модуль, пишущий в Ledger*
+    ledger/               # ЕДИНСТВЕННЫЙ модуль, который пишет в Ledger* и читает их
     payments/             # PaymentProvider, cloudpayments, fake
     needs/ dogs/ donations/ subscriptions/ inkind/ volunteer/ content/ legal/
     jobs/                 # pg-boss: регистрация задач, outbox
@@ -44,6 +44,7 @@ src/
   lib/                    # общие утилиты: money.ts, plural.ts, dates.ts
 worker/                   # точка входа фонового процесса
 prisma/                   # schema.prisma, migrations/, seed.ts
+eslint/                   # свои правила ESLint (shelter/ledger-boundary)
 e2e/                      # Playwright
 ```
 
@@ -61,12 +62,13 @@ e2e/                      # Playwright
 
 - **Имена.** Модель — PascalCase в единственном числе (`Need`, `LedgerEntry`), поле — camelCase, enum — PascalCase, значения enum — `UPPER_SNAKE`. В БД имена те же, без `@map` / `@@map`: таблица `"Need"`, колонка `"goalKop"`. В raw SQL (триггеры, `$queryRaw`) — в двойных кавычках.
 - **`id`** — `String @id @default(cuid(2))`: 24 символа, не угадывается и не выдаёт порядок записей, поэтому годится для публичных URL (`/donate/status/[id]`). Строка, а не `uuid`, — в raw SQL не нужно приведение `::uuid`. Естественный ключ вместо `id` — только у справочников (`Setting.key`).
-- **Время** — `DateTime @db.Timestamptz(3)`, хранится в UTC, в часовой пояс приюта переводится только при показе. `createdAt @default(now())` и `updatedAt @updatedAt` — у всех изменяемых моделей; у append-only (`Ledger*`) — только время создания или проводки. `@default(now())` Prisma вычисляет в приложении, а не в БД; где нужно время БД (момент проводки) — `@default(dbgenerated("now()"))`. В SQL часовой пояс указываем явно (`AT TIME ZONE`): `date_trunc` и `to_char` зависят от `TimeZone` сессии.
+- **Время** — `DateTime @db.Timestamptz(3)`, хранится в UTC, в часовой пояс приюта переводится только при показе. `createdAt @default(now())` и `updatedAt @updatedAt` — у всех изменяемых моделей; у append-only (`Ledger*`) — только время создания или проводки. `@default(now())` Prisma вычисляет в приложении, а не в БД; где нужно время БД (момент проводки) — `@default(dbgenerated("transaction_timestamp()"))`. Это та же функция, что `now()`, но `dbgenerated("now()")` Prisma читает из базы как `@default(now())` и видит расхождение со схемой. В SQL часовой пояс указываем явно (`AT TIME ZONE`): `date_trunc` и `to_char` зависят от `TimeZone` сессии.
 - **Деньги** — `Int` в копейках, поле с суффиксом `Kop` (`goalKop`, `amountKop`). В Postgres это `integer`: до 21 474 836,47 ₽ в одном значении; накопительные итоги в `Int` не храним. Суммы положительные, кроме `LedgerEntry.amountKop` (со знаком). Суммы внутри JSON (например, в `Setting`) — тоже целые копейки с суффиксом `Kop`.
   - **Prisma не отклоняет дробное значение для `Int`, а молча отбрасывает дробную часть** (`1998.9999…` → `1998`, `NaN` в необязательном поле → `NULL`). Поэтому сумма проверяется до записи — zod `.int()` / `Number.isSafeInteger`, а рубли из внешних источников переводятся в копейки только общим хелпером.
   - `SUM()` в raw SQL возвращает `bigint` (в TS — `bigint`, в `number` переводите явно) и `NULL` на пустом наборе — нужен `COALESCE`. `SUM(x::bigint)` и `AVG()` возвращают `Prisma.Decimal` — для денег не используем. `aggregate({ _sum })` возвращает `number`.
 - **Удаление.** Сущности с историей (пользователи, пожертвования) не удаляются — `deletedAt` или статус. Внешние ключи — `onDelete: Restrict`. Prisma ставит его по умолчанию **только у обязательных** связей, у необязательных (`needId String?`) — `SetNull`, и удаление нужды молча отвязало бы от неё пожертвования. Поэтому у необязательных связей `onDelete` пишем всегда: `Restrict` — для денег и всего, у чего есть история; `SetNull` — только для ссылок вроде «кто загрузил».
 - **Индексы.** Postgres не индексирует внешние ключи сам — у каждого FK-поля `@@index`.
+- **Связи с книгой.** Поле связи с моделью `Ledger*` называется по ней: `ledgerAccount`, `ledgerTransaction(s)`, `ledgerEntry`/`ledgerEntries`. Правило `shelter/ledger-boundary` не пускает такие ключи за пределы `src/server/ledger` (в `include`, вложенные записи, деструктуризацию), поэтому эти имена зарезервированы: свои поля и пропсы называйте иначе (`entries`, `rows`). Колонка внешнего ключа (`ledgerAccountId`) — обычное поле.
 - **JSON** (`Json` → `jsonb`) — только для данных, по которым не фильтруют: настройки, payload событий, тексты Tiptap. Форма значения — zod-схема в коде, как в [`src/server/settings/schema.ts`](../src/server/settings/schema.ts). Сохранённые значения проверяются при чтении, поэтому новое поле в схеме — с `.optional()` / `.default()` или вместе с миграцией данных.
 - **Email** хранится в нижнем регистре (CHECK в БД) — так уникальность не зависит от регистра.
 - **Чего нет в Prisma** (CHECK, триггеры, частичные индексы) — raw SQL в той же миграции: `pnpm db:migrate --create-only --name <имя>`, дописать SQL в `migration.sql`, затем `pnpm db:migrate`. Миграцию, попавшую в `main`, не редактируем — только новая миграция. Если `schema.prisma` поменяли без миграции, интеграционные тесты падают.
@@ -77,6 +79,8 @@ e2e/                      # Playwright
 - Функции доменов принимают `db: Db` — клиент или `tx` из `db.$transaction(async (tx) => …)`, чтобы вызывающий мог объединить несколько вызовов в одну транзакцию. Тип не отличает клиент от `tx`: функция, которой транзакция обязательна (`FOR UPDATE`, проводки), проверяет это сама.
 - Prisma Client генерируется в `src/generated/prisma` (не в git): `prisma generate` запускают `pnpm install` и `pnpm db:migrate`. Модели, типы и enum на сервере импортируем из `@/generated/prisma/client`, в клиентских компонентах — из `@/generated/prisma/browser`.
 - Модули с `import "server-only"` (`@/server/db`, `@/server/settings` …) за пределами Next.js не загружаются: пакета `server-only` в зависимостях нет, Next подставляет его сам, Vitest — заглушкой из `tests/stubs/`. Seed поэтому берёт клиент из `createPrismaClient(url)` (`@/server/db/client`, без `server-only`). Как воркеру (tsx) пользоваться доменными модулями — решается в FND-5.
+- **Ключи advisory-блокировок** (`pg_advisory_xact_lock`) — общие на всю базу, поэтому реестр здесь; новый ключ — сюда же:
+  - `3700000001` — блокировка периода книги, `ledger_period_lock_key()` ([ledger.md](ledger.md#инварианты)).
 - `pnpm db:seed` ([`prisma/seed.ts`](../prisma/seed.ts)) создаёт настройки по умолчанию и владельца: пока в базе нет активного `OWNER`, им становится пользователь `SEED_OWNER_EMAIL` (создаётся, если его нет). Дальше роли меняются только в админке. Повторный запуск добавляет недостающее и не трогает то, что уже правили.
 
 ### Идентичность
